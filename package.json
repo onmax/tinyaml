@@ -1,6 +1,6 @@
 {
   "name": "tinyaml",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Tiny, fast YAML parser and dumper with js-yaml JSON_SCHEMA semantics",
   "license": "MIT",
   "repository": {
