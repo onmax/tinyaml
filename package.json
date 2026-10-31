@@ -11,10 +11,11 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
@@ -23,7 +24,28 @@
     "lint": "oxlint src scripts bench test",
     "typecheck": "tsc -p .",
     "test": "node --test test/*.test.ts",
+    "suite": "node scripts/suite.ts",
+    "suite:fetch": "git clone --depth 1 -b data-2022-01-17 https://github.com/yaml/yaml-test-suite .cache/yaml-test-suite",
+    "js-yaml-tests": "scripts/js-yaml-tests/run.sh",
+    "js-yaml-tests:fetch": "git clone --depth 1 --branch 5.5.0 https://github.com/nodeca/js-yaml .cache/js-yaml && cd .cache/js-yaml && npm ci --ignore-scripts && npm run build && npm run spec:get",
+    "size": "node scripts/size.ts",
+    "bench": "node bench/index.ts",
     "check": "pnpm lint && pnpm typecheck"
   },
-  "packageManager": "pnpm@11.18.0"
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "js-yaml": "5.5.0",
+    "oxlint": "^1.90.0",
+    "tsdown": "^0.23.4",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@11.18.0",
+  "keywords": [
+    "yaml",
+    "js-yaml",
+    "parser",
+    "dumper",
+    "frontmatter"
+  ]
 }
