@@ -56,5 +56,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Check
         run: pnpm check
+      # The conformance tests compare every yaml-test-suite case with js-yaml.
+      - name: Fetch the YAML test suite
+        run: pnpm suite:fetch
       - name: Test
         run: pnpm test
