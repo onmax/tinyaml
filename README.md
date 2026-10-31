@@ -1,5 +1,5 @@
 <h1>
-  <img src="./.github/banner.svg" alt="tinyaml: YAML for JavaScript in 7.5 KB" width="100%">
+  <img src="./.github/banner.svg" alt="tinyaml" width="100%">
 </h1>
 
 [![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=release&icon=npm)](https://github.com/onmax/tinyaml/releases)
