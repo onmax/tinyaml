@@ -17,12 +17,12 @@
 <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
 <text x="188" y="140" fill="#fafafa" font-size="80" font-weight="700" letter-spacing="-3">tinyaml</text>
 <text x="80" y="214" fill="#a3a3a3" font-size="28">Swap your YAML library for a smaller, faster one.</text>
-<text x="80" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">5</text>
-<text x="80" y="340" fill="#737373" font-size="20">drop-in replacements</text>
-<text x="300" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">7.5<tspan fill="#e5484d">×</tspan></text>
-<text x="300" y="340" fill="#737373" font-size="20">faster than yaml</text>
-<text x="520" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">0</text>
-<text x="520" y="340" fill="#737373" font-size="20">dependencies</text>
+<text x="80" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">1.3–1.6<tspan fill="#e5484d">×</tspan></text>
+<text x="80" y="340" fill="#737373" font-size="20">faster than js-yaml</text>
+<text x="340" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">5</text>
+<text x="340" y="340" fill="#737373" font-size="20">drop-in replacements</text>
+<text x="550" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">0</text>
+<text x="550" y="340" fill="#737373" font-size="20">dependencies</text>
 </g>
 <rect x="700" y="92" width="500" height="216" rx="16" fill="#121212" stroke="#262626"/>
 <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">
