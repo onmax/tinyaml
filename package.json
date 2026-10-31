@@ -1,0 +1,63 @@
+{
+  "name": "tinyaml",
+  "version": "0.0.0",
+  "description": "Tiny, fast YAML parser and dumper with js-yaml JSON_SCHEMA semantics",
+  "keywords": [
+    "dumper",
+    "frontmatter",
+    "js-yaml",
+    "parser",
+    "yaml"
+  ],
+  "homepage": "https://github.com/onmax/tinyaml#readme",
+  "bugs": "https://github.com/onmax/tinyaml/issues",
+  "license": "MIT",
+  "author": "onmax",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onmax/tinyaml.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vp pack",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "typecheck": "tsrs --noEmit",
+    "test": "vp test",
+    "check": "vp check && pnpm typecheck",
+    "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
+    "prepare": "vp config",
+    "suite": "node scripts/suite.ts",
+    "suite:fetch": "git clone --depth 1 -b data-2022-01-17 https://github.com/yaml/yaml-test-suite .cache/yaml-test-suite",
+    "fuzz": "node scripts/fuzz.ts",
+    "js-yaml-tests": "scripts/js-yaml-tests/run.sh",
+    "js-yaml-tests:fetch": "git clone --depth 1 --branch 5.5.0 https://github.com/nodeca/js-yaml .cache/js-yaml && cd .cache/js-yaml && npm ci --ignore-scripts && npm run build && npm run spec:get",
+    "size": "node scripts/size.ts",
+    "bench": "node bench/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "js-yaml": "5.5.0",
+    "publint": "^0.3.25",
+    "tsrs": "0.20.1-ts7.1.0-beta",
+    "typescript": "^7.0.2",
+    "vite-plus": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

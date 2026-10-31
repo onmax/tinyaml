@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t">
+<title id="t">tinyaml: YAML for JavaScript in 7.5 KB</title>
+<defs>
+<pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#fff" fill-opacity=".07"/></pattern>
+<radialGradient id="glow" cx="1080" cy="400" r="520" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e5484d" stop-opacity=".2"/><stop offset="1" stop-color="#e5484d" stop-opacity="0"/></radialGradient>
+<linearGradient id="fade" x1="0" x2="1"><stop offset=".35" stop-color="#0a0a0a"/><stop offset="1" stop-color="#0a0a0a" stop-opacity="0"/></linearGradient>
+<clipPath id="frame"><rect width="1280" height="400" rx="24"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="1280" height="400" fill="#0a0a0a"/>
+<rect width="1280" height="400" fill="url(#dots)"/>
+<rect width="700" height="400" fill="url(#fade)"/>
+<rect width="1280" height="400" fill="url(#glow)"/>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<text x="72" y="196" fill="#fafafa" font-size="96" font-weight="700" letter-spacing="-3">tinyaml</text>
+<text x="76" y="252" fill="#a3a3a3" font-size="30">YAML for JavaScript in 7.5 KB, with js-yaml's behavior</text>
+</g>
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" fill="#a3a3a3">
+<text x="860" y="150"><tspan fill="#e5484d">title</tspan>: Hello</text>
+<text x="860" y="186"><tspan fill="#e5484d">tags</tspan>: [yaml, tiny]</text>
+<text x="860" y="222"><tspan fill="#e5484d">gzip</tspan>: 7.5 KB</text>
+<text x="860" y="258"><tspan fill="#e5484d">deps</tspan>: 0</text>
+</g>
+<path d="M76 290 C 240 274, 420 300, 620 284" fill="none" stroke="#e5484d" stroke-width="3" stroke-linecap="round"/>
+</g>
+</svg>
