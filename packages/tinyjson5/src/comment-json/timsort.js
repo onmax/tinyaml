@@ -1,7 +1,8 @@
 // array-timsort 1.0.3 (MIT, Copyright (c) 2015 Marco Ziccardi), unchanged
 // but for the ES module export and, marked "tinyjson5", the writes its
-// sloppy-mode functions make to the array it sorts, which fail silently
-// there. The TimSort class is strict code anyway, and its writes still throw.
+// sloppy-mode functions make, to the array it sorts and the index map it
+// builds, which fail silently there. The TimSort class is strict code
+// anyway, and its writes still throw.
 
 // tinyjson5: an assignment as sloppy mode makes it, which fails silently
 // where this module's strict mode would throw, and still throws what a
@@ -239,26 +240,26 @@ function binaryInsertionSort (array, lo, hi, start, compare) {
     switch (n) {
     case 3:
       sloppy_set(array, left + 3, array[left + 2])
-      results[left + 3] = results[left + 2]
+      sloppy_set(results, left + 3, results[left + 2])
       /* falls through */
     case 2:
       sloppy_set(array, left + 2, array[left + 1])
-      results[left + 2] = results[left + 1]
+      sloppy_set(results, left + 2, results[left + 1])
       /* falls through */
     case 1:
       sloppy_set(array, left + 1, array[left])
-      results[left + 1] = results[left]
+      sloppy_set(results, left + 1, results[left])
       break
     default:
       while (n > 0) {
         sloppy_set(array, left + n, array[left + n - 1])
-        results[left + n] = results[left + n - 1]
+        sloppy_set(results, left + n, results[left + n - 1])
         n --
       }
     }
 
     sloppy_set(array, left, pivot)
-    results[left] = pivotIndex
+    sloppy_set(results, left, pivotIndex)
   }
 }
 
@@ -1020,7 +1021,7 @@ function sort (array, compare, lo, hi) {
   let i = 0
 
   while (i < length) {
-    results[i] = i ++
+    sloppy_set(results, i, i ++)
   }
 
   /*

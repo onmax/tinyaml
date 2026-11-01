@@ -1,5 +1,6 @@
 // jju 1.4.0's lib/analyze.js (MIT, Copyright (c) 2013 Alex Kocharin), unchanged
-// but for imports in place of require() and the exports at the end.
+// but for imports in place of require(), the exports at the end, and
+// assignments that fail silently, as in sloppy mode, marked "tinyjson5".
 import { tokenize } from './parse.js'
 const module = { exports: {} }
 
@@ -35,7 +36,7 @@ module.exports.analyze = function analyzeJSON(input, options) {
       if (input[i+1] && input[i+1].type === 'whitespace') {
         if (input[i+1].raw[0] === '\t') {
           // if first is tab, then indent is tab
-          stats.indent['\t'] = (stats.indent['\t'] || 0) + 1
+          sloppySet(stats.indent, '\t', (stats.indent['\t'] || 0) + 1)
         }
         if (input[i+1].raw.match(/^\x20+$/)) {
           // if all are spaces, then indent is space
@@ -44,12 +45,12 @@ module.exports.analyze = function analyzeJSON(input, options) {
           var indent_len = input[i+1].stack.length + 1
           if (ws_len % indent_len === 0) {
             var t = Array(ws_len / indent_len + 1).join(' ')
-            stats.indent[t] = (stats.indent[t] || 0) + 1
+            sloppySet(stats.indent, t, (stats.indent[t] || 0) + 1)
           }
         }
       }
 
-      stats.newline[input[i].raw] = (stats.newline[input[i].raw] || 0) + 1
+      sloppySet(stats.newline, input[i].raw, (stats.newline[input[i].raw] || 0) + 1)
     }
 
     if (input[i].type === 'newline') {
@@ -67,7 +68,7 @@ module.exports.analyze = function analyzeJSON(input, options) {
 
     if (input[i].type === 'key' || input[i].type === 'literal') {
       if (input[i].raw[0] === '"' || input[i].raw[0] === "'") {
-        stats.quote[input[i].raw[0]] = (stats.quote[input[i].raw[0]] || 0) + 1
+        sloppySet(stats.quote, input[i].raw[0], (stats.quote[input[i].raw[0]] || 0) + 1)
       }
     }
 
@@ -81,13 +82,21 @@ module.exports.analyze = function analyzeJSON(input, options) {
 
   for (var k in stats) {
     if (Object.keys(stats[k]).length) {
-      result[k] = Object.keys(stats[k]).reduce(function(a, b) {
+      sloppySet(result, k, Object.keys(stats[k]).reduce(function(a, b) {
         return stats[k][a] > stats[k][b] ? a : b
-      })
+      }))
     }
   }
 
   return result
+}
+
+// tinyjson5: an assignment as jju's sloppy-mode code makes it, which fails
+// silently where this module's strict mode would throw, as on a read-only
+// property a prototype has.
+function sloppySet(object, key, value) {
+  if (object === null || object === undefined) object[key] = value
+  else Reflect.set(Object(object), key, value, object)
 }
 
 const exported_analyze = module.exports.analyze

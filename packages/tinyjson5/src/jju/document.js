@@ -305,26 +305,26 @@ Document.prototype.set = function(path, value) {
         var pos2 = find_last_non_ws_token(this._tokens, pos_old[0], position[0] - 1)
         assert.equal(this._tokens[pos2].type, 'separator')
         assert.equal(this._tokens[pos2].raw, ':')
-        position[0] = pos2
+        sloppySet(position, 0, pos2)
 
         // key
         var pos2 = find_last_non_ws_token(this._tokens, pos_old[0], position[0] - 1)
         assert.equal(this._tokens[pos2].type, 'key')
         assert.equal(this._tokens[pos2].value, path[path.length-1])
-        position[0] = pos2
+        sloppySet(position, 0, pos2)
       }
 
       // removing comma in arrays and objects
       var pos2 = find_last_non_ws_token(this._tokens, pos_old[0], position[0] - 1)
       assert.equal(this._tokens[pos2].type, 'separator')
       if (this._tokens[pos2].raw === ',') {
-        position[0] = pos2
+        sloppySet(position, 0, pos2)
       } else {
         // beginning of the array/object, so we should remove trailing comma instead
         pos2 = find_first_non_ws_token(this._tokens, position[1] + 1, pos_old[1])
         assert.equal(this._tokens[pos2].type, 'separator')
         if (this._tokens[pos2].raw === ',') {
-          position[1] = pos2
+          sloppySet(position, 1, pos2)
         }
       }
 
@@ -384,8 +384,8 @@ Document.prototype.set = function(path, value) {
       newtokens.push.apply(newtokens, indent.suffix)
 
     assert.equal(this._tokens[position[1]].type, 'separator')
-    position[0] = pos2+1
-    position[1] = pos2
+    sloppySet(position, 0, pos2+1)
+    sloppySet(position, 1, pos2)
   }
 
   newtokens.unshift(position[1] - position[0] + 1)

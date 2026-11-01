@@ -234,7 +234,7 @@ function _stringify(object, options, recursiveLvl, currentKey) {
     if (options.indent && (len > options._splitMax - recursiveLvl * options.indent.length || len > options._splitMin) ) {
       // remove trailing comma in multiline if asked to
       if (options.no_trailing_comma && result.length) {
-        result[result.length-1] = result[result.length-1].substring(0, result[result.length-1].length-1)
+        sloppySet(result, result.length-1, result[result.length-1].substring(0, result[result.length-1].length-1))
       }
 
       var innerStuff = result.map(function(x) {return indent(x, 1)}).join('')
@@ -245,7 +245,7 @@ function _stringify(object, options, recursiveLvl, currentKey) {
     } else {
       // always remove trailing comma in one-lined arrays
       if (result.length) {
-        result[result.length-1] = result[result.length-1].substring(0, result[result.length-1].length-1)
+        sloppySet(result, result.length-1, result[result.length-1].substring(0, result[result.length-1].length-1))
       }
 
       var innerStuff = result.join(options.indent ? ' ' : '')
