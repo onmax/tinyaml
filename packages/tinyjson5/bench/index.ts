@@ -55,15 +55,22 @@ function format(ms: number): string {
   return ms < 1 ? `${(ms * 1000).toFixed(1)} \u00b5s` : `${ms.toFixed(2)} ms`;
 }
 
-console.log(`large input: ${(large.length / 1024).toFixed(0)} KB of JSON5`);
-console.log("| Operation | json5 | tinyjson5 | Speedup |\n| --- | --- | --- | --- |");
+// --json prints [{ operation, theirs, ours }] in ms instead, for the root charts.
+const asJson = process.argv.includes("--json");
+const rows: { operation: string; theirs: number; ours: number }[] = [];
+const log = (line: string) => asJson || console.log(line);
+log(`large input: ${(large.length / 1024).toFixed(0)} KB of JSON5`);
+log("| Operation | json5 | tinyjson5 | Speedup |\n| --- | --- | --- | --- |");
 for (const [name, text] of Object.entries(inputs)) {
   const a = median(() => json5.parse(text));
   const b = median(() => tinyjson5.parse(text));
-  console.log(`| parse ${name} | ${format(a)} | ${format(b)} | ${(a / b).toFixed(1)}x |`);
+  rows.push({ operation: `parse ${name}`, theirs: a, ours: b });
+  log(`| parse ${name} | ${format(a)} | ${format(b)} | ${(a / b).toFixed(1)}x |`);
 }
 for (const [name, value] of Object.entries(values)) {
   const a = median(() => json5.stringify(value, null, 2));
   const b = median(() => tinyjson5.stringify(value, null, 2));
-  console.log(`| stringify ${name} | ${format(a)} | ${format(b)} | ${(a / b).toFixed(1)}x |`);
+  rows.push({ operation: `stringify ${name}`, theirs: a, ours: b });
+  log(`| stringify ${name} | ${format(a)} | ${format(b)} | ${(a / b).toFixed(1)}x |`);
 }
+if (asJson) console.log(JSON.stringify(rows, null, 2));

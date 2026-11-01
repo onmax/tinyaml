@@ -11,25 +11,25 @@
 <rect width="1280" height="400" fill="url(#glow)"/>
 <g transform="translate(80 72) scale(1.25)">
 <rect width="64" height="64" rx="14" fill="#171717" stroke="#262626" stroke-width=".8"/>
-<g fill="#e5484d"><rect x="11" y="14" width="18" height="8" rx="4"/><rect x="19" y="28" width="12" height="8" rx="4"/><rect x="19" y="42" width="8" height="8" rx="4"/></g>
-<g fill="#737373"><rect x="34" y="14" width="19" height="8" rx="4"/><rect x="36" y="28" width="17" height="8" rx="4"/><rect x="32" y="42" width="13" height="8" rx="4"/></g>
+<g fill="#e5484d"><rect x="11" y="14" width="16" height="8" rx="4"/><rect x="11" y="28" width="12" height="8" rx="4"/><rect x="11" y="42" width="8" height="8" rx="4"/></g>
+<g fill="#737373"><rect x="31" y="14" width="22" height="8" rx="4"/><rect x="27" y="28" width="14" height="8" rx="4"/><rect x="23" y="42" width="8" height="8" rx="4"/></g>
 </g>
 <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
 <text x="188" y="140" fill="#fafafa" font-size="80" font-weight="700" letter-spacing="-3">tinyaml</text>
 <text x="80" y="214" fill="#a3a3a3" font-size="28">Swap your YAML library for a smaller, faster one.</text>
-<text x="80" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">1.5–1.6<tspan fill="#e5484d">×</tspan></text>
+<text x="80" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">1.5<tspan fill="#e5484d">×</tspan></text>
 <text x="80" y="340" fill="#737373" font-size="20">faster than js-yaml</text>
-<text x="340" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">5</text>
-<text x="340" y="340" fill="#737373" font-size="20">drop-in replacements</text>
-<text x="550" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">0</text>
-<text x="550" y="340" fill="#737373" font-size="20">dependencies</text>
+<text x="290" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">5</text>
+<text x="290" y="340" fill="#737373" font-size="20">drop-in replacements</text>
+<text x="500" y="306" fill="#fafafa" font-size="56" font-weight="700" letter-spacing="-2">0</text>
+<text x="500" y="340" fill="#737373" font-size="20">dependencies</text>
 </g>
 <rect x="700" y="92" width="500" height="216" rx="16" fill="#121212" stroke="#262626"/>
 <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">
 <text x="728" y="138" fill="#525252"># change one import</text>
 <text x="728" y="182" fill="#737373"><tspan fill="#e5484d">-</tspan> import yaml from "js-yaml"</text>
-<text x="728" y="218" fill="#fafafa"><tspan fill="#e5484d">+</tspan> import yaml from "tinyaml/js-yaml"</text>
-<text x="728" y="272" fill="#a3a3a3"><tspan fill="#e5484d">also</tspan>: [js-yaml-v5, yaml, yamljs, std]</text>
+<text x="728" y="226" fill="#fafafa"><tspan fill="#e5484d">+</tspan> import yaml from "tinyaml/js-yaml"</text>
+<text x="728" y="270" fill="#525252"># also js-yaml-v5, yaml, yamljs, std</text>
 </g>
 </g>
 </svg>

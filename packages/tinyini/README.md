@@ -1,4 +1,6 @@
-# tinyini
+<h1>
+  <img src="./.github/banner.svg" alt="tinyini" width="100%">
+</h1>
 
 tinyini reads and writes INI the way [ini](https://github.com/npm/ini) 7.0.0 does. It has no dependencies, parses 2.0 to 2.7 times faster, and stringifies 2.1 to 2.9 times faster. It is not smaller: ini is already 1.6 KB gzipped, and tinyini is the same 1.6 KB. I wrote it as a drop-in for ini 7.0.0, the version [confbox](https://github.com/unjs/confbox) 0.3.2 bundles.
 

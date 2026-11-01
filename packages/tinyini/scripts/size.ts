@@ -12,6 +12,8 @@ const entries: Record<string, string> = {
   "ini parse + stringify, as confbox imports them": "export { parse, stringify } from 'ini'",
 };
 
+// --json prints { [entry]: { min, gzip } } in bytes instead, for the root charts.
+const json: Record<string, { min: number; gzip: number }> = {};
 for (const [name, contents] of Object.entries(entries)) {
   const result = buildSync({
     stdin: { contents, resolveDir: process.cwd(), loader: "ts" },
@@ -24,7 +26,11 @@ for (const [name, contents] of Object.entries(entries)) {
   });
   const code = result.outputFiles[0]!.contents;
   const kb = (n: number) => `${(n / 1024).toFixed(2)} KB`;
-  console.log(
-    `${name.padEnd(50)} ${kb(code.length).padStart(9)} min ${kb(gzipSync(code, { level: 9 }).length).padStart(8)} gzip`,
-  );
+  const gzip = gzipSync(code, { level: 9 }).length;
+  json[name] = { min: code.length, gzip };
+  if (!process.argv.includes("--json"))
+    console.log(
+      `${name.padEnd(50)} ${kb(code.length).padStart(9)} min ${kb(gzip).padStart(8)} gzip`,
+    );
 }
+if (process.argv.includes("--json")) console.log(JSON.stringify(json, null, 2));
