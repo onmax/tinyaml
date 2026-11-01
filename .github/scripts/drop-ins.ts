@@ -87,6 +87,17 @@ const data: DropIns = {
     ),
   ],
   root: yaml("yaml", "tinyaml", "yaml", "yaml (tinyaml root)"),
+  roots: [
+    compare(
+      "tinyjson5",
+      "json5 2.2.3",
+      "tinyjson5",
+      json5Size,
+      ["json5 2.2.3", "tinyjson5"],
+      json5Bench,
+      "json5 2.2.3 (tinyjson5 root)",
+    ),
+  ],
 };
 
 writeFileSync(".github/drop-ins.json", `${JSON.stringify(data, null, 2)}\n`);

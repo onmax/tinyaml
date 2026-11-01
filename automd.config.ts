@@ -14,7 +14,9 @@ export type Comparison = {
   /** Absent for a library that only parses, such as strip-json-comments. */
   stringify?: Timing;
 };
-export type DropIns = { machine: string; dropIns: Comparison[]; root: Comparison };
+// `root` is tinyaml's own API against yaml; `roots` the other packages' own
+// APIs, each against the library its users switch from.
+export type DropIns = { machine: string; dropIns: Comparison[]; root: Comparison; roots?: Comparison[] };
 
 const BADGE = "https://comark-ui.onmax.me/badge.svg";
 const REPO = "onmax/tiny";
@@ -41,7 +43,7 @@ const readDropIns = (): DropIns => JSON.parse(readFileSync(".github/drop-ins.jso
 // The size of the package's own entry, which for tinyaml is its root API.
 const facts = (name: string, section: string) => {
   const data = readDropIns();
-  const own = [data.root, ...data.dropIns].find((r) => r.entry === name)!;
+  const own = [data.root, ...(data.roots ?? []), ...data.dropIns].find((r) => r.entry === name)!;
   const pkg = JSON.parse(readFileSync(`packages/${name}/package.json`, "utf8"));
   const dependencies = String(Object.keys(pkg.dependencies ?? {}).length);
   return [
