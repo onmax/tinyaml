@@ -11,7 +11,8 @@ export type Comparison = {
   entry: string;
   gzip: Timing;
   parse: Timing;
-  stringify: Timing;
+  /** Absent for a library that only parses, such as strip-json-comments. */
+  stringify?: Timing;
 };
 export type DropIns = { machine: string; dropIns: Comparison[]; root: Comparison };
 
@@ -107,7 +108,7 @@ export default {
               `\`${r.entry}\``,
               `${kib(r.gzip.theirs)} → ${kib(r.gzip.ours)} KiB`,
               `${times(r.parse)} faster`,
-              `${times(r.stringify)} faster`,
+              r.stringify ? `${times(r.stringify)} faster` : "—",
             ]),
           ],
           [false, false, true, true, true],
@@ -121,7 +122,7 @@ export default {
             "",
             `Starting fresh with YAML? The root \`tinyaml\` API is the smallest of all: ${kib(root.gzip.ours)} KiB, ` +
               `${smaller(jsYaml.gzip.theirs)}× smaller than js-yaml 4 and ${smaller(root.gzip.theirs)}× smaller than yaml. ` +
-              `It parses ${times(root.parse)} faster than yaml and stringifies ${times(root.stringify)} faster.`,
+              `It parses ${times(root.parse)} faster than yaml and stringifies ${times(root.stringify!)} faster.`,
           );
         }
         lines.push(
