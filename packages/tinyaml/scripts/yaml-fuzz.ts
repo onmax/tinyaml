@@ -7,8 +7,10 @@
 // Each input where they differ, another value, an error from one side only,
 // an error that differs (the kind names the fields), or other warnings, is
 // recorded with its options and both outcomes in
-// scripts/baselines/yaml-fuzz.json (see baseline.ts). An unrecorded
-// difference, a recorded one that's gone, or a crash fails the run.
+// scripts/baselines/yaml-fuzz.json (see baseline.ts). Warnings are compared
+// on every input: where something else differs too, the record's kind says
+// so and it holds both sides' warnings. An unrecorded difference, a recorded
+// one that's gone, or a crash fails the run.
 // Usage: node --no-warnings scripts/yaml-fuzz.ts [iterations] [seed] [--update]
 // After a deliberate change, `node --no-warnings scripts/yaml-fuzz.ts 5000 1
 // --update`, or `UPDATE=1 pnpm compare`, rewrites the records; review the diff.
@@ -206,8 +208,8 @@ for (let i = 0; i < iterations; i++) {
     if (!differs) kind = "sameError";
     else errors.set(differs.kind, (errors.get(differs.kind) ?? 0) + 1);
   } else kind = expected.ok ? "tinyamlThrows" : "yamlThrows";
-  if ((kind === "same" || kind === "sameError") && !equal(expected.warnings, actual.warnings))
-    kind = "warnings";
+  const warns = !equal(expected.warnings, actual.warnings);
+  if ((kind === "same" || kind === "sameError") && warns) kind = "warnings";
   const pair = `${input}\0${JSON.stringify(options)}`;
   if (kind) {
     counts[kind]++;
@@ -224,18 +226,30 @@ for (let i = 0; i < iterations; i++) {
     continue;
   }
   const label = differs ? differs.kind : labels[kind!];
-  baseline.add(i, `${label}${keyed ? ", collection key" : ""}`, input, options, {
-    yaml: differs
-      ? describe(differs.sides[0])
-      : kind === "warnings"
-        ? describe(expected.warnings)
-        : show(expected),
-    tinyaml: differs
-      ? describe(differs.sides[1])
-      : kind === "warnings"
-        ? describe(actual.warnings)
-        : show(actual),
-  });
+  // Warnings that differ along with something else.
+  const also = warns && kind !== "warnings";
+  baseline.add(
+    i,
+    `${label}${keyed ? ", collection key" : ""}${also ? ", other warnings" : ""}`,
+    input,
+    options,
+    {
+      yaml: differs
+        ? describe(differs.sides[0])
+        : kind === "warnings"
+          ? describe(expected.warnings)
+          : show(expected),
+      tinyaml: differs
+        ? describe(differs.sides[1])
+        : kind === "warnings"
+          ? describe(actual.warnings)
+          : show(actual),
+      ...(also && {
+        "yaml warnings": describe(expected.warnings),
+        "tinyaml warnings": describe(actual.warnings),
+      }),
+    },
+  );
 }
 // The crashes, shortest first.
 const shown = [...failures]

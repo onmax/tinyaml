@@ -172,17 +172,6 @@ function engine(content: string, options: ParseOptions): Engine {
 export function parseAll(content: string, options: ParseOptions = {}): unknown[] {
   content = String(content);
   const docs = parseDocuments(content, engine(content, options));
-  // Under YAML 1.1, std warns about line breaks YAML 1.2 reads as text, at
-  // the end of the input.
-  let buffer;
-  if (
-    options.onWarning &&
-    /[\x85\u2028\u2029]/.test(content) &&
-    /^%YAML[ \t]+1\.0*[01](?!\d)/m.test((buffer = lines(content)))
-  )
-    options.onWarning(
-      syntaxError("non-ASCII line breaks are interpreted as content", content, buffer.length),
-    );
   // std reads a document from anything but the empty string.
   return docs.length || !content ? docs : [null];
 }

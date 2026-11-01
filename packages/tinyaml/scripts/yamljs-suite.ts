@@ -13,10 +13,13 @@
 //   tinyaml crash tinyaml throws something other than a ParseException
 //
 // A tinyaml bug or crash fails the run, and so does a case that moves into
-// or out of NEITHER.
-// Usage: node scripts/yamljs-suite.ts [-v]
+// or out of NEITHER. Each side's outcome on every case that isn't the same
+// is recorded in scripts/baselines/yamljs-suite.json (see baseline.ts), with
+// its kind, and a case that changes, turns up or goes fails the run too.
+// Usage: node scripts/yamljs-suite.ts [-v] [--update]
 import { createRequire } from "node:module";
 import { parse, ParseException } from "../src/yamljs/index.ts";
+import { Baseline, describe, describeError } from "./baseline.ts";
 import {
   equal,
   expectCount,
@@ -105,7 +108,9 @@ const neither: string[] = [];
 const show = (o: Outcome) =>
   o.ok ? JSON.stringify(json(o.value)) : `${o.crash ? "CRASH" : "ERROR"} ${o.error}`;
 const cases = suiteCases();
-for (const c of cases) {
+const baseline = new Baseline("yamljs-suite", "suite", cases.length);
+const record = (o: Outcome) => (o.ok ? describe(o.value) : describeError(o.error));
+for (const [i, c] of cases.entries()) {
   const theirs = run(() => yamljs.parse(c.input));
   const ours = run(() => parse(c.input), ParseException);
   let kind: string;
@@ -120,6 +125,11 @@ for (const c of cases) {
     kind = right(theirs) ? "tinyaml bug" : right(ours) ? "yamljs bug" : "neither";
   }
   counts[kind]!++;
+  if (kind !== "same")
+    baseline.add(i, `${c.id} ${kind}`, c.input, undefined, {
+      yamljs: record(theirs),
+      tinyaml: record(ours),
+    });
   if (kind === "neither") neither.push(c.id);
   report[kind]?.push(`${c.id}\n  yamljs:  ${show(theirs)}\n  tinyaml: ${show(ours)}`);
 }
@@ -134,3 +144,4 @@ console.log(
 expectCount("tinyaml bugs", counts["tinyaml bug"]!, 0);
 expectCount("tinyaml crashes", counts["tinyaml crash"]!, 0);
 expectList("cases neither reads right", neither, NEITHER);
+baseline.finish();

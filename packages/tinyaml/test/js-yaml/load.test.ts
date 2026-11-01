@@ -384,8 +384,162 @@ folded: >
     ]);
   });
 
+  // The value, or the error's message and file name.
+  const outcome = (fn: () => unknown) => {
+    try {
+      return fn();
+    } catch (e) {
+      return [(e as YAMLException).message, (e as YAMLException).mark?.name];
+    }
+  };
+
+  it("takes options in loadAll's iterator place only without a third argument", () => {
+    const dup = "a: 1\na: 2\n";
+    for (const args of [
+      [{ json: true }],
+      [{ json: true }, undefined],
+      [{ json: true }, {}],
+      [{ json: true }, null],
+      [{}, { json: true }],
+      [5, { json: true }],
+      ["x", { json: true }],
+      [null, { json: true }],
+      [undefined, null],
+    ])
+      expect(outcome(() => loadAll(dup, ...(args as [never, never])))).toEqual(
+        outcome(() => jsYaml.loadAll(dup, ...(args as [never, never]))),
+      );
+  });
+
+  it("names no file for an empty filename", () => {
+    for (const filename of ["", undefined, "in.yml"])
+      expect(outcome(() => load("a: [\n", { filename }))).toEqual(
+        outcome(() => jsYaml.load("a: [\n", { filename })),
+      );
+    expect(outcome(() => load("a: [\n", { filename: "" }))).toEqual([expect.any(String), null]);
+  });
+
+  it("rejects a merge of more than 100 mappings, with or without a key limit", () => {
+    const big = `{<<: [${Array(101).fill("{}").join(",")}]}\n`;
+    expect(() => load(big)).toThrow("abnormal merge sequence size");
+    expect(() => load(big, { maxTotalMergeKeys: -1 })).toThrow("abnormal merge sequence size");
+    expect(load(`<<: [${Array(100).fill("{}").join(",")}]\n`)).toEqual({});
+  });
+
+  it("warns about line breaks YAML 1.2 reads as text in YAML 1.1, or with legacy", () => {
+    const warnings = (
+      load: (input: string, options: object) => unknown,
+      input: string,
+      options: object,
+    ) => {
+      const found: unknown[] = [];
+      load(input, {
+        ...options,
+        onWarning: (e: YAMLException) => found.push([e.reason, e.mark.position]),
+      });
+      return found;
+    };
+    const ours = (input: string, options: object) => loadAll(input, options);
+    const theirs = (input: string, options: object) => jsYaml.loadAll(input, null, options);
+    for (const [input, options] of [
+      ["a: x\u0085y\n", { legacy: true }],
+      ["a: x y\n---\nb: 1\n", { legacy: true }],
+      ["a: 1\n---\nb: x \n", { legacy: true }],
+      ["# c\u0085\na: 1\n", { legacy: true }],
+      ["a: 1\n...\n# x\u0085\nb: 2\n", { legacy: true }],
+      ["%YAML 1.2\n---\na: x\u0085y\n", { legacy: true }],
+      ["%YAML 1.1\n---\na: x\u0085y\n", {}],
+      ["%YAML 1.1\n---\na: 1\n---\nb: x \n", {}],
+      ["a: x\u0085y\n", {}],
+    ] as const)
+      expect(warnings(ours, input, options), JSON.stringify(input)).toEqual(
+        warnings(theirs, input, options),
+      );
+    expect(warnings(ours, "a: x\u0085y\n", { legacy: true })).toEqual([
+      ["non-ASCII line breaks are interpreted as content", 7],
+    ]);
+  });
+
   it("has js-yaml's default export and 3.x names", () => {
     expect(yaml.load).toBe(load);
     expect(safeLoad).toBe(load);
+  });
+
+  it("rejects a tab that indents a block value, as js-yaml 4 does", () => {
+    for (const input of [
+      "a:\n\tb",
+      "a:\n\t b",
+      "-\n\ta",
+      "? a\n:\n\tb",
+      "a:\n\t[b]",
+      "a: &x\n\tb",
+      "a: !t\n\tb",
+      "a:\n\t#c\n\tb",
+      "x:\n a:\n \tb",
+      "foo|:\r\tbar\r",
+    ])
+      expect(
+        outcome(() => load(input)),
+        JSON.stringify(input),
+      ).toEqual(outcome(() => jsYaml.load(input)));
+  });
+
+  it("checks verbatim tags as js-yaml 4 does", () => {
+    // js-yaml 4 gives the line and column where the tag starts, and the
+    // position at the end of the input.
+    const end = (fn: () => unknown) => {
+      try {
+        return fn();
+      } catch (e) {
+        return [(e as YAMLException).reason, (e as YAMLException).mark.position];
+      }
+    };
+    for (const input of ["!<> x", "!<a x", "a:\n  !<b c"])
+      expect(
+        end(() => load(input)),
+        input,
+      ).toEqual(end(() => jsYaml.load(input)));
+    for (const input of [
+      "!<>> x",
+      "!<bad|tag> x",
+      "[!<bad|tag> x]",
+      "!<{x}> x",
+      "!<%zz> x",
+      "!<|a> x",
+      "!a|b x",
+      "!<tag:yaml.org,2002:%69nt> 12",
+    ])
+      expect(
+        outcome(() => load(input)),
+        input,
+      ).toEqual(outcome(() => jsYaml.load(input)));
+  });
+
+  it("counts every node toward maxDepth, aliases too, as js-yaml 4 does", () => {
+    for (const [input, maxDepth] of [
+      ["1", 1],
+      ["- 1", 2],
+      ["- &a 1\n- - *a", 3],
+      ["- &a 1\n- [*a]", 3],
+      ["[&a 1,[*a]]", 2],
+      ["[&a 1,[*a]]", 3],
+      ["{a: &a 1, b: [*a]}", 3],
+      ["a: &a 1\nb:\n  c: *a", 3],
+      ["a: [1]", 2],
+      ["a: [1]", 3],
+      ["- a: 1\n  b: |\n    x", 3],
+      ["---\n---\n", 1],
+    ] as const) {
+      // @types/js-yaml lacks maxDepth.
+      const options: object = { maxDepth };
+      expect(
+        outcome(() => loadAll(input, null, options)),
+        input,
+      ).toEqual(outcome(() => jsYaml.loadAll(input, null, options)));
+    }
+  });
+
+  it("reads no compact mapping after a key with properties but no content", () => {
+    expect(outcome(() => load("&a : b: c"))).toEqual(outcome(() => jsYaml.load("&a : b: c")));
   });
 });

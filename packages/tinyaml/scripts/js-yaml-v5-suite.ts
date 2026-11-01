@@ -4,22 +4,23 @@
 // same value, and whatever it rejects, tinyaml must reject with a
 // YAMLException. Accepting YAML js-yaml 5 rejects fails the run too. Error
 // messages and positions are compared on every case both reject; the cases
-// where they differ are listed below, exactly.
-// Usage: node scripts/js-yaml-v5-suite.ts [-v]
+// where they differ are listed below, exactly, and each side's error on them
+// is recorded in scripts/baselines/js-yaml-v5-suite.json (see baseline.ts):
+// one that changes fails the run too.
+// Usage: node scripts/js-yaml-v5-suite.ts [-v] [--update]
 import * as yaml from "js-yaml5";
 import { loadAll, YAMLException } from "../src/js-yaml-v5/index.ts";
+import { Baseline, describeError } from "./baseline.ts";
 import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
 
 // Both reject, with another message.
 const MESSAGES = [
   "3HFZ",
-  "4EJS",
   "9JBA",
   "9KBC",
   "C4HZ",
   "CVW2",
   "CXX2",
-  "DK95/06",
   "LHL4",
   "N782",
   "SU5Z",
@@ -56,9 +57,10 @@ const messages: string[] = [];
 const positions: string[] = [];
 let rejected = 0;
 const diffs: string[] = [];
+const baseline = new Baseline("js-yaml-v5-suite", "suite", cases.length);
 const show = (o: Outcome) =>
   o.ok ? JSON.stringify(o.value) : `${o.crash ? "CRASH" : "ERROR"} ${o.error} @${o.at}`;
-for (const { id, input } of cases) {
+for (const [i, { id, input }] of cases.entries()) {
   const expected = run(() => yaml.loadAll(input), yaml.YAMLException);
   const actual = run(() => loadAll(input), YAMLException);
   if (!actual.ok && actual.crash) diffs.push(id);
@@ -69,8 +71,18 @@ for (const { id, input } of cases) {
       rejected++;
       if (expected.error !== actual.error) messages.push(id);
       else if (expected.at !== actual.at) positions.push(id);
-      if (verbose && (expected.error !== actual.error || expected.at !== actual.at))
-        console.log(`${id}: ${show(expected)} | ${show(actual)}`);
+      else continue;
+      baseline.add(
+        i,
+        `${id} ${messages.at(-1) === id ? "message" : "position"}`,
+        input,
+        undefined,
+        {
+          "js-yaml 5": describeError(`${expected.error} @${expected.at}`),
+          tinyaml: describeError(`${actual.error} @${actual.at}`),
+        },
+      );
+      if (verbose) console.log(`${id}: ${show(expected)} | ${show(actual)}`);
     }
     continue;
   } else diffs.push(id);
@@ -86,3 +98,4 @@ expectList("cases that differ from js-yaml 5", diffs, []);
 expectList("cases only tinyaml loads", lenient, []);
 expectList("errors with another message", messages, MESSAGES);
 expectList("errors at another position", positions, POSITIONS);
+baseline.finish();

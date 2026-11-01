@@ -128,6 +128,49 @@ describe("stringify", () => {
     expect(stringify({ a: 1 }, { schema: "json" })).toBe('"a": 1\n');
   });
 
+  it("quotes strings the compat schema would misread", () => {
+    const value = {
+      strings: ["yes", "1_000", "2001-12-14", "12:30", "0b11", "y", "<<", "on", "1.5", "true"],
+      date: new Date(0),
+    };
+    for (const compat of ["yaml-1.1", "core", ["bool"]] as const)
+      for (const version of ["1.1", "1.2"] as const) {
+        const options = { compat, version } as StringifyOptions;
+        expect(stringify(value, options)).toBe(
+          yaml.stringify(value, options as yaml.ToStringOptions),
+        );
+      }
+    expect(() => stringify(1, { compat: "nope" })).toThrow('Unknown schema "nope"');
+  });
+
+  it("reads options set to undefined as yaml does", () => {
+    const value = {
+      text: "word ".repeat(30),
+      list: Array.from({ length: 30 }, (_, i) => i),
+      quoted: `${"x ".repeat(30)}"`,
+      yes: "yes",
+    };
+    const outcome = (fn: () => string) => {
+      try {
+        return fn();
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    for (const name of ["lineWidth", "minContentWidth", "schema", "version", "indent", "compat"])
+      for (const options of [{ [name]: undefined }, { version: "1.1", [name]: undefined }]) {
+        const theirs = outcome(() => yaml.stringify(value, options as yaml.ToStringOptions));
+        expect(
+          outcome(() => stringify(value, options as StringifyOptions)),
+          name,
+        ).toBe(theirs);
+      }
+    for (const version of [1.1, "1.3", null] as never[])
+      expect(outcome(() => stringify("yes", { version }))).toBe(
+        outcome(() => yaml.stringify("yes", { version })),
+      );
+  });
+
   it("agrees with yaml on assorted values", () => {
     const long = "lorem ipsum dolor sit amet ".repeat(8);
     const values: unknown[] = [

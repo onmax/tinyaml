@@ -11,7 +11,7 @@ it("compiles code written for each original against tinyaml", () => {
     encoding: "utf8",
   });
   expect(output).not.toMatch(/error/);
-  expect(output.match(/ ok/g)).toHaveLength(21);
-  expect(output.match(/^packed tinyaml\/\S+ +(?:nodenext|bundler) +ok$/gm)).toHaveLength(10);
+  expect(output.match(/ ok/g)).toHaveLength(24);
+  expect(output.match(/^packed tinyaml\/\S+ +(?:nodenext|bundler) +ok$/gm)).toHaveLength(12);
   expect(output).toMatch(/^packed tinyaml, .* moduleResolution node: ok$/m);
 });

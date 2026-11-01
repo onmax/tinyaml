@@ -1,0 +1,10 @@
+{
+  "suite": {
+    "iterations": 402,
+    "differences": [
+      {"at":128,"id":"559349568965","kind":"9KAX lenient","sides":{"js-yaml":"! end of the stream or a document separator is expected (20:5)","tinyaml":"[\"scalar1\",\"scalar2\",\"scalar3\",{\"key5\":\"value4\"},{\"a6\":1,\"b6\":2},{\"key8\":\"value7… #07eb1a3369ae"},"input":"\"---\\n&a1\\n!!str\\nscalar1\\n---\\n!!str\\n&a2\\nscal\"…"},
+      {"at":223,"id":"ede56e8deb0a","kind":"H7J7 differ","sides":{"js-yaml":"[{\"key\":{\"a\":\"b\"}}]","tinyaml":"! can not read a block mapping entry; a multiline key may not be an implicit key (3:4)"},"input":"\"key: &x\\n!!map\\n  a: b\\n\""},
+      {"at":273,"id":"a263d80ad6bf","kind":"M5C3 differ","sides":{"js-yaml":"[{\"literal\":\"value\\n\",\"folded\":\"value\\n\"}]","tinyaml":"! unknown tag !<!foo> (7:1)"},"input":"\"literal: |2\\n  value\\nfolded:\\n   !foo\\n  >1\"…"}
+    ]
+  }
+}

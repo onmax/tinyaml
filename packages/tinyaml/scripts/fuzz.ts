@@ -7,7 +7,8 @@
 // a value only from tinyaml (with whether yaml finds the input valid), an
 // error that differs (the kind names the fields), or other warnings, is
 // recorded with both outcomes in scripts/baselines/fuzz.json (see
-// baseline.ts). An unrecorded difference, a recorded one that's gone, or a
+// baseline.ts). Warnings are compared on every input: where something else
+// differs too, the record's kind says so and it holds both sides' warnings. An unrecorded difference, a recorded one that's gone, or a
 // crash fails the run.
 // Usage: node scripts/fuzz.ts [iterations] [seed] [--update]
 // After a deliberate change, `node scripts/fuzz.ts 5000 1 --update`, or
@@ -137,6 +138,22 @@ for (let i = 0; i < iterations; i++) {
   tried.add(input);
   const expected = attempt(jsYaml.loadAll, input, jsYaml.YAMLException);
   const actual = attempt(loadAll, input, YAMLException);
+  const warns = !equal(expected.warnings, actual.warnings);
+  if (warns) warned++;
+  const record = (kind: string, sides: Record<string, string>) =>
+    baseline.add(
+      i,
+      warns ? `${kind}, other warnings` : kind,
+      input,
+      undefined,
+      warns
+        ? {
+            ...sides,
+            "js-yaml warnings": describe(expected.warnings),
+            "tinyaml warnings": describe(actual.warnings),
+          }
+        : sides,
+    );
   if (!expected.ok && actual.ok) {
     lenient++;
     distinct.lenient.add(input);
@@ -148,7 +165,7 @@ for (let i = 0; i < iterations; i++) {
       invalidLenient++;
       distinct.invalid.add(input);
     }
-    baseline.add(i, invalid ? "lenient, invalid YAML" : "lenient", input, undefined, {
+    record(invalid ? "lenient, invalid YAML" : "lenient", {
       "js-yaml": describeError(expected.error ?? ""),
       tinyaml: describe(actual.value),
     });
@@ -162,7 +179,7 @@ for (let i = 0; i < iterations; i++) {
     const kind = actual.ok ? "value" : "stricter";
     counts[kind]++;
     distinct[kind].add(input);
-    baseline.add(i, kind, input, undefined, {
+    record(kind, {
       "js-yaml": expected.ok ? describe(expected.value) : describeError(expected.error ?? ""),
       tinyaml: actual.ok ? describe(actual.value) : describeError(actual.error ?? ""),
     });
@@ -174,17 +191,15 @@ for (let i = 0; i < iterations; i++) {
     if (!expected.ok) thrown++;
     if (differs) {
       errors.set(differs.kind, (errors.get(differs.kind) ?? 0) + 1);
-      baseline.add(i, differs.kind, input, undefined, {
+      record(differs.kind, {
         "js-yaml": describe(differs.sides[0]),
         tinyaml: describe(differs.sides[1]),
       });
-    } else if (!equal(expected.warnings, actual.warnings)) {
-      warned++;
+    } else if (warns)
       baseline.add(i, "other warnings", input, undefined, {
         "js-yaml": describe(expected.warnings),
         tinyaml: describe(actual.warnings),
       });
-    }
   }
 }
 // The crashes, shortest first.

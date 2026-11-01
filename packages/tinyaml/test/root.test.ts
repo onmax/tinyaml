@@ -201,6 +201,79 @@ describe("parse", () => {
     ] as const)
       expect(() => parse(text), text).toThrow(reason);
   });
+
+  it("takes a tab inside a flow collection's line as white space, in linear time", () => {
+    expect(parse("a: [b,\tc]")).toEqual({ a: ["b", "c"] });
+    expect(parse("- {a:\tb,\tc: d}")).toEqual([{ a: "b", c: "d" }]);
+    const text = `${" ".repeat(20_000)}[${"0,\t".repeat(10_000)}0]`;
+    const start = performance.now();
+    expect(parse(text)).toHaveLength(10_001);
+    // Each tab used to measure the line's indentation again.
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it("indents a block value on its own line with spaces only", () => {
+    for (const [text, line, column] of [
+      ["a:\n\tb", 2, 1],
+      ["-\n\tb", 2, 1],
+      ["a:\n\t'b'", 2, 1],
+      ["a:\n  b:\n  \tc", 3, 3],
+    ] as const)
+      expect(() => parse(text), text).toThrow(
+        expect.objectContaining({
+          message: expect.stringMatching(/^tab in indentation/),
+          line,
+          column,
+        }),
+      );
+    expect(parse("a:\n \tb")).toEqual({ a: "b" });
+    expect(parse("---\n\tb")).toBe("b");
+  });
+
+  it("needs white space after a flow `:` unless the key is quoted or a collection", () => {
+    for (const text of ["{a #\n:b}", "{? a #\n:b}", "[&x a, {*x :b}]"])
+      expect(() => parse(text), text).toThrow(/expected white space after ":"/);
+    expect(parse('{"a" #\n:b}')).toEqual({ a: "b" });
+    expect(parse("{a #\n: b}")).toEqual({ a: "b" });
+    expect(parse("{a\n:b}")).toEqual({ "a :b": null });
+  });
+
+  it("takes verbatim tags as written and rejects malformed ones", () => {
+    for (const text of ["!<> x", "!<!> x", "!<bad|tag> x", "!<a%zz> x", "!<$:?> x"])
+      expect(() => parse(text), text).toThrow(/bad verbatim tag/);
+    expect(parse("!<tag:yaml.org,2002:%69nt> 12")).toBe("12");
+    expect(parse("!<tag:yaml.org,2002:int> 12")).toBe(12);
+    expect(parse("!<!a%21> x", { tags: { "!a%21": () => 1 } })).toBe(1);
+    // Shorthands still decode.
+    const tags = { "tag:e.com,2000:a!": () => 1 };
+    expect(parse("%TAG !e! tag:e.com,2000:\n--- !e!a%21 x", { tags })).toBe(1);
+  });
+
+  it("counts every node but aliases toward maxDepth", () => {
+    for (const [text, depth] of [
+      ["a: 1", 3],
+      ["a:", 3],
+      ["- ", 3],
+      ["[!!str ]", 3],
+      ["[a: b]", 4],
+      ["[? a]", 4],
+      ["[a: [b]]", 5],
+      ["[{a: b}: c]", 5],
+      ["- &a 1\n- - *a", 3],
+      ["[&a 1, [*a]]", 3],
+      ["[&a 1, [*a : *a]]", 4],
+    ] as const) {
+      expect(() => parse(text, { maxDepth: depth - 1 }), text).toThrow(/maxDepth/);
+      expect(() => parse(text, { maxDepth: depth }), text).not.toThrow(/maxDepth/);
+    }
+  });
+
+  it("throws a YAMLError where nesting overflows the call stack", () => {
+    const text = `${"[".repeat(50_000)}0${"]".repeat(50_000)}`;
+    expect(() => parse(text, { maxDepth: Infinity })).toThrow(
+      expect.objectContaining({ name: "YAMLError", line: 1 }),
+    );
+  });
 });
 
 describe("stringify", () => {
@@ -253,6 +326,35 @@ describe("stringify", () => {
     expect(stringify({ k: " a\n" }, { indent: 3 })).toBe("k: |3\n    a\n");
     for (const value of [" a\n", { k: [" a\n", { j: "\n b" }] }])
       for (const indent of [1, 2, 4, 9]) expect(parse(stringify(value, { indent }))).toEqual(value);
+  });
+
+  it("reads each property once, after toJSON", () => {
+    let reads = 0;
+    expect(
+      stringify({
+        get x() {
+          return ++reads;
+        },
+      }),
+    ).toBe("x: 1\n");
+    expect(reads).toBe(1);
+    expect(
+      stringify({
+        toJSON: () => 1,
+        get ignored() {
+          throw new Error("unused");
+        },
+      }),
+    ).toBe("1\n");
+    const cycle = (): object => {
+      const value: Record<string, unknown> = { a: 1 };
+      value.self = value;
+      return value;
+    };
+    expect(stringify({ toJSON: cycle })).toBe(stringify(cycle()));
+    expect(stringify({ b: 1, a: { toJSON: cycle } }, { sortKeys: true })).toBe(
+      "a: &ref_0\n  a: 1\n  self: *ref_0\nb: 1\n",
+    );
   });
 
   it("round-trips through parse", () => {

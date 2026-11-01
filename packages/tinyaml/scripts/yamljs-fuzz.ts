@@ -8,8 +8,8 @@
 // tinyaml throws); differ; crash (tinyaml throws something other than a
 // ParseException); and where both throw, the fields of the errors that
 // differ, message, position (parsedLine) or snippet, if any. Differences
-// of a known kind are named by kind, see LEAF
-// and DOCUMENT; anything else is printed, and a stricter, differing or
+// of a known kind are named by kind, see LEAF, DOCUMENT and BUGS, whose
+// inputs must keep their kind; anything else is printed, and a stricter, differing or
 // crashing case fails the run. Each lenient case, each of a known kind and
 // each pair of differing errors is recorded, with both outcomes, in scripts/baselines/yamljs-fuzz.json (see
 // baseline.ts), and an unrecorded one, or a recorded one that's gone, fails
@@ -27,6 +27,7 @@ import {
   errorDifference,
   expectAliases,
   expectCount,
+  fail,
   iterationsArg,
   mulberry32,
   onPurpose,
@@ -262,6 +263,8 @@ const LEAF: Record<string, (a: unknown, b: unknown) => boolean> = {
   // yamljs writes \x, \u and \U escapes as UTF-8 bytes, one character each.
   "unicode escapes": (a, b) =>
     isString(a) && isString(b) && a === Buffer.from(b, "utf8").toString("latin1"),
+  // yamljs reads an alias in a flow collection as its text.
+  "flow aliases": (a) => isString(a) && /^\*[^\s,[\]{}]+$/.test(a),
 };
 const DOCUMENT: Record<string, (theirs: unknown, ours: unknown, text: string) => boolean> = {
   // yamljs reads a two-line document as its first line, even if that is
@@ -276,7 +279,40 @@ const DOCUMENT: Record<string, (theirs: unknown, ours: unknown, text: string) =>
   // yamljs splits a flow mapping key at its first space: `{a b: c}` is
   // {a: "b: c"}, and the rest of the mapping goes wrong with it.
   "flow keys with spaces": (_, __, text) => /[{,] *[^\s'"{}[\],:]+ [^'"{}[\],:]+:/.test(text),
+  // yamljs drops a key named like a member of Object.prototype, such as
+  // `constructor`, and a block mapping left empty is null.
+  "prototype keys": (theirs, ours) => {
+    const kept = unprototyped(ours);
+    const same = (a: unknown, b: unknown) => equal(a, b, { identity: false });
+    return !same(kept, ours) && (same(theirs, kept) || (theirs === null && same(kept, {})));
+  },
 };
+
+// `value` without keys that name members of Object.prototype.
+const unprototyped = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(unprototyped)
+    : typeof value === "object" &&
+        value !== null &&
+        Object.getPrototypeOf(value) === Object.prototype
+      ? Object.fromEntries(
+          Object.entries(value)
+            .filter(([key]) => !(key in Object.prototype))
+            .map(([key, item]) => [key, unprototyped(item)]),
+        )
+      : value;
+
+// yamljs bugs that the inputs above don't reach. Each must still differ, and
+// be told as the kind it's listed under.
+const BUGS: [kind: string, input: string][] = [
+  ["prototype keys", "constructor: 1\n"],
+  ["prototype keys", "{constructor: 1}\n"],
+  ["prototype keys", "a: 1\ntoString: 2\n"],
+  ["prototype keys", "a:\n  hasOwnProperty: 1\n  b: 2\n"],
+  ["flow aliases", "a: &x 1\nb: {c: *x}\n"],
+  ["flow aliases", "a: &x 1\nb: [*x]\n"],
+  ["flow aliases", "a: &x {k: 1}\nb: {c: *x}\n"],
+];
 const anyLeaf = (a: unknown, b: unknown) => Object.values(LEAF).some((test) => test(a, b));
 
 function known(theirs: unknown, ours: unknown, text: string): string {
@@ -320,6 +356,17 @@ expectAliases(
   (text) => yamljs.parse(text),
   (text) => parse(text),
 );
+for (const [kind, text] of BUGS) {
+  const theirs = run(() => yamljs.parse(text));
+  const ours = run(() => parse(text), ParseException);
+  const found =
+    !theirs.ok || !ours.ok
+      ? "an error"
+      : equal(theirs.value, ours.value)
+        ? "the same value"
+        : known(theirs.value, ours.value, text);
+  if (found !== kind) fail(`yamljs bug ${JSON.stringify(text)}: ${found}, expected ${kind}`);
+}
 for (let n = 0; n < cases; n++) {
   const original = write(value(0));
   const text = n % 4 === 0 ? original : mutate(original);

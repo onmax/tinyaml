@@ -56,6 +56,34 @@ describe("parse", () => {
 
   it("keeps the first of duplicate keys", () => {
     same("a: 1\na: 2", "a: ~\na: 2", "x:\n  a: 1\n  a:\n    - 2\n  b: 3", "- a: 1\n  a: 2\n  b: 3");
+    same(
+      "{port: 80, port: 443}\n",
+      "a: {b: {c: 1, c: 2}, b: 3}\n",
+      "- {x: 1, x: 2}\n- {y: 1, y: 2, y: 3}\n",
+      "a: 1\nb: {x: 1, x: 2}\na: 3\n",
+      "a: 1\na: {b: 1, b: 2}\n",
+      "{a: 1, b: 2, a: 3, b: 4}\n",
+    );
+    // A key after a merge replaces what the merge copied.
+    same("<<: {a: 1}\na: 2\n", "a: 2\n<<: {a: 1}\n");
+  });
+
+  it("merges any number of mappings", () => {
+    same(`a: &a {x: 1}\n<<: [${Array(101).fill("*a").join(",")}]\n`);
+  });
+
+  it("reads a block mapping that merges no keys as null", () => {
+    same(
+      "<<: [{}, {}]\n",
+      "<<: {}\n",
+      "<<: []\n",
+      "- <<: {}\n",
+      "x:\n  <<: {}\n",
+      "x: &a\n  <<: {}\ny: *a\n",
+      "a: 1\n<<: {}\n",
+      "<<: [{a: 1}, {}]\n",
+      "x: {}\n",
+    );
   });
 
   it("merges documents and drops %YAML lines", () => {
@@ -163,6 +191,22 @@ describe("parse, where yamljs is wrong", () => {
 
   it("decodes Unicode escapes", () => {
     expect(parse('a: "\\u00e9"')).toEqual({ a: "é" });
+  });
+
+  it("keeps keys named like members of Object.prototype", () => {
+    expect(parse("constructor: 1\n")).toEqual({ constructor: 1 });
+    expect(yamljs.parse("constructor: 1\n")).toBeNull();
+    expect(parse("{constructor: 1}\n")).toEqual({ constructor: 1 });
+    expect(yamljs.parse("{constructor: 1}\n")).toEqual({});
+    expect(parse("a:\n  toString: 1\n  b: 2\n")).toEqual({ a: { toString: 1, b: 2 } });
+    expect(yamljs.parse("a:\n  toString: 1\n  b: 2\n")).toEqual({ a: { b: 2 } });
+  });
+
+  it("reads an alias in a flow collection", () => {
+    expect(parse("a: &x 1\nb: {c: *x}\n")).toEqual({ a: 1, b: { c: 1 } });
+    expect(yamljs.parse("a: &x 1\nb: {c: *x}\n")).toEqual({ a: 1, b: { c: "*x" } });
+    expect(parse("a: &x 1\nb: [*x]\n")).toEqual({ a: 1, b: [1] });
+    expect(yamljs.parse("a: &x 1\nb: [*x]\n")).toEqual({ a: 1, b: ["*x"] });
   });
 });
 

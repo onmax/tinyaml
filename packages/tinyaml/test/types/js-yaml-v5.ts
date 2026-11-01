@@ -85,3 +85,7 @@ try {
     console.error(reason, error.mark?.line, error.mark?.column, error.toString(true));
   }
 }
+// A mark without a file name or snippet.
+const thrown = new YAMLException("bad input", { buffer: "x", position: 0, line: 0, column: 0 });
+const name: string | null | undefined = thrown.mark?.name;
+console.log(name, thrown.mark?.snippet);

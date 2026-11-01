@@ -3,9 +3,12 @@
 // tinyaml/std is meant as a drop-in: whatever std parses, tinyaml/std should
 // parse to the same value, and whatever std rejects it should reject with a
 // YamlSyntaxError. The cases where they differ are listed below, exactly; a
-// new one, or a listed one that's gone, fails the run.
-// Usage: node scripts/std-suite.ts [-v]
+// new one, or a listed one that's gone, fails the run. Each side's outcome
+// on them is recorded in scripts/baselines/std-suite.json (see baseline.ts),
+// and one that changes fails the run too.
+// Usage: node scripts/std-suite.ts [-v] [--update]
 import * as std from "@std/yaml";
+import { Baseline, describe, describeError } from "./baseline.ts";
 import { equal, type ErrorClass, expectList, onPurpose, suiteCases } from "./support.ts";
 
 const { parseAll, YamlSyntaxError } = await import("../src/std/index.ts");
@@ -77,9 +80,11 @@ let same = 0;
 let messages = 0;
 const lenient: string[] = [];
 const diffs: string[] = [];
+const baseline = new Baseline("std-suite", "suite", cases.length);
 const show = (o: Outcome) =>
   o.ok ? JSON.stringify(o.value) : `${o.crash ? "CRASH" : "ERROR"} ${o.error}`;
-for (const { id, input } of cases) {
+const outcome = (o: Outcome) => (o.ok ? describe(o.value) : describeError(o.error));
+for (const [i, { id, input }] of cases.entries()) {
   const expected = run(() => std.parseAll(input), SyntaxError);
   const actual = run(() => parseAll(input), YamlSyntaxError);
   if (!actual.ok && actual.crash) diffs.push(id);
@@ -89,6 +94,10 @@ for (const { id, input } of cases) {
     if (!expected.ok && !actual.ok && expected.error === actual.error) messages++;
     continue;
   } else diffs.push(id);
+  baseline.add(i, `${id} ${lenient.at(-1) === id ? "lenient" : "differ"}`, input, undefined, {
+    std: outcome(expected),
+    tinyaml: outcome(actual),
+  });
   if (verbose) console.log(`${id}\n  std:     ${show(expected)}\n  tinyaml: ${show(actual)}`);
 }
 console.log(
@@ -96,3 +105,4 @@ console.log(
 );
 expectList("cases that differ from std", diffs, DIFFER);
 expectList("cases only tinyaml/std parses", lenient, LENIENT);
+baseline.finish();

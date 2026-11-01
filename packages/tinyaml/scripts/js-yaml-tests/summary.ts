@@ -11,8 +11,8 @@ const FAILING = [
 ];
 // Replayed calls where both throw, with the same message at another
 // position, or with another message. Every other call must match exactly.
-const POSITION_ONLY = 8;
-const OTHER_MESSAGE = 1;
+const POSITION_ONLY = 7;
+const OTHER_MESSAGE = 0;
 
 const [mode, file, flag] = process.argv.slice(2);
 const verbose = flag === "-v";

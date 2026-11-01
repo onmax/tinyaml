@@ -511,7 +511,7 @@
       {"at":2851,"id":"cdb1430f5d56","kind":"lenient","sides":{"yamljs":"! Unable to parse.","tinyaml":"\"été\""},"input":"\"---\\nété\\n   \""},
       {"at":2857,"id":"ec36e33eaa6c","kind":"lenient","sides":{"yamljs":"! Unable to parse.","tinyaml":"[]"},"input":"\"# note: http://example.com:8080/a?b=c#d\\n\"…"},
       {"at":2858,"id":"c1ba57b30694","kind":"lenient","sides":{"yamljs":"! Unable to parse.","tinyaml":"false"},"input":"\"  false\\r\\n\\r\\n     # note: trailing \""},
-      {"at":2871,"id":"0dd4056502d8","kind":"error message and position and snippet","sides":{"yamljs":"{\"message\":\"Unable to parse.\",\"parsedLine\":5,\"snippet\":\"...\"}","tinyaml":"{\"message\":\"expected \\\":\\\" after an implicit key\",\"parsedLine\":4,\"snippet\":\"\"}"},"input":"\"  items: []\\n  version: []\\n  version: []\\n\"…"},
+      {"at":2871,"id":"0dd4056502d8","kind":"error message and position and snippet","sides":{"yamljs":"{\"message\":\"Unable to parse.\",\"parsedLine\":5,\"snippet\":\"...\"}","tinyaml":"{\"message\":\"expected \\\":\\\" after an implicit key\",\"parsedLine\":6,\"snippet\":\"\"}"},"input":"\"  items: []\\n  version: []\\n  version: []\\n\"…"},
       {"at":2874,"id":"0c82060dd72e","kind":"lenient","sides":{"yamljs":"! Unexpected characters near \"","tinyaml":"[]"},"input":"\"[]\\n   \\n...\""},
       {"at":2899,"id":"544dd94363e9","kind":"lenient","sides":{"yamljs":"! Unable to parse.","tinyaml":"\"user@example.com\""},"input":"\"\\nuser@example.com\""},
       {"at":2906,"id":"763d509f51df","kind":"lenient","sides":{"yamljs":"! Unable to parse.","tinyaml":"{\"build\":\"a\"}"},"input":"\"build: a # not comment\\r\\n\\r\\n...\""},

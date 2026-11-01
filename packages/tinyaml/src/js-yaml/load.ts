@@ -18,6 +18,8 @@ export interface LoadOptions {
   maxDepth?: number | undefined;
   /** Caps the keys copied by `<<` merges in one call; -1 for no limit. */
   maxTotalMergeKeys?: number | undefined;
+  /** Reads a document without a %YAML directive as YAML 1.1. */
+  legacy?: boolean | undefined;
 }
 
 // A plain object's own toString could run code, so it never gets called.
@@ -31,9 +33,9 @@ function engine(input: string, options: LoadOptions): Engine {
     const buffer = sanitize(input);
     mark = { ...mark, buffer, position: original(buffer, mark) };
     return new YAMLException(reason, {
-      name: options.filename ?? null,
+      name: (options.filename || null)!,
       ...mark,
-      snippet: snippet(mark),
+      snippet: snippet(mark)!,
     });
   };
   const self: Engine = {
@@ -44,6 +46,8 @@ function engine(input: string, options: LoadOptions): Engine {
     json: options.json,
     maxDepth: options.maxDepth,
     maxMergeKeys: options.maxTotalMergeKeys,
+    mergeSize: true,
+    legacy: options.legacy,
     implicit(text) {
       // js-yaml 4 leaves an empty node null without asking the types.
       if (text !== null && (!builtinsOnly || maybeTyped(text)))
@@ -99,7 +103,9 @@ export function loadAll(
   iterator?: LoadOptions | ((doc: unknown) => void) | null,
   options?: LoadOptions,
 ): unknown[] | void {
-  if (typeof iterator !== "function") options = iterator ?? options;
+  // Options in the iterator's place count only without a third argument.
+  if (iterator !== null && typeof iterator === "object" && options === undefined)
+    options = iterator;
   input = String(input);
   const docs = parse(input, engine(input, options ?? {}));
   if (typeof iterator !== "function") return docs;

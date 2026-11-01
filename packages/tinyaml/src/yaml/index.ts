@@ -14,7 +14,7 @@ import { stringify, type StringifyOptions } from "./stringify.ts";
 export type { ErrorCode, LinePos } from "./errors.ts";
 export type { ParseOptions, Reviver } from "./parse.ts";
 export type { Pair, StringifyOptions } from "./stringify.ts";
-export type { Tag } from "./tags.ts";
+export type { CollectionTag, ScalarTag, Tag, TagId, Tags } from "./tags.ts";
 
 // yaml's option groups, which its `parse` and `stringify` take intersections
 // of. Each is the options type of the function it applies to.

@@ -55,18 +55,14 @@ const BOM =
 
 const isObjectMap = (tag: unknown) => tag === mapTag || tag === legacyMapTag;
 
-// The parser counts one level fewer than js-yaml 5, which also counts the
-// node it tries as a block mapping key.
-const depth = (options: LoadOptions) => (options.maxDepth ?? 100) + 1;
-
 const NON_PRINTABLE =
   /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
 // Where the last spelling of `tag` before `end` starts, or `end`. The parser
-// reports a tag's problems where its node ends.
+// reports a tag's problems where its node ends. Only `!<>` spells the empty tag.
 function tagStart(input: string, end: number, tag: string): number {
   let found = -1;
-  const spellings = [`!<${tag}>`, tag.startsWith(Y) ? `!!${tag.slice(18)}` : tag];
+  const spellings = [`!<${tag}>`, tag.startsWith(Y) ? `!!${tag.slice(18)}` : tag || "!<>"];
   for (const spelling of spellings)
     for (let i = input.lastIndexOf(spelling, end); i >= 0; i = input.lastIndexOf(spelling, i - 1))
       if (/^$|[\s,[\]{}]/.test(input[i + spelling.length] ?? "")) {
@@ -93,7 +89,7 @@ function parseError(
       position: at.position + 1 + /^ */.exec(at.buffer.slice(at.position + 1))![0].length,
     };
   let position = original(input, at);
-  if (tag) position = tagStart(input, position, tag);
+  if (tag !== undefined) position = tagStart(input, position, tag);
   // The parser checks a plain or block scalar once it ends; js-yaml 5 points
   // at the first bad character, here the first on the last bad one's line.
   if (code === E.NON_PRINTABLE) {
@@ -102,8 +98,6 @@ function parseError(
     const line = input.lastIndexOf("\n", last) + 1;
     position = bad.find((i) => i >= line) ?? position;
   }
-  // The parser counts one level more; see `depth`.
-  if (code === E.MAX_DEPTH) reason = reason.replace(/(?<=\()\d+/, (n) => String(+n - 1));
   const error = exceptionAt(input, position, reason, filename);
   if (code !== undefined && BUILD_ERRORS.includes(code)) BUILT.add(error);
   return error;
@@ -121,6 +115,10 @@ function engine(input: string, options: LoadOptions) {
       schema.tags.some((tag) => tag.nodeKind === "mapping" && !isObjectMap(tag)));
   // Keys behind placeholder names.
   const keys = new Map<string, unknown>();
+  // With `json`, every pair has a name of its own, so a carrier sees each
+  // repeat; these are the pairs a merge copied, which it skips once it has
+  // the key.
+  const merged = new Set<string>();
   // Values tags built, as opposed to arrays and objects straight from the parser.
   const built = new WeakSet<object>();
   // The tag that built each mapping, which a merge reads it with.
@@ -185,7 +183,10 @@ function engine(input: string, options: LoadOptions) {
       for (const key of Object.keys(raw)) {
         const value = convert((raw as Record<string, unknown>)[key]);
         const real = convert(decode(key));
-        if (!options.json && tag.has(carrier, real)) reject("duplicated mapping key");
+        if (tag.has(carrier, real)) {
+          if (merged.has(key)) continue;
+          if (!options.json) reject("duplicated mapping key");
+        }
         const error = tag.addPair(carrier, real, value);
         if (error) reject(error);
       }
@@ -247,7 +248,7 @@ function engine(input: string, options: LoadOptions) {
     messages: MESSAGES,
     bom: BOM,
     json: options.json,
-    maxDepth: depth(options),
+    maxDepth: options.maxDepth,
     maxMergeKeys: options.maxTotalMergeKeys,
     implicit(text) {
       const { value, tag } = schema.resolveImplicitScalarTag(text ?? "");
@@ -283,7 +284,7 @@ function engine(input: string, options: LoadOptions) {
         // Equal scalars share a name, so the parser finds repeats and merges.
         const scalar = key as string | number | boolean | null;
         const name =
-          typeof key === "object" && key !== null
+          (typeof key === "object" && key !== null) || options.json
             ? `${PLACEHOLDER}${keys.size}`
             : `${PLACEHOLDER}${scalar === null ? "null" : typeof scalar}:${String(scalar)}`;
         keys.set(name, key);
@@ -317,13 +318,20 @@ function engine(input: string, options: LoadOptions) {
     // js-yaml 5 merges any mapping, through its tag, and nothing else. The
     // parser rejects what isn't an object, and arrays.
     merge(source) {
-      if (!built.has(source as object)) return source;
-      const tag = mappings.get(source as object);
-      return (
-        tag &&
-        Object.fromEntries(
-          [...tag.keys(source)].map((key) => [self.key(key), tag.get(source, key)]),
-        )
+      let pairs: [unknown, unknown][];
+      if (built.has(source as object)) {
+        const tag = mappings.get(source as object);
+        if (!tag) return;
+        pairs = [...tag.keys(source)].map((key) => [key, tag.get(source, key)]);
+      } else if (typed && options.json && isPlainObject(source))
+        pairs = Object.entries(source as object).map(([name, value]) => [decode(name), value]);
+      else return source;
+      return Object.fromEntries(
+        pairs.map(([key, value]) => {
+          const name = self.key(key);
+          if (typed && options.json) merged.add(name);
+          return [name, value];
+        }),
       );
     },
     convert,
@@ -343,7 +351,7 @@ function probe(input: string, options: LoadOptions, keyNodes: Map<string, unknow
     messages: MESSAGES,
     bom: BOM,
     json: true,
-    maxDepth: depth(options),
+    maxDepth: options.maxDepth,
     maxMergeKeys: -1,
     implicit: () => ({}),
     explicit: (value, _tag, kind) => (kind === "sequence" || kind === "mapping" ? value : {}),
@@ -377,7 +385,9 @@ function aliases(doc: unknown, keyNodes: Map<string, unknown>): number {
   return count;
 }
 
-function loadDocuments(input: string, options: LoadOptions = {}): unknown[] {
+function loadDocuments(input: string, options?: LoadOptions): unknown[] {
+  // js-yaml 5 spreads the options over its defaults, so null works too.
+  options ??= {};
   const source = String(input);
   const max = options.maxAliases ?? -1;
   // A pass that builds nothing tells syntax errors, which js-yaml 5 reports

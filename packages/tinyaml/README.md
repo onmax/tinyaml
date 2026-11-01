@@ -6,7 +6,7 @@
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
-**YAML for JavaScript in 7.9 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
+**YAML for JavaScript in 8.1 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
 
 Already on another YAML library? Change one import and keep your code:
 
@@ -19,11 +19,11 @@ tinyaml ships drop-in replacements for js-yaml 4 and 5, yaml, yamljs and @std/ya
 
 | Replace     | With                 | Smaller, gzip | Faster    |
 | ----------- | -------------------- | ------------- | --------- |
-| `js-yaml` 4 | `tinyaml/js-yaml`    | 21%           | 1.5–1.6×  |
-| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 8%            | 1.5–2.0×  |
-| `yaml`      | `tinyaml/yaml`       | 49%           | 2.8–12.6× |
-| `yamljs`    | `tinyaml/yamljs`     | 5%            | 1.1–5.0×  |
-| `@std/yaml` | `tinyaml/std`        | 6%            | 1.6–2.1×  |
+| `js-yaml` 4 | `tinyaml/js-yaml`    | 19%           | 1.5–1.6×  |
+| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 7%            | 1.5–2.0×  |
+| `yaml`      | `tinyaml/yaml`       | 45%           | 2.8–12.6× |
+| `yamljs`    | `tinyaml/yamljs`     | 4%            | 1.1–5.0×  |
+| `@std/yaml` | `tinyaml/std`        | 4%            | 1.6–2.1×  |
 
 Starting fresh? The root `tinyaml` API is about half the size of js-yaml and a quarter of yaml.
 
@@ -83,11 +83,11 @@ Each subpath exports the functions, options and types of the library it replaces
 
 | Library         | Change the import to   | Size, gzip      | Its own tests on tinyaml |
 | --------------- | ---------------------- | --------------- | ------------------------ |
-| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.4 KiB | 301 of 304 pass          |
-| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 15.7 KiB | 1,023 of 1,646 pass      |
-| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 15.2 KiB | 195 of 220 pass          |
-| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.3 KiB   | 103 of 103 pass          |
-| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.6 KiB | 92 of 95 pass            |
+| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.8 KiB | 301 of 304 pass          |
+| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 15.9 KiB | 1,023 of 1,646 pass      |
+| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 16.3 KiB | 195 of 220 pass          |
+| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.5 KiB   | 103 of 103 pass          |
+| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.9 KiB | 92 of 95 pass            |
 
 ```ts
 // before
@@ -107,9 +107,9 @@ Every subpath runs the same parser code as the root. The details below list each
 
 - The `listener` option isn't supported. It accounts for 2 of the 3 tests that don't pass. js-yaml skips the third test itself.
 - `safeLoad`, `safeLoadAll` and `safeDump` work and do what `load`, `loadAll` and `dump` do. js-yaml 4 throws for them.
-- js-yaml's tests make 746 calls to `load`, `loadAll` and `dump`. Replayed through tinyaml, 737 give the same result. 8 throw the same error at a different position, and 1 throws with a different message. tinyaml throws in every case js-yaml does.
+- js-yaml's tests make 746 calls to `load`, `loadAll` and `dump`. Replayed through tinyaml, 739 give the same result, and 7 throw the same error at a different position. tinyaml throws in every case js-yaml does.
 - On the yaml-test-suite, 399 of 402 cases give the same result as js-yaml. 1 is valid YAML that tinyaml loads and js-yaml rejects ([9KAX](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/9KAX)). The other 2 are js-yaml bugs tinyaml doesn't copy: js-yaml drops a tag on its own line above a less indented block scalar ([M5C3](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/M5C3)), and it loads the invalid [H7J7](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/H7J7).
-- 5,000 randomly edited suite inputs: none load to a different value, none throw only in tinyaml, and 12 load where js-yaml throws, 2 of them invalid YAML. 5,000 random values give matching outcomes, including matching errors: 4,021 dump to the same text and 979 throw the same error.
+- 5,000 randomly edited suite inputs: none load to a different value, none throw only in tinyaml, and 10 load where js-yaml throws, 1 of them invalid YAML. 5,000 random values give matching outcomes, including matching errors: 4,021 dump to the same text and 979 throw the same error.
 
 </details>
 
@@ -118,9 +118,9 @@ Every subpath runs the same parser code as the root. The details below list each
 
 - Only the load and dump API: `load`, `loadAll`, `dump`, `YAMLException`, `Schema`, the schemas, the tag definitions and the style constants. The events, AST, presenter and visit API isn't there: `parseEvents`, `getScalarValue`, `constructFromEvents`, `eventsToAst`, `jsToAst`, `present`, `visit`, and the `EVENT_*`, `VISIT_*` and `CHOMPING_*` constants.
 - `dump`'s `transform` option works. `dump` builds the same AST as js-yaml 5 and passes it to `transform`, but there is no `visit` to walk it with.
-- js-yaml 5's tests make 10,085 calls to `load`, `loadAll` and `dump`, 5,256 of them different in function, input or options. Replayed through tinyaml, 5,199 of those 5,256 give the same result. 31 throw the same error at a different position, and 25 throw with a different message. tinyaml throws in every case js-yaml 5 does.
+- js-yaml 5's tests make 10,085 calls to `load`, `loadAll` and `dump`, 5,256 of them different in function, input or options. Replayed through tinyaml, 5,213 of those 5,256 give the same result. 20 throw the same error at a different position, and 22 throw with a different message. tinyaml throws in every case js-yaml 5 does.
 - The one call that loads to a different value is an empty key tagged `!!merge` with `mergeTag` in the schema, `? !!merge\n: []`. js-yaml 5 loads `{}`, and tinyaml loads `{ "<<": [] }`.
-- On the yaml-test-suite, all 402 cases give the same result as js-yaml 5. Both reject 126, and 107 of those throw the same message.
+- On the yaml-test-suite, all 402 cases give the same result as js-yaml 5. Both reject 126, and 109 of those throw the same message.
 - 5,000 randomly edited suite inputs: none load to a different value, and 2 load where js-yaml 5 throws. 5,000 random values give matching outcomes, including matching errors: 3,584 dump to the same text and 1,416 throw the same error.
 
 </details>
@@ -132,9 +132,11 @@ Every subpath runs the same parser code as the root. The details below list each
 - `parse` doesn't support `mapAsMap`, `stringKeys`, `strict: false` (which `strict: undefined` also means to yaml), or recovering from errors with `logLevel: "silent"`. Collection keys are turned into strings that don't always match yaml's.
 - A lone carriage return is a line break, as the YAML spec has it. yaml reads it as text, so `- a\r- b` is `["a", "b"]` where yaml gives `["a\r- b"]`. Error positions count such input as one line, as yaml's do.
 - `stringify` doesn't take Document or Node values, writes no comments, and doesn't use `customTags` or the YAML 1.1 `!!set`, `!!omap` and `!!binary` tags.
+- A collection tag's `resolve` gets a stand-in for yaml's YAMLMap or YAMLSeq node. It has `items`, with Scalar, Pair and collection nodes in them, `get`, `has`, `toJSON` and `toString`, and nothing else of yaml's node API. An alias in it is a node of the alias's value, `toJSON` returns the collection as tinyaml parsed it, and `nodeClass` isn't used. There, and in `!!set`, keys that are array indices such as `1` come first, as they do in a JS object.
+- With `compat`, `stringify` quotes what yaml quotes and `parse` warns where yaml warns about plain scalars, but `parse` doesn't warn about a flow collection whose closing bracket is at its parent's indentation.
 - The upstream run covers yaml's tests of `parse` and `stringify`, the `stringify`, `parse`, `errors`, `types` and `anchors` files in `tests/doc/`. Of the 25 that fail, 4 are `logLevel` tests that fail against yaml itself under Vitest, and 13 use the features above. 5 stringify with `indent: 1`, `indent: 4` or `indentSeq: false`, where the output differs. The last 3 are parse cases: a merge key missing its space, which throws another message, carriage returns inside double quotes, and a collection key in an alias expansion test with the limits turned off.
 - Across 7 option sets on the yaml-test-suite, 2,584 of 2,814 runs agree with yaml.
-- 5,000 randomly edited suite inputs: 1,943 give the same value and the same warnings. 2 more throw the same error with fewer warnings: tinyaml throws for an unknown alias as it reads it, and yaml only after warning about what follows. 2,941 throw in both: 43 the same error, 827 another error code, and the rest the same code at another position or with another message, since tinyaml marks one character where yaml marks the whole token, and words most errors as js-yaml 4 does. 36 load to a different value, 20 of those with a collection key. 48 load only in tinyaml and 30 only in yaml. Lone carriage returns, which yaml reads as text, cause most of these: all 16 other values without a collection key, 39 of the 48 and 22 of the 30. 5,000 random values: 4,932 stringify to the same text, 68 throw the same error, none differ.
+- 5,000 randomly edited suite inputs: 1,943 give the same value and the same warnings. 21 more throw the same error with other warnings, since tinyaml stops at the first error and yaml warns about what follows it, unknown aliases included. 2,922 throw in both: 350 the same error, 827 another error code, and the rest the same code at another position or with another message, since tinyaml marks one character where yaml marks the whole token, and words most errors as js-yaml 4 does. 36 load to a different value, 20 of those with a collection key. 48 load only in tinyaml and 30 only in yaml. Lone carriage returns, which yaml reads as text, cause most of these: all 16 other values without a collection key, 39 of the 48 and 22 of the 30. 5,000 random values: 4,932 stringify to the same text, 68 throw the same error, none differ.
 
 </details>
 
@@ -149,6 +151,9 @@ Every subpath runs the same parser code as the root. The details below list each
 - `\x`, `\u` and `\U` escapes give the character, not its UTF-8 bytes.
 - Block scalars keep trailing spaces on their last line.
 - Quoted strings stay strings. `['*a']` is `["*a"]` and `!!str "x"` is `"x"`, where yamljs gives `[undefined]` and `'"x"'`.
+- An alias in a flow collection gives its anchor's value. After `a: &x 1`, `b: {c: *x}` is `{ c: 1 }` and `b: [*x]` is `[1]`, where yamljs gives the text `"*x"`.
+- Keys named like built-in object properties, such as `constructor`, `toString` or `hasOwnProperty`, are kept. yamljs drops them: `constructor: 1` gives `null` and `{constructor: 1}` gives `{}`.
+- `<<` merges in flow mappings too. yamljs merges only in block mappings, so `{<<: {a: 1}}` gives `{ "<<": { a: 1 } }` there.
 - A comment line is never read as a value or key.
 - Errors are `ParseException`s with the root's messages.
 
@@ -161,7 +166,7 @@ On the yaml-test-suite's 402 cases, 186 give the same result as yamljs, and 144 
 
 - `unstable_parse` and `unstable_stringify` aren't supported. They account for 2 of the 3 tests that don't pass. The third starts a Deno subprocess, which can't run under Node.
 - On the yaml-test-suite, 360 of 402 cases give the same result as std, 99 of them the same error message. 11 parse where std throws. The other 31 differ, and in all 31 std's own result is wrong by the suite's answers.
-- 5,000 randomly edited suite inputs: 117 parse to a different value, 146 throw only in tinyaml, and 49 parse where std throws, so values or acceptance differ in 312 of them, 6.2%. 2,865 throw in both, 2,527 of them with the same message and 2,556 with the same message apart from the position.
+- 5,000 randomly edited suite inputs: 117 parse to a different value, 146 throw only in tinyaml, and 48 parse where std throws, so values or acceptance differ in 311 of them, 6.2%. 2,866 throw in both, 2,541 of them with the same message and 2,570 with the same message apart from the position.
 - 5,000 random values give matching outcomes, including matching errors: 3,499 stringify to the same text and 1,501 throw the same error.
 
 </details>
@@ -177,16 +182,16 @@ Each entry as npm ships it in `dist/`, bundled with esbuild, minified ESM, then 
 
 | Entry                | Minified | Gzip     |
 | -------------------- | -------- | -------- |
-| `tinyaml`            | 17.4 KiB | 7.9 KiB  |
-| `tinyaml/js-yaml`    | 25.7 KiB | 11.4 KiB |
+| `tinyaml`            | 17.9 KiB | 8.1 KiB  |
+| `tinyaml/js-yaml`    | 26.5 KiB | 11.8 KiB |
 | js-yaml 4            | 42.8 KiB | 14.4 KiB |
-| `tinyaml/js-yaml-v5` | 38.3 KiB | 15.7 KiB |
+| `tinyaml/js-yaml-v5` | 38.8 KiB | 15.9 KiB |
 | js-yaml 5            | 56.4 KiB | 17.1 KiB |
-| `tinyaml/yaml`       | 35.6 KiB | 15.2 KiB |
+| `tinyaml/yaml`       | 38.4 KiB | 16.3 KiB |
 | yaml                 | 95.8 KiB | 29.9 KiB |
-| `tinyaml/yamljs`     | 18.6 KiB | 8.3 KiB  |
+| `tinyaml/yamljs`     | 19.0 KiB | 8.5 KiB  |
 | yamljs               | 28.4 KiB | 8.8 KiB  |
-| `tinyaml/std`        | 24.4 KiB | 10.6 KiB |
+| `tinyaml/std`        | 25.0 KiB | 10.9 KiB |
 | @std/yaml            | 35.4 KiB | 11.3 KiB |
 
 The tinyaml entries export everything in the subpath. js-yaml 4 and yamljs are bundled whole, js-yaml 5 with `load`, `loadAll`, `dump`, `Schema` and `YAMLException`, yaml with only `parse` and `stringify`, and @std/yaml with `parse`, `parseAll` and `stringify`.
@@ -305,7 +310,7 @@ tinyaml is faster on every row. The closest is tinyaml/yamljs's `stringify` on t
 | TypeScript types       | ✅ built in      | `@types/js-yaml`    | ✅ built in                    | ✅ built in            | `@types/yamljs`      | ✅ built in                    |
 | Browser and edge       | ✅               | ✅                  | ✅                             | ✅                     | ✅                   | ✅                             |
 | yaml-test-suite, valid | 279 of 279       | 244 of 264          | 263 of 263                     | 276 of 279             | 97 of 256            | 217 of 264                     |
-| Size, gzip             | 7.9 KiB          | 14.4 KiB            | 17.1 KiB                       | 29.9 KiB               | 8.8 KiB              | 11.3 KiB                       |
+| Size, gzip             | 8.1 KiB          | 14.4 KiB            | 17.1 KiB                       | 29.9 KiB               | 8.8 KiB              | 11.3 KiB                       |
 
 The schema, merge, tag, document and error rows come from parsing the same inputs with each library's default options. A cell that names an option, like `mergeTag` or `merge: true`, needs that option. The others are defaults. The suite row is the first column of the [correctness table](#correctness), which leaves out cases refused for an unknown tag and, for yamljs, streams without exactly one document. yaml's size is `parse` and `stringify` only, and js-yaml 5's is `load`, `loadAll`, `dump`, `Schema` and `YAMLException`.
 
@@ -321,12 +326,12 @@ Returns every document in `text` as an array.
 
 ### `ParseOptions`
 
-| Option          | Default | What it does                                                                                                                                                                          |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tags`          | `{}`    | Functions by tag name, like `!env` above. Each gets the node's string, array or object, or `null` when empty, and may call `parse`.                                                   |
-| `merge`         | `true`  | Merge `<<` keys into their mapping. With `false`, `<<` is a plain key.                                                                                                                |
-| `duplicateKeys` | `false` | Allow duplicate keys, and the last one wins. Otherwise a duplicate throws.                                                                                                            |
-| `maxDepth`      | `100`   | Nesting limit. The root node is level 1, and each key or value inside a collection is one level deeper. Scalars count. A node at level `maxDepth` throws, so `a: 1` needs at least 3. |
+| Option          | Default | What it does                                                                                                                                                                                                                                                                                                                                                        |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`          | `{}`    | Functions by tag name, like `!env` above. Each gets the node's string, array or object, or `null` when empty, and may call `parse`.                                                                                                                                                                                                                                 |
+| `merge`         | `true`  | Merge `<<` keys into their mapping. With `false`, `<<` is a plain key.                                                                                                                                                                                                                                                                                              |
+| `duplicateKeys` | `false` | Allow duplicate keys, and the last one wins. Otherwise a duplicate throws.                                                                                                                                                                                                                                                                                          |
+| `maxDepth`      | `100`   | Nesting limit. The root node is level 1, and each key or value inside a collection is one level deeper. Scalars and empty nodes count, and a pair in a flow sequence, as in `[a: b]`, is a mapping a level deeper. A node at level `maxDepth` throws, so `a: 1` needs at least 3. Nesting too deep for the call stack throws a `YAMLError` too, whatever the limit. |
 
 Tags you don't list in `tags` keep the node's value. The core tags `!!str`, `!!int`, `!!float`, `!!bool`, `!!null`, `!!seq` and `!!map` work, and throw when the value doesn't fit, as in `!!int x` or `!!map x`. Aliases don't count toward `maxDepth`, so a value reached through one can be nested deeper than it. An implicit key longer than 1,024 Unicode characters throws, as the spec requires. A raw non-printable character, such as U+0001, throws anywhere in the input, comments included. Write it as an escape in a double-quoted string. A `__proto__` key becomes an own property, so YAML can't change an object's prototype.
 
@@ -358,7 +363,7 @@ node --no-warnings scripts/correctness.ts        # the correctness table; add --
 node --no-warnings scripts/charts.ts             # redraw the three charts in .github
 ```
 
-[`scripts/fixtures.sh`](./scripts/fixtures.sh) clones the suite and the libraries at the versions above. [`scripts/compare.sh`](./scripts/compare.sh) runs every check: the suite against each library, mutation fuzzing of parse and stringify, and each library's own tests. The suite runs and the own-test runs list the differences they expect. The parse fuzzers record each difference they expect in [`scripts/baselines/`](./scripts/baselines), including errors both sides throw that differ in message, position or snippet, and other warnings, and the stringify fuzzers expect none. `pnpm compare` fails on a difference that isn't expected, on an expected one that's gone, and on a crash. Fuzz runs use 5,000 cases with seed 1, and some inputs get CRLF or lone CR line breaks. Set `N` for another count. The records cover the first 5,000 cases of seed 1, so a smaller `N` checks part of them, and a larger one finds differences they don't have: `N=40000 UPDATE=1 pnpm compare` records those, and `git diff scripts/baselines` shows them. Each script takes a count and a seed, and the parse fuzzers also take `--update`, as in `node --no-warnings scripts/fuzz.ts 40000 3 --update`.
+[`scripts/fixtures.sh`](./scripts/fixtures.sh) clones the suite and the libraries at the versions above. [`scripts/compare.sh`](./scripts/compare.sh) runs every check: the suite against each library, mutation fuzzing of parse and stringify, and each library's own tests. The suite runs record the outcome of each case that differs, on both sides, and the own-test runs list the differences they expect. The parse fuzzers record each difference they expect in [`scripts/baselines/`](./scripts/baselines), including errors both sides throw that differ in message, position or snippet, and other warnings, and the stringify fuzzers expect none. `pnpm compare` fails on a difference that isn't expected, on an expected one that's gone, and on a crash. Fuzz runs use 5,000 cases with seed 1, and some inputs get CRLF or lone CR line breaks. Set `N` for another count. The records cover the first 5,000 cases of seed 1, so a smaller `N` checks part of them, and a larger one finds differences they don't have: `N=40000 UPDATE=1 pnpm compare` records those, and `git diff scripts/baselines` shows them. Each script takes a count and a seed, and the parse fuzzers also take `--update`, as in `node --no-warnings scripts/fuzz.ts 40000 3 --update`.
 
 The own-test runs one by one:
 

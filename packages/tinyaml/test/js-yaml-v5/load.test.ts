@@ -139,6 +139,53 @@ describe("load", () => {
       expect(message(loadAll, input), JSON.stringify(input)).toBe(message(real.loadAll, input));
   });
 
+  it("rejects tabs in indentation, verbatim tags and nesting as js-yaml 5 does", () => {
+    const message = (input: string, options?: object) => {
+      try {
+        return loadAll(input, options);
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    const theirs = (input: string, options?: object) => {
+      try {
+        return real.loadAll(input, options);
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    for (const input of [
+      "a:\n\tb",
+      "a:\n\t- b",
+      "? a\n:\n\tb",
+      "x:\n a:\n \tb",
+      "a: 1\n\tb: 2",
+      "a: !t\n\tb",
+      "?\t,key:\n",
+      "!<> x",
+      "!<> [a]",
+      "- !<>\n- x",
+      "!<a x",
+      "!<bad|tag> x",
+      "!<%zz> x",
+      "!<,x> x",
+      "!a|b x",
+    ])
+      expect(message(input), JSON.stringify(input)).toEqual(theirs(input));
+    for (const [input, maxDepth] of [
+      ["1", 1],
+      ["- 1", 2],
+      ["- &a 1\n- - *a", 3],
+      ["[&a 1,[*a]]", 3],
+      ["{a: &a 1, b: [*a]}", 3],
+      ["a: &a 1\nb:\n  c: *a", 3],
+      ["a: [1]", 2],
+      ["--- &a x", 1],
+      ["-", 1],
+    ] as const)
+      expect(message(input, { maxDepth }), input).toEqual(theirs(input, { maxDepth }));
+  });
+
   it("gives its errors the same own keys as js-yaml 5", () => {
     for (const input of ["a: [b", "a: 1\na: 2"])
       expect(Object.keys(error(() => load(input)))).toEqual(
@@ -197,6 +244,73 @@ describe("load", () => {
 
   it("allows duplicate keys with json", () => {
     expect(load("a: 1\na: 2", { json: true })).toEqual({ a: 2 });
+  });
+
+  it("gives a mapping tag every pair with json, repeats and merged keys too", () => {
+    // Adds up the values of each key; a mapping counts 100.
+    const sum = (define: typeof defineMappingTag, name: string) =>
+      define(name, {
+        create: () => new Map<unknown, number>(),
+        has: (carrier, key) => carrier.has(key),
+        addPair: (carrier, key, value) => {
+          carrier.set(key, (carrier.get(key) ?? 0) + (typeof value === "number" ? value : 100));
+          return "";
+        },
+        keys: (carrier) => carrier.keys(),
+        get: (carrier, key) => carrier.get(key),
+        identify: () => false,
+      });
+    const ours = (input: string, name: string) =>
+      load(input, {
+        schema: CORE_SCHEMA.withTags(sum(defineMappingTag, name), mergeTag),
+        json: true,
+      });
+    const theirs = (input: string, name: string) =>
+      real.load(input, {
+        schema: real.CORE_SCHEMA.withTags(
+          sum(real.defineMappingTag as never, name) as never,
+          real.mergeTag,
+        ),
+        json: true,
+      });
+    for (const [input, name] of [
+      ["a: 1\na: 2\n", "tag:yaml.org,2002:map"],
+      ["a: 1\nb: 2\na: 3\n", "tag:yaml.org,2002:map"],
+      ["{a: 1, a: 2, 1: 3, '1': 4, 1: 5}\n", "tag:yaml.org,2002:map"],
+      ["x: !sum {a: 1, a: 2}\n", "!sum"],
+      ["x: &m !sum {a: 1, b: 3}\ny: !sum\n  a: 5\n  <<: *m\n  a: 2\n  b: 4\n", "!sum"],
+      ["x: &m {a: 1, b: 3}\ny: !sum\n  <<: *m\n  b: 4\n  <<: *m\n", "!sum"],
+      ["x: &m {a: 1}\ny: !sum\n  <<: [*m, *m]\n", "!sum"],
+    ] as const)
+      expect(ours(input, name), input).toEqual(theirs(input, name));
+    expect(ours("a: 1\na: 2\n", "tag:yaml.org,2002:map")).toEqual(new Map([["a", 3]]));
+  });
+
+  it("takes null for options, as js-yaml 5 does", () => {
+    expect(load("a: 1\n", null as never)).toEqual({ a: 1 });
+    expect(loadAll("a: 1\n---\nb\n", null, null as never)).toEqual([{ a: 1 }, "b"]);
+    const docs: unknown[] = [];
+    loadAll("a\n---\nb", (doc) => docs.push(doc), null as never);
+    expect(docs).toEqual(["a", "b"]);
+    expect(() => load("a: [\n", null as never)).toThrow(YAMLException);
+  });
+
+  it("rejects what a merge can't take at the `<<`, as js-yaml 5 does", () => {
+    const sources = Array(101).fill("{}").join(",");
+    for (const input of [
+      `x: 1\n<<: [${sources}]\n`,
+      `{x: 1, <<: [${sources}]}\n`,
+      "x: 1\n<<: 1\n",
+      "a: &a {b: 1}\nx:\n  <<: [*a, 2]\n",
+    ]) {
+      const theirs = error(() =>
+        real.load(input, { schema: real.CORE_SCHEMA.withTags(real.mergeTag) }),
+      );
+      const ours = error(() => load(input, { schema: CORE_SCHEMA.withTags(mergeTag) }));
+      expect([ours.reason, ours.mark?.position]).toEqual([theirs.reason, theirs.mark?.position]);
+    }
+    // Without mergeTag, `<<` is a key like any other.
+    expect(load(`<<: [${sources}]\n`)).toMatchObject({ "<<": expect.any(Array) });
   });
 
   it("rejects a tab before a comment under a block scalar, as js-yaml 5 does", () => {

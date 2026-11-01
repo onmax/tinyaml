@@ -5,8 +5,10 @@
 // line, column and snippet, and passes the same warnings to `onWarning`.
 // std's parser is js-yaml 3's, and tinyaml/std doesn't copy all
 // of its bugs, so some inputs differ: each is recorded, with its options and
-// both outcomes, in scripts/baselines/std-fuzz.json (see baseline.ts). Any
-// other difference, a recorded one that's gone, or a crash fails the run.
+// both outcomes, in scripts/baselines/std-fuzz.json (see baseline.ts).
+// Warnings are compared on every input: where something else differs too,
+// the record's kind says so and it holds both sides' warnings. Any other
+// difference, a recorded one that's gone, or a crash fails the run.
 // Usage: node scripts/std-fuzz.ts [iterations] [seed] [--update]
 // After a deliberate change, `node scripts/std-fuzz.ts 5000 1 --update`, or
 // `UPDATE=1 pnpm compare`, rewrites the records; review the diff.
@@ -156,6 +158,22 @@ for (let i = 0; i < iterations; i++) {
   const expected = attempt(std.parseAll, input, options, SyntaxError);
   const actual = attempt(parseAll, input, options, YamlSyntaxError);
   const sides = () => ({ std: show(expected), tinyaml: show(actual) });
+  const warns = !equal(expected.warnings, actual.warnings);
+  if (warns) counts.warnings++;
+  const record = (kind: string, sides: Record<string, string>) =>
+    baseline.add(
+      i,
+      warns ? `${kind}, other warnings` : kind,
+      input,
+      options,
+      warns
+        ? {
+            ...sides,
+            "std warnings": describe(expected.warnings),
+            "tinyaml warnings": describe(actual.warnings),
+          }
+        : sides,
+    );
   let kind: "value" | "stricter" | "lenient" | undefined;
   // std's `!!int` throws a TypeError on an empty node, and tinyaml/std's copies it.
   if (
@@ -191,7 +209,7 @@ for (let i = 0; i < iterations; i++) {
             };
     if (differs) {
       errors.set(differs.kind, (errors.get(differs.kind) ?? 0) + 1);
-      baseline.add(i, differs.kind, input, options, {
+      record(differs.kind, {
         std: describe(differs.sides[0]),
         tinyaml: describe(differs.sides[1]),
       });
@@ -200,18 +218,16 @@ for (let i = 0; i < iterations; i++) {
   } else if (!actual.ok) kind = "stricter";
   else if (expected.ok && !equal(expected.value, actual.value)) kind = "value";
   if (!kind) {
-    if (!equal(expected.warnings, actual.warnings)) {
-      counts.warnings++;
+    if (warns)
       baseline.add(i, "other warnings", input, options, {
         std: describe(expected.warnings),
         tinyaml: describe(actual.warnings),
       });
-    }
     continue;
   }
   counts[kind]++;
   distinct[kind].add(key);
-  baseline.add(i, kind, input, options, sides());
+  record(kind, sides());
 }
 for (const [pair, n] of [...mismatched].sort((a, b) => b[1] - a[1]).slice(0, 30))
   console.log(`${n}x ${pair}`);

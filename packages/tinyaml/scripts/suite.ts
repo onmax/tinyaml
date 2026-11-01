@@ -5,10 +5,13 @@
 // reject with a YAMLException. Cases where tinyaml loads valid YAML that
 // js-yaml rejects are counted on their own; they can't break a user
 // switching from js-yaml. Both lists below are exact: a new case, or a known
-// one that's gone, fails the run.
-// Usage: node scripts/suite.ts [-v]
+// one that's gone, fails the run. Each side's outcome on them is recorded in
+// scripts/baselines/js-yaml-suite.json (see baseline.ts), and one that
+// changes fails the run too.
+// Usage: node scripts/suite.ts [-v] [--update]
 import * as yaml from "js-yaml";
 import { loadAll, YAMLException } from "../src/js-yaml/index.ts";
+import { Baseline, describe, describeError } from "./baseline.ts";
 import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
 
 // Two js-yaml 4 bugs tinyaml doesn't copy: js-yaml drops a tag written on its
@@ -18,15 +21,19 @@ const DIFFER = ["H7J7", "M5C3"];
 // Cases js-yaml 4 rejects and tinyaml loads, valid YAML.
 const LENIENT = ["9KAX"];
 
-type Outcome = { ok: true; value: unknown } | { ok: false; error: string; crash: boolean };
+type Outcome =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string; message: string; crash: boolean };
 function run(fn: () => unknown, type: typeof YAMLException | typeof yaml.YAMLException): Outcome {
   try {
     return { ok: true, value: fn() };
   } catch (error) {
     const crash = !onPurpose(error, [type]);
-    return { ok: false, error: (error as { reason?: string }).reason ?? String(error), crash };
+    const { reason, message } = error as { reason?: string; message?: string };
+    return { ok: false, error: reason ?? String(error), message: message ?? String(error), crash };
   }
 }
+const outcome = (o: Outcome) => (o.ok ? describe(o.value) : describeError(o.message));
 
 const verbose = process.argv.includes("-v");
 const cases = suiteCases();
@@ -34,15 +41,22 @@ let same = 0;
 const lenient: string[] = [];
 const diffs: string[] = [];
 const shown: string[] = [];
+const baseline = new Baseline("js-yaml-suite", "suite", cases.length);
 const show = (o: Outcome) =>
   o.ok ? JSON.stringify(o.value) : `${o.crash ? "CRASH" : "ERROR"} ${o.error}`;
-for (const { id, input } of cases) {
+for (const [i, { id, input }] of cases.entries()) {
   const expected = run(() => yaml.loadAll(input), yaml.YAMLException);
   const actual = run(() => loadAll(input), YAMLException);
   if (!actual.ok && actual.crash) diffs.push(id);
   else if (!expected.ok && actual.ok) lenient.push(id);
-  else if (expected.ok && actual.ok ? equal(expected.value, actual.value) : !expected.ok) same++;
-  else diffs.push(id);
+  else if (expected.ok && actual.ok ? equal(expected.value, actual.value) : !expected.ok) {
+    same++;
+    continue;
+  } else diffs.push(id);
+  baseline.add(i, `${id} ${lenient.at(-1) === id ? "lenient" : "differ"}`, input, undefined, {
+    "js-yaml": outcome(expected),
+    tinyaml: outcome(actual),
+  });
   if (diffs.at(-1) === id)
     shown.push(`${id}\n  js-yaml: ${show(expected)}\n  tinyaml: ${show(actual)}`);
 }
@@ -52,3 +66,4 @@ console.log(
 );
 expectList("cases that differ from js-yaml 4", diffs, DIFFER);
 expectList("cases only tinyaml loads", lenient, LENIENT);
+baseline.finish();
