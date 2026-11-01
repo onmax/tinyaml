@@ -1,4 +1,4 @@
-// Fills the <!-- automd:... --> blocks in every README: the comark-ui badges,
+// Fills the <!-- automd:... --> blocks in every README and the website's home page: the comark-ui badges,
 // and the drop-in tables from .github/drop-ins.json, which
 // .github/scripts/drop-ins.ts measures. Run `pnpm readme` after editing either.
 import { readFileSync } from "node:fs";
@@ -54,7 +54,7 @@ const facts = (name: string, section: string) => {
 };
 
 export default {
-  input: ["README.md", "packages/*/README.md"],
+  input: ["README.md", "packages/*/README.md", "docs/pages/index.md"],
   generators: {
     // `name=tinyaml` for one package, `packages=a,b` for the root. A package
     // also gets its gzip size, from .github/drop-ins.json, and its dependency

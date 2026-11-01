@@ -24,9 +24,23 @@ Each is published on its own, so you install only what you use.
 
 ## Next to what they replace
 
-How many times smaller each drop-in is, gzipped, and how many times faster it parses each package's large benchmark file.
+<!-- automd:drop-ins -->
 
-![Each drop-in next to the library it replaces](/drop-ins.svg)
+| You use     | Switch to            |      Size, gzip |       Parses | Stringifies |
+| ----------- | -------------------- | --------------: | -----------: | ----------: |
+| js-yaml 4   | `tinyaml/js-yaml`    | 14.4 → 11.7 KiB |  1.5× faster | 1.6× faster |
+| js-yaml 5   | `tinyaml/js-yaml-v5` | 17.1 → 15.9 KiB |  1.5× faster | 1.8× faster |
+| yaml        | `tinyaml/yaml`       | 29.9 → 16.7 KiB | 12.6× faster | 2.8× faster |
+| yamljs      | `tinyaml/yamljs`     |   8.8 → 8.0 KiB |  5.0× faster | 1.1× faster |
+| @std/yaml   | `tinyaml/std`        | 11.3 → 10.7 KiB |  2.0× faster | 1.6× faster |
+| json5 2.2.3 | `tinyjson5`          |   7.5 → 3.0 KiB |  8.1× faster | 4.8× faster |
+| ini 7.0.0   | `tinyini`            |   1.6 → 1.6 KiB |  2.0× faster | 2.9× faster |
+
+Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 7.8 KiB, 1.8× smaller than js-yaml 4 and 3.8× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify each package's large benchmark file. Measured on Apple M4, Node 26.13.
+
+<!-- /automd -->
 
 ## Questions
 
