@@ -22,6 +22,8 @@ const entries: [string, string][] = [
   ["tinyjson5", "index"],
   ["tinyjson5/json5", "json5"],
   ["  json5 2.2.3", "export { default } from 'json5'"],
+  ["tinyjson5/json5-v1", "json5-v1"],
+  ["  json5 1.0.2", "export { default } from 'json5-v1'"],
 ];
 
 // Gzip bytes each entry may reach, about 100 over its size when last set:
@@ -30,6 +32,7 @@ const entries: [string, string][] = [
 const BUDGET: Record<string, number> = {
   tinyjson5: 3470,
   "tinyjson5/json5": 3260,
+  "tinyjson5/json5-v1": 3300,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
@@ -40,6 +43,8 @@ const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
   lean: ["serialize a BigInt"],
   // json5 2.2.3's warning about U+2028 and U+2029 in strings.
   json5: ["in strings is not valid ECMAScript"],
+  // json5 1.0.2's loop on a hex number at the end of input.
+  "json5-v1": ["Invalid string length"],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as

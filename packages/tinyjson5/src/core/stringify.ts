@@ -2,7 +2,7 @@
 // lean mode, what the unreleased json5 3 writes: BigInts throw, `quote` must
 // be a quote, lone surrogates are escaped, and replacer lists, arrays,
 // toJSON5 and toJSON are read once, as JSON.stringify reads them.
-import { json5, lean, setMode, type Mode } from "./mode.ts";
+import { json5, lean, setMode, v1, type Mode } from "./mode.ts";
 import { ESCAPES, isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Replacer = (this: any, key: string, value: any) => any;
@@ -203,8 +203,9 @@ function escape(value: string, quote: number): string {
       replacement = "\\u" + c.toString(16);
     else if (c >= 32) continue;
     else if (c === 0) {
+      // json5 1.0.2 writes "\0" even before a digit, which then reads back as an octal escape.
       const next = value.charCodeAt(i + 1);
-      replacement = next >= 48 && next <= 57 ? "\\x00" : "\\0";
+      replacement = !v1 && next >= 48 && next <= 57 ? "\\x00" : "\\0";
     } else replacement = ESCAPES[value[i]!] ?? "\\x" + c.toString(16).padStart(2, "0");
     out += value.slice(start, i) + replacement;
     start = i + 1;

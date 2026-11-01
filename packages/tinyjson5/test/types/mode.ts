@@ -3,6 +3,7 @@
 // does, each export usable where the original is. tsrs checks this file.
 import type * as Mode from "../../src/core/mode.ts";
 import type * as Json5 from "../../src/core/mode/json5.ts";
+import type * as Json5V1 from "../../src/core/mode/json5-v1.ts";
 import type * as Lean from "../../src/core/mode/lean.ts";
 
 type Equal<A, B> =
@@ -12,4 +13,8 @@ type StandsIn<T> =
     ? { [K in keyof T]: T[K] extends (typeof Mode)[K & keyof typeof Mode] ? true : false }[keyof T]
     : false;
 
-export const checks: [StandsIn<typeof Json5>, StandsIn<typeof Lean>] = [true, true];
+export const checks: [StandsIn<typeof Json5>, StandsIn<typeof Json5V1>, StandsIn<typeof Lean>] = [
+  true,
+  true,
+  true,
+];

@@ -145,6 +145,8 @@ function run(fn: (text: string) => unknown, text: string): Outcome & { warnings:
 }
 
 let bothThrow = 0;
+// The error types both threw, by name.
+const kinds = new Map<string, number>();
 let sameError = 0;
 let warnDiffs = 0;
 const valueDiffs = new Map<string, string>();
@@ -178,6 +180,8 @@ for (const input of inputs) {
     );
   } else if (!expected.ok && !actual.ok) {
     bothThrow++;
+    const kind = expected.error.slice(0, expected.error.indexOf(":"));
+    kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
     if (expected.error === actual.error || engine.errors === false) sameError++;
     else
       errorDiffs.set(
@@ -198,5 +202,6 @@ const rate = bothThrow ? ((100 * sameError) / bothThrow).toFixed(3) : "100";
 console.log(
   `${engine.entry} against ${engine.library}: ${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated): ` +
     `${valueDiffs.size} value or accept/reject differences, ` +
-    `${sameError}/${bothThrow} errors identical (${rate}%), ${warnDiffs} warning differences`,
+    `${sameError}/${bothThrow} errors identical (${rate}%), ${warnDiffs} warning differences` +
+    (kinds.size > 1 ? ` (errors: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(", ")})` : ""),
 );

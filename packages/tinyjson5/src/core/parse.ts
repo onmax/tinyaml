@@ -4,7 +4,7 @@
 // it follows the unreleased json5 3 instead: no warnings, a reviver that
 // works as JSON.parse's does, line terminators as ECMAScript has them in
 // error positions, and the `bigint` and `jsonc` options.
-import { json5, lean, setMode, type Mode } from "./mode.ts";
+import { json5, lean, setMode, v1, type Mode } from "./mode.ts";
 import { formatChar, isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Reviver = (this: any, key: string, value: any) => any;
@@ -19,6 +19,9 @@ export interface ParseOptions {
 let src = "";
 let pos = 0;
 let len = 0;
+// Columns json5 1.0.2 counts past the end of input, one per hex digit an
+// escape still wanted there.
+let pastEnd = 0;
 // The lean mode's options, for the call in progress.
 let bigint: boolean | undefined = false;
 let jsonc: boolean | undefined = false;
@@ -36,6 +39,7 @@ export function parse(
       bigint = options?.bigint;
       jsonc = options?.jsonc;
     }
+    if (v1) pastEnd = 0;
     src = String(text);
     pos = 0;
     len = src.length;
@@ -223,9 +227,13 @@ function scalar(c: number): unknown {
     pos++;
     const d = src.charCodeAt(pos);
     if (!(lean && jsonc) && (d === 120 || d === 88) /* x X */) {
-      pos++;
-      if (!isHex(src.charCodeAt(pos))) fail(pos);
+      const digitsAt = ++pos;
       while (isHex(src.charCodeAt(pos))) pos++;
+      // json5 1.0.2 tests the end of input as the string "undefined", whose
+      // "d", "e" and "f" are hex digits, and appends it until the string is
+      // too long.
+      if (v1 && pos >= len) throw new RangeError("Invalid string length");
+      if (pos === digitsAt) fail(pos);
       return number(sign, start, true);
     }
     if (d === 46) fraction();
@@ -297,7 +305,9 @@ function string(quote: number): string {
     if (c === 10 || c === 13 || (lean && jsonc && c < 32)) fail(pos);
     if (json5 && (c === 0x2028 || c === 0x2029))
       console.warn(
-        `JSON5: '${formatChar(String.fromCharCode(c))}' in strings is not valid ECMAScript; consider escaping`,
+        v1
+          ? `JSON5: '${String.fromCharCode(c)}' is not valid ECMAScript; consider escaping`
+          : `JSON5: '${formatChar(String.fromCharCode(c))}' in strings is not valid ECMAScript; consider escaping`,
       );
     else if (c !== c) fail(len);
     pos++;
@@ -355,6 +365,13 @@ function hex(count: number): number {
   let value = 0;
   for (let k = 0; k < count; k++) {
     const c = src.charCodeAt(pos);
+    // json5 1.0.2 reads the end of input as the hex digits of "undefined",
+    // which parseInt then stops at: no digits is NaN, else the ones it read.
+    if (v1 && pos >= len) {
+      if (k === 0) throw new RangeError("Invalid code point NaN");
+      pastEnd = count - k;
+      return value;
+    }
     if (!isHex(c)) fail(pos);
     value = value * 16 + (c <= 57 ? c - 48 : (c | 32) - 87);
     pos++;
@@ -423,7 +440,7 @@ function fail(at: number): never {
   const cp = src.codePointAt(at);
   if (cp === undefined) {
     const [line, column] = position(len, 1);
-    throw syntaxError("invalid end of input", line, column);
+    throw syntaxError("invalid end of input", line, v1 ? column + pastEnd : column);
   }
   const [line, column] = position(at, cp > 0xffff ? 2 : 1);
   throw syntaxError(`invalid character '${formatChar(String.fromCodePoint(cp))}'`, line, column);
@@ -431,7 +448,7 @@ function fail(at: number): never {
 
 function invalidIdentifier(): never {
   const [line, column] = position(pos, 0);
-  throw syntaxError("invalid identifier character", line, column - 5);
+  throw syntaxError("invalid identifier character", line, (v1 ? column + pastEnd : column) - 5);
 }
 
 function syntaxError(message: string, line: number, column: number): SyntaxError {

@@ -8,6 +8,7 @@ import { defineConfig } from "vite-plus";
 export const MODES = {
   lean: { index: "src/index.ts" },
   json5: { json5: "src/json5/index.ts" },
+  "json5-v1": { "json5-v1": "src/json5-v1/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
@@ -42,9 +43,9 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: { ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-main/**"] },
+  fmt: { ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-*/**"] },
   lint: {
-    ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-main/**"],
+    ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-*/**"],
     options: { typeAware: true, typeCheck: false },
     // The parser and stringifier detect control characters on purpose.
     rules: { "no-control-regex": "off" },

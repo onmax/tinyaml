@@ -26,6 +26,35 @@ const cache = (path: string) =>
   pathToFileURL(new URL(`../.cache/${path}`, import.meta.url).pathname).href;
 
 export const ENGINES: Record<string, Engine> = {
+  // json5 1.0.2 tests the end of input as the string "undefined", so a hex
+  // number that ends the input makes it append "undefined" until the string
+  // is too long, which takes seconds. The stand-in throws that RangeError as
+  // soon as isHexDigit sees the end five times in a row: escapes ask at most
+  // four times, and only that loop asks more.
+  "json5-v1": {
+    entry: "tinyjson5/json5-v1",
+    library: "json5 1.0.2",
+    ours: () => import("../src/json5-v1/index.ts"),
+    theirs: async () => {
+      const util = require("json5-v1/lib/util.js");
+      const isHexDigit = util.isHexDigit;
+      let ends = 0;
+      util.isHexDigit = (c: string | undefined) => {
+        ends = c === undefined ? ends + 1 : 0;
+        if (ends > 4) {
+          ends = 0;
+          throw new RangeError("Invalid string length");
+        }
+        return isHexDigit(c);
+      };
+      const json5 = require("json5-v1");
+      return {
+        parse: (text: string, reviver?: any) => ((ends = 0), json5.parse(text, reviver)),
+        stringify: json5.stringify,
+      };
+    },
+    util: async () => require("json5-v1/lib/util.js"),
+  },
   // The root follows json5's unreleased main branch, which `pnpm json5:main:fetch` puts in .cache.
   root: {
     entry: "tinyjson5",
