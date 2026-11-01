@@ -92,6 +92,10 @@ const behaves = () => {
   const key = {__proto__: null}
   const list = {__proto__: null, length: 0}
   return symbols.length === 1 && symbols[0] === symbol
+    // This realm's, which the literals here get, not another realm's.
+    && apply(VALUES[3], ObjectCtor, [[]]) === array_prototype
+    && apply(VALUES[3], ObjectCtor, ['']) === string_prototype
+    && apply(VALUES[3], ObjectCtor, [{}]) === object_prototype
     && typeof apply(VALUES[3], ObjectCtor, [1]) === 'object'
     && apply(VALUES[3], ObjectCtor, [apply(VALUES[4], ObjectCtor, [null])]) === null
     && apply(apply(VALUES[6], VALUES[5], [VALUES[10]]), undefined, ['abc', 1, 2]) === 'b'
