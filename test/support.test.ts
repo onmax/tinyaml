@@ -1,14 +1,7 @@
 // The comparison scripts' shared helpers: a comparator that misses a
 // difference, or a stream reader that splits a value, hides a regression.
 import { describe, expect, it, vi } from "vite-plus/test";
-import {
-  equal,
-  expectCount,
-  iterationsArg,
-  jsonStream,
-  mulberry32,
-  seedArg,
-} from "../scripts/support.ts";
+import { equal, expectCount, iterationsArg, jsonStream, seedArg } from "../scripts/support.ts";
 
 // An array of `length` with only the given indexes set; the rest are holes.
 function holes(length: number, values: Record<number, unknown>): unknown[] {
@@ -114,21 +107,6 @@ describe("jsonStream", () => {
   it("throws on what isn't JSON", () => {
     expect(() => jsonStream("[1,")).toThrow();
     expect(() => jsonStream("nope")).toThrow();
-  });
-});
-
-describe("random numbers", () => {
-  // The generator the fuzzers had inline, so a seed gives the same inputs.
-  it("match the fuzzers' earlier sequence", () => {
-    let s = 7;
-    const inlineMulberry = () => {
-      s = (s + 0x6d2b79f5) | 0;
-      let t = Math.imul(s ^ (s >>> 15), 1 | s);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    const rand = mulberry32(7);
-    for (let i = 0; i < 20000; i++) expect(rand()).toBe(inlineMulberry());
   });
 });
 

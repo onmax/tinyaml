@@ -73,4 +73,3 @@ export const TAG_FLOW = 61;
 export const KEY_COLON = 62;
 /** A warning in `spec` mode only. */
 export const ANCHOR_COLON = 63;
-export const COUNT = 64;

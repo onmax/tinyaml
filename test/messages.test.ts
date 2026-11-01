@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { COUNT } from "../src/core/codes.ts";
+import * as codes from "../src/core/codes.ts";
 import { MESSAGES as english } from "../src/core/messages.ts";
 import { MESSAGES as jsYaml } from "../src/js-yaml/messages.ts";
 import { MESSAGES as jsYaml5 } from "../src/js-yaml-v5/messages.ts";
@@ -10,6 +10,6 @@ import { MESSAGES as yaml } from "../src/yaml/messages.ts";
 describe("message tables", () => {
   it.each(Object.entries({ english, jsYaml, jsYaml5, std, yaml }))(
     "%s has a line per error code",
-    (_, table) => expect(table).toHaveLength(COUNT),
+    (_, table) => expect(table).toHaveLength(Math.max(...Object.values(codes)) + 1),
   );
 });
