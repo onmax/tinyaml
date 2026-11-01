@@ -66,8 +66,9 @@ const data: DropIns = {
       "json5 2.2.3",
       "tinyjson5",
       json5Size,
-      ["json5 (parse + stringify)", "tinyjson5 (parse + stringify)"],
+      ["json5 2.2.3", "tinyjson5"],
       json5Bench,
+      "json5 2.2.3 (tinyjson5 root)",
     ),
     compare(
       "tinyini",
