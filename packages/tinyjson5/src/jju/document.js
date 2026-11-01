@@ -1,5 +1,7 @@
 // jju 1.4.0's lib/document.js (MIT, Copyright (c) 2013 Alex Kocharin), unchanged
-// but for imports in place of require() and the exports at the end.
+// but for imports in place of require(), the exports at the end, and
+// assignments and deletes that fail silently, as in sloppy mode, marked
+// "tinyjson5".
 import { analyze } from './analyze.js'
 import { assert } from './assert.js'
 import { tokenize } from './parse.js'
@@ -18,16 +20,16 @@ function isObject(x) {
 
 function value_to_tokenlist(value, stack, options, is_key, indent) {
   options = Object.create(options)
-  options._stringify_key = !!is_key
+  sloppySet(options, '_stringify_key', !!is_key)
 
   if (indent) {
-    options._prefix = indent.prefix.map(function(x) {
+    sloppySet(options, '_prefix', indent.prefix.map(function(x) {
       return x.raw
-    }).join('')
+    }).join(''))
   }
 
-  if (options._splitMin == null) options._splitMin = 0
-  if (options._splitMax == null) options._splitMax = 0
+  if (options._splitMin == null) sloppySet(options, '_splitMin', 0)
+  if (options._splitMax == null) sloppySet(options, '_splitMax', 0)
 
   var stringified = stringify(value, options)
 
@@ -35,7 +37,7 @@ function value_to_tokenlist(value, stack, options, is_key, indent) {
     return [ { raw: stringified, type: 'key', stack: stack, value: value } ]
   }
 
-  options._addstack = stack
+  sloppySet(options, '_addstack', stack)
   var result = tokenize(stringified, {
     _addstack: stack,
   })
@@ -189,16 +191,16 @@ function Document(text, options) {
 
   var stats = analyze(text, options)
   if (options.indent == null) {
-    options.indent = stats.indent
+    sloppySet(options, 'indent', stats.indent)
   }
   if (options.quote == null) {
-    options.quote = stats.quote
+    sloppySet(options, 'quote', stats.quote)
   }
   if (options.quote_keys == null) {
-    options.quote_keys = stats.quote_keys
+    sloppySet(options, 'quote_keys', stats.quote_keys)
   }
   if (options.no_trailing_comma == null) {
-    options.no_trailing_comma = !stats.has_trailing_comma
+    sloppySet(options, 'no_trailing_comma', !stats.has_trailing_comma)
   }
   return self
 }
@@ -262,10 +264,10 @@ Document.prototype.set = function(path, value) {
       if (Array.isArray(data)) {
         data.pop()
       } else {
-        delete data[path[i]]
+        sloppyDelete(data, path[i])
       }
     } else {
-      data[path[i]] = value
+      sloppySet(data, path[i], value)
     }
   }
 
@@ -484,6 +486,17 @@ module.exports.Document = Document
 
 module.exports.update = function updateJSON(source, new_value, options) {
   return Document(source, options).update(new_value).toString()
+}
+
+// tinyjson5: an assignment or delete as jju's sloppy-mode code makes it,
+// which fails silently where this module's strict mode would throw.
+function sloppySet(object, key, value) {
+  if (object === null || object === undefined) object[key] = value
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.set(object, key, value)
+}
+function sloppyDelete(object, key) {
+  if (object === null || object === undefined) delete object[key]
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.deleteProperty(object, key)
 }
 
 const exported_Document = module.exports.Document

@@ -1,6 +1,7 @@
 // jju 1.4.0's lib/stringify.js (MIT, Copyright (c) 2013 Alex Kocharin), unchanged
-// but for imports in place of require(), the exports at the end, and faster
-// ways through plain keys and strings, marked "tinyjson5".
+// but for imports in place of require(), the exports at the end, and changes
+// marked "tinyjson5": faster ways through plain keys and strings, and
+// assignments that fail silently, as in sloppy mode.
 import * as Uni from './unicode.js'
 const module = { exports: {} }
 
@@ -71,8 +72,12 @@ function _stringify(object, options, recursiveLvl, currentKey) {
     if (options.quote_keys) return _stringify_str(key)
     if (String(Number(key)) == key && key[0] != '-') return key
     if (key == '') return _stringify_str(key)
-    // tinyjson5: an ASCII identifier, which the loop below would keep as it is.
-    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) return key
+    // tinyjson5: an ASCII identifier, which the loop below would keep as it
+    // is, reading options.ascii once for each character as it does.
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) {
+      for (var i=0; i<key.length; i++) void options.ascii
+      return key
+    }
 
     var result = ''
     for (var i=0; i<key.length; i++) {
@@ -350,22 +355,22 @@ module.exports.stringify = function stringifyJSON(object, options, _space) {
   } else {
     options = {}
   }
-  if (_space != null) options.indent = _space
+  if (_space != null) sloppySet(options, 'indent', _space)
 
-  if (options.indent == null) options.indent = '\t'
-  if (options.quote == null) options.quote = "'"
-  if (options.ascii == null) options.ascii = false
-  if (options.mode == null) options.mode = 'json5'
+  if (options.indent == null) sloppySet(options, 'indent', '\t')
+  if (options.quote == null) sloppySet(options, 'quote', "'")
+  if (options.ascii == null) sloppySet(options, 'ascii', false)
+  if (options.mode == null) sloppySet(options, 'mode', 'json5')
 
   if (options.mode === 'json' || options.mode === 'cjson') {
     // json only supports double quotes (= sucks)
-    options.quote = '"'
+    sloppySet(options, 'quote', '"')
 
     // json don't support trailing commas (= sucks)
-    options.no_trailing_comma = true
+    sloppySet(options, 'no_trailing_comma', true)
 
     // json don't support unquoted property names (= sucks)
-    options.quote_keys = true
+    sloppySet(options, 'quote_keys', true)
   }
 
   // why would anyone use such objects?
@@ -373,24 +378,35 @@ module.exports.stringify = function stringifyJSON(object, options, _space) {
     if (options.indent.constructor === Number
     ||  options.indent.constructor === Boolean
     ||  options.indent.constructor === String)
-      options.indent = options.indent.valueOf()
+      sloppySet(options, 'indent', options.indent.valueOf())
   }
 
   // gap is capped at 10 characters
   if (typeof(options.indent) === 'number') {
     if (options.indent >= 0) {
-      options.indent = Array(Math.min(~~options.indent, 10) + 1).join(' ')
+      sloppySet(options, 'indent', Array(Math.min(~~options.indent, 10) + 1).join(' '))
     } else {
-      options.indent = false
+      sloppySet(options, 'indent', false)
     }
   } else if (typeof(options.indent) === 'string') {
-    options.indent = options.indent.substr(0, 10)
+    sloppySet(options, 'indent', options.indent.substr(0, 10))
   }
 
-  if (options._splitMin == null) options._splitMin = 50
-  if (options._splitMax == null) options._splitMax = 70
+  if (options._splitMin == null) sloppySet(options, '_splitMin', 50)
+  if (options._splitMax == null) sloppySet(options, '_splitMax', 70)
 
   return _stringify(object, options, 0, '')
+}
+
+// tinyjson5: an assignment or delete as jju's sloppy-mode code makes it,
+// which fails silently where this module's strict mode would throw.
+function sloppySet(object, key, value) {
+  if (object === null || object === undefined) object[key] = value
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.set(object, key, value)
+}
+function sloppyDelete(object, key) {
+  if (object === null || object === undefined) delete object[key]
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.deleteProperty(object, key)
 }
 
 const exported_stringify = module.exports.stringify

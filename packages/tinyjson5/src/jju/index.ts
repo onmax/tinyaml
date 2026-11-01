@@ -6,36 +6,37 @@ import { update as updateJSON } from "./document.js";
 import { parse as parseJSON, tokenize as tokenizeJSON } from "./parse.js";
 import { stringify as stringifyJSON } from "./stringify.js";
 
+export type Reviver = (this: any, key: string, value: any) => any;
+export type Replacer = ((this: any, key: string, value: any) => any) | (string | number)[];
+
 export interface ParseOptions {
-  /** What to do with "__proto__" and other keys of Object.prototype: "ignore", "throw" or "replace". */
+  /** What to do with keys an empty object has, such as hasOwnProperty and __proto__. Default "ignore". */
   reserved_keys?: "ignore" | "throw" | "replace";
-  /** What to do with duplicate keys: "ignore", "throw" or "replace". */
-  duplicate_keys?: "ignore" | "throw" | "replace";
-  /** Make objects with a null prototype. */
+  /** Make objects with Object.create(null). Default true with reserved_keys "replace", else false. */
   null_prototype?: boolean;
-  reviver?: (this: any, key: string, value: any) => any;
-  /** "json5" (default), "json" or "cjson". */
-  mode?: "json5" | "json" | "cjson";
-  /** Keep the parse result's raw tokens, for tokenize. */
-  legacy?: boolean;
+  reviver?: Reviver;
+  /** "json" to throw on anything but strict JSON; "cjson" for JSON with comments. */
+  mode?: string;
+  [option: string]: unknown;
 }
 
 export interface StringifyOptions {
-  /** Indentation: a number of spaces or a string. */
-  indent?: string | number;
-  /** The quote to use for strings. */
-  quote?: string;
-  /** Quote keys: true, false, or by default only where needed. */
-  quote_keys?: boolean;
-  /** Escape non-ASCII characters. */
+  /** Output ASCII only. Default false. */
   ascii?: boolean;
-  /** "json5" (default), "json" or "cjson". */
-  mode?: "json5" | "json" | "cjson";
-  /** Don't add a trailing comma. */
-  no_trailing_comma?: boolean;
-  replacer?: ((this: any, key: string, value: any) => any) | null;
-  /** Sort keys: true, or a compare function. */
+  /** Indentation, as JSON.stringify takes it, or a boolean. Default "\t". */
+  indent?: string | number | boolean;
+  /** The quote: "'" (default) or '"'. */
+  quote?: string;
+  /** Quote every key. Default false. */
+  quote_keys?: boolean;
+  /** Sort object keys, alphabetically or with a compare function. Default false. */
   sort_keys?: boolean | ((a: string, b: string) => number);
+  replacer?: Replacer | null;
+  /** Never write a trailing comma. Default false. */
+  no_trailing_comma?: boolean;
+  /** "json" for strict JSON output. */
+  mode?: string;
+  [option: string]: unknown;
 }
 
 export interface Token {
@@ -45,21 +46,7 @@ export interface Token {
   stack: (string | number)[];
 }
 
-export const parse: (
-  text: string,
-  options?: ParseOptions | ((key: string, value: any) => any),
-) => any = parseJSON;
-export const stringify: (
-  value: any,
-  options?: StringifyOptions | ((key: string, value: any) => any) | null,
-  indent?: string | number,
-) => string = stringifyJSON;
-export const tokenize: (text: string, options?: ParseOptions) => Token[] & { data: any } =
-  tokenizeJSON;
-export const analyze: (
-  text: string,
-  options?: ParseOptions,
-) => {
+export interface Analysis {
   has_whitespace: boolean;
   has_comments: boolean;
   has_newlines: boolean;
@@ -68,7 +55,21 @@ export const analyze: (
   newline: string;
   quote: string;
   quote_keys: boolean;
-} = analyzeJSON;
+}
+
+/** Parses JSON5, or with `mode` JSON or CJSON. */
+export const parse: (text: string, options?: ParseOptions | Reviver | null) => any = parseJSON;
+/** Writes JSON5, or with `mode` JSON; undefined for what JSON can't hold, as JSON.stringify does. */
+export const stringify: {
+  (value: any, options?: StringifyOptions | null): string | undefined;
+  (value: any, replacer?: Replacer | null, indent?: string | number | boolean): string | undefined;
+} = stringifyJSON;
+/** The tokens of a text, with its value as `data`. */
+export const tokenize: (text: string, options?: ParseOptions) => Token[] & { data: any } =
+  tokenizeJSON;
+/** How a text, or its tokens, is written: indent, quotes, comments and so on. */
+export const analyze: (text: string | Token[], options?: ParseOptions) => Analysis = analyzeJSON;
+/** The text with its value changed to `value`, keeping its formatting and comments. */
 export const update: (
   text: string,
   value: any,

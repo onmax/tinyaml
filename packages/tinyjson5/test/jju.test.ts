@@ -44,4 +44,24 @@ describe("jju", () => {
     ] as const)
       expect(ours.stringify(value, options)).toBe(theirs.stringify(value, options));
   });
+
+  it("ignores writes to frozen options, as jju's sloppy-mode code does", () => {
+    const frozen = Object.freeze({});
+    expect(ours.parse("1", frozen)).toBe(theirs.parse("1", frozen));
+    expect(ours.stringify({ a: 1 }, frozen)).toBe(theirs.stringify({ a: 1 }, frozen));
+    expect(ours.tokenize("1", frozen).length).toBe(theirs.tokenize("1", frozen).length);
+  });
+
+  it("reads options.ascii for each character of a key, as jju does", () => {
+    const options = (reads: string[]) => ({
+      get ascii() {
+        reads.push("ascii");
+        return false;
+      },
+    });
+    const a: string[] = [];
+    const b: string[] = [];
+    expect(ours.stringify({ abc: 1 }, options(a))).toBe(theirs.stringify({ abc: 1 }, options(b)));
+    expect(a).toEqual(b);
+  });
 });

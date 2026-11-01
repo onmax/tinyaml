@@ -60,7 +60,7 @@ const BUDGET: Record<string, number> = {
   "tinyjson5/strip-json-comments-v5": 680,
   "tinyjson5/jsonc-parser": 6140,
   "tinyjson5/comment-json": 17770,
-  "tinyjson5/jju": 9740,
+  "tinyjson5/jju": 9890,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up

@@ -1,6 +1,7 @@
 // jju 1.4.0's lib/parse.js (MIT, Copyright (c) 2013 Alex Kocharin), unchanged
-// but for imports in place of require(), the exports at the end, and a
-// faster way through strings, marked "tinyjson5".
+// but for imports in place of require(), the exports at the end, and changes
+// marked "tinyjson5": a faster way through strings, and assignments that fail
+// silently, as in sloppy mode.
 import * as Uni from './unicode.js'
 const module = { exports: {} }
 
@@ -744,11 +745,11 @@ module.exports.parse = function parseJSON(input, options) {
   // JSON.parse compat
   if (typeof(input) !== 'string') input = String(input)
   if (options == null) options = {}
-  if (options.reserved_keys == null) options.reserved_keys = 'ignore'
+  if (options.reserved_keys == null) sloppySet(options, 'reserved_keys', 'ignore')
 
   if (options.reserved_keys === 'throw' || options.reserved_keys === 'ignore') {
     if (options.null_prototype == null) {
-      options.null_prototype = true
+      sloppySet(options, 'null_prototype', true)
     }
   }
 
@@ -771,14 +772,25 @@ module.exports.parse = function parseJSON(input, options) {
 module.exports.tokenize = function tokenizeJSON(input, options) {
   if (options == null) options = {}
 
-  options._tokenize = function(smth) {
+  sloppySet(options, '_tokenize', function(smth) {
     if (options._addstack) smth.stack.unshift.apply(smth.stack, options._addstack)
     tokens.push(smth)
-  }
+  })
 
   var tokens = []
   tokens.data = module.exports.parse(input, options)
   return tokens
+}
+
+// tinyjson5: an assignment or delete as jju's sloppy-mode code makes it,
+// which fails silently where this module's strict mode would throw.
+function sloppySet(object, key, value) {
+  if (object === null || object === undefined) object[key] = value
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.set(object, key, value)
+}
+function sloppyDelete(object, key) {
+  if (object === null || object === undefined) delete object[key]
+  else if (typeof object === 'object' || typeof object === 'function') Reflect.deleteProperty(object, key)
 }
 
 const exported_parse = module.exports.parse

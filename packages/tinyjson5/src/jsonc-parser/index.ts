@@ -5,16 +5,10 @@ import * as formatter from "./format.ts";
 import * as parser from "./parser.ts";
 import * as scanner from "./scanner.ts";
 
-// jsonc-parser's enums are TypeScript enums: objects that map each name to
-// its number and each number back to its name. Here each is such an object,
-// a type of its numbers, and a namespace of a type per member, which is what
-// an enum declares. The type takes any number too, as a numeric enum does.
-// Typed by the declaration each export gives it.
-function enumOf(names: string, first: number): never {
-  const object: Record<string | number, string | number> = {};
-  names.split(" ").forEach((name, i) => (object[(object[name] = i + first)] = name));
-  return object as never;
-}
+// jsonc-parser's enums: objects that map each name to its number and back,
+// with TypeScript's enum declarations in enums.d.ts.
+export { ParseErrorCode, ScanError, SyntaxKind } from "./enums.js";
+import type { ParseErrorCode, ScanError, SyntaxKind } from "./enums.js";
 
 /**
  * Creates a JSON scanner on the given text.
@@ -22,92 +16,6 @@ function enumOf(names: string, first: number): never {
  */
 export const createScanner: (text: string, ignoreTrivia?: boolean) => JSONScanner =
   scanner.createScanner;
-
-export const ScanError: {
-  readonly None: 0;
-  readonly UnexpectedEndOfComment: 1;
-  readonly UnexpectedEndOfString: 2;
-  readonly UnexpectedEndOfNumber: 3;
-  readonly InvalidUnicode: 4;
-  readonly InvalidEscapeCharacter: 5;
-  readonly InvalidCharacter: 6;
-  readonly [code: number]: string;
-} = enumOf(
-  "None UnexpectedEndOfComment UnexpectedEndOfString UnexpectedEndOfNumber InvalidUnicode InvalidEscapeCharacter InvalidCharacter",
-  0,
-);
-export type ScanError = 0 | 1 | 2 | 3 | 4 | 5 | 6 | (number & {});
-export declare namespace ScanError {
-  type None = 0;
-  type UnexpectedEndOfComment = 1;
-  type UnexpectedEndOfString = 2;
-  type UnexpectedEndOfNumber = 3;
-  type InvalidUnicode = 4;
-  type InvalidEscapeCharacter = 5;
-  type InvalidCharacter = 6;
-}
-
-export const SyntaxKind: {
-  readonly OpenBraceToken: 1;
-  readonly CloseBraceToken: 2;
-  readonly OpenBracketToken: 3;
-  readonly CloseBracketToken: 4;
-  readonly CommaToken: 5;
-  readonly ColonToken: 6;
-  readonly NullKeyword: 7;
-  readonly TrueKeyword: 8;
-  readonly FalseKeyword: 9;
-  readonly StringLiteral: 10;
-  readonly NumericLiteral: 11;
-  readonly LineCommentTrivia: 12;
-  readonly BlockCommentTrivia: 13;
-  readonly LineBreakTrivia: 14;
-  readonly Trivia: 15;
-  readonly Unknown: 16;
-  readonly EOF: 17;
-  readonly [code: number]: string;
-} = enumOf(
-  "OpenBraceToken CloseBraceToken OpenBracketToken CloseBracketToken CommaToken ColonToken NullKeyword TrueKeyword FalseKeyword StringLiteral NumericLiteral LineCommentTrivia BlockCommentTrivia LineBreakTrivia Trivia Unknown EOF",
-  1,
-);
-export type SyntaxKind =
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10
-  | 11
-  | 12
-  | 13
-  | 14
-  | 15
-  | 16
-  | 17
-  | (number & {});
-export declare namespace SyntaxKind {
-  type OpenBraceToken = 1;
-  type CloseBraceToken = 2;
-  type OpenBracketToken = 3;
-  type CloseBracketToken = 4;
-  type CommaToken = 5;
-  type ColonToken = 6;
-  type NullKeyword = 7;
-  type TrueKeyword = 8;
-  type FalseKeyword = 9;
-  type StringLiteral = 10;
-  type NumericLiteral = 11;
-  type LineCommentTrivia = 12;
-  type BlockCommentTrivia = 13;
-  type LineBreakTrivia = 14;
-  type Trivia = 15;
-  type Unknown = 16;
-  type EOF = 17;
-}
 
 /**
  * The scanner object, representing a JSON scanner at a position in the input string.
@@ -218,65 +126,6 @@ export interface ParseError {
   error: ParseErrorCode;
   offset: number;
   length: number;
-}
-
-export const ParseErrorCode: {
-  readonly InvalidSymbol: 1;
-  readonly InvalidNumberFormat: 2;
-  readonly PropertyNameExpected: 3;
-  readonly ValueExpected: 4;
-  readonly ColonExpected: 5;
-  readonly CommaExpected: 6;
-  readonly CloseBraceExpected: 7;
-  readonly CloseBracketExpected: 8;
-  readonly EndOfFileExpected: 9;
-  readonly InvalidCommentToken: 10;
-  readonly UnexpectedEndOfComment: 11;
-  readonly UnexpectedEndOfString: 12;
-  readonly UnexpectedEndOfNumber: 13;
-  readonly InvalidUnicode: 14;
-  readonly InvalidEscapeCharacter: 15;
-  readonly InvalidCharacter: 16;
-  readonly [code: number]: string;
-} = enumOf(
-  "InvalidSymbol InvalidNumberFormat PropertyNameExpected ValueExpected ColonExpected CommaExpected CloseBraceExpected CloseBracketExpected EndOfFileExpected InvalidCommentToken UnexpectedEndOfComment UnexpectedEndOfString UnexpectedEndOfNumber InvalidUnicode InvalidEscapeCharacter InvalidCharacter",
-  1,
-);
-export type ParseErrorCode =
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10
-  | 11
-  | 12
-  | 13
-  | 14
-  | 15
-  | 16
-  | (number & {});
-export declare namespace ParseErrorCode {
-  type InvalidSymbol = 1;
-  type InvalidNumberFormat = 2;
-  type PropertyNameExpected = 3;
-  type ValueExpected = 4;
-  type ColonExpected = 5;
-  type CommaExpected = 6;
-  type CloseBraceExpected = 7;
-  type CloseBracketExpected = 8;
-  type EndOfFileExpected = 9;
-  type InvalidCommentToken = 10;
-  type UnexpectedEndOfComment = 11;
-  type UnexpectedEndOfString = 12;
-  type UnexpectedEndOfNumber = 13;
-  type InvalidUnicode = 14;
-  type InvalidEscapeCharacter = 15;
-  type InvalidCharacter = 16;
 }
 
 // jsonc-parser's switch, which doesn't read the exported enum: its names, in order.
