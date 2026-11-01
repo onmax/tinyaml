@@ -2,7 +2,7 @@
   <img src="./.github/assets/banner.svg" alt="tiny" width="100%">
 </h1>
 
-Smaller, faster, dependency-free parsers you can drop in for the libraries you already use. Change one import and keep your code. Each package matches its original on that library's own tests and on hundreds of thousands of fuzzed inputs, and lists every place it still differs.
+Smaller, faster, dependency-free parsers you can drop in for the libraries you already use. Change one import and keep your code. Each package matches its original on that library's own tests and on tens of thousands to millions of fuzzed inputs, and lists every place it still differs.
 
 ![Each drop-in next to the library it replaces: times smaller, gzip, and times faster at parsing](./.github/assets/drop-ins.svg)
 

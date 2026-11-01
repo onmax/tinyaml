@@ -174,6 +174,16 @@ folded: >
     expect(() => load("at: !point [1]", { schema })).toThrow(/cannot resolve a node/);
   });
 
+  it("keeps a key a custom type constructs as undefined, as js-yaml 4 does", () => {
+    const construct = () => undefined;
+    const ours = DEFAULT_SCHEMA.extend(new Type("!u", { kind: "scalar", construct }));
+    const theirs = jsYaml.DEFAULT_SCHEMA.extend(
+      new jsYaml.Type("!u", { kind: "scalar", construct }),
+    );
+    expect(load("!u x: 1", { schema: ours })).toEqual({ undefined: 1 });
+    expect(jsYaml.load("!u x: 1", { schema: theirs })).toEqual({ undefined: 1 });
+  });
+
   it("keeps __proto__ as an own key", () => {
     const doc = load("__proto__: {polluted: true}") as Record<string, unknown>;
     expect(Object.keys(doc)).toEqual(["__proto__"]);

@@ -86,8 +86,8 @@ export function stringify(value: unknown, options: StringifyOptions = {}): strin
 // `value` after its `toJSON`, with what it holds read into `held`, depth
 // first.
 function read(value: unknown): unknown {
-  if (typeof (value as { toJSON?: unknown })?.toJSON === "function")
-    value = (value as { toJSON(): unknown }).toJSON();
+  const toJSON = (value as { toJSON?: unknown })?.toJSON;
+  if (typeof toJSON === "function") value = toJSON.call(value);
   if (value === null || typeof value !== "object") return value;
   if (held.has(value)) {
     if (refs && !refs.has(value)) refs.set(value, `ref_${refs.size}`);
@@ -95,8 +95,9 @@ function read(value: unknown): unknown {
   }
   const items: unknown[] = [];
   held.set(value, items);
-  // By index, so holes become null too.
-  if (Array.isArray(value)) for (let i = 0; i < value.length; i++) items.push(read(value[i]));
+  // By index up to the length it starts with, so holes become null too.
+  if (Array.isArray(value))
+    for (let i = 0, n = value.length; i < n; i++) items.push(read(value[i]));
   else
     for (const key of Object.keys(value))
       items.push(key, read((value as Record<string, unknown>)[key]));

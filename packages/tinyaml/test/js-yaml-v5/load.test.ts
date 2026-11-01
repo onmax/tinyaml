@@ -7,6 +7,7 @@ import {
   defineSequenceTag,
   FAILSAFE_SCHEMA,
   JSON_SCHEMA,
+  legacyMapTag,
   load,
   loadAll,
   mergeTag,
@@ -286,6 +287,155 @@ describe("load", () => {
     expect(ours("a: 1\na: 2\n", "tag:yaml.org,2002:map")).toEqual(new Map([["a", 3]]));
   });
 
+  it("merges a mapping as it was built, the last of a repeated key with json", () => {
+    // Any comment with a `!` reads mappings through YAML11_SCHEMA's mapping tags.
+    const input = "base: &a {k: 1, k: 2}\ncopy: {<<: *a}\n# !\n";
+    const expected = real.load(input, { schema: real.YAML11_SCHEMA, json: true });
+    expect(expected).toEqual({ base: { k: 2 }, copy: { k: 2 } });
+    expect(load(input, { schema: YAML11_SCHEMA, json: true })).toEqual(expected);
+  });
+
+  // An ordered list of pairs, which logs every call a carrier gets.
+  const pairs = (define: typeof defineMappingTag, log: string[]) => {
+    const ids = new Map<unknown, number>();
+    const id = (carrier: unknown) => ids.get(carrier) ?? ids.set(carrier, ids.size).get(carrier);
+    return define("!p", {
+      create: () => {
+        const carrier: [unknown, unknown][] = [];
+        log.push(`create ${id(carrier)}`);
+        return carrier;
+      },
+      has: (carrier, key) => {
+        log.push(`has ${id(carrier)} ${String(key)}`);
+        return carrier.some((pair) => pair[0] === key);
+      },
+      addPair: (carrier, key, value) => {
+        log.push(`add ${id(carrier)} ${String(key)} ${JSON.stringify(value)}`);
+        carrier.push([key, value]);
+        return "";
+      },
+      keys: (carrier) => carrier.map((pair) => pair[0]),
+      get: (carrier, key) => {
+        log.push(`get ${id(carrier)} ${String(key)}`);
+        return carrier.find((pair) => pair[0] === key)?.[1];
+      },
+      identify: () => false,
+    });
+  };
+  // What each library loads, and the calls each carrier got, in order.
+  const withPairs = (input: string, json: boolean) => {
+    const read = (lib: typeof real | typeof import("../../src/js-yaml-v5/index.ts")) => {
+      const log: string[] = [];
+      const schema = lib.CORE_SCHEMA.withTags(
+        pairs(lib.defineMappingTag as never, log) as never,
+        lib.mergeTag as never,
+      );
+      let value: unknown;
+      try {
+        value = lib.load(input, { schema, json } as never);
+      } catch (e) {
+        value = (e as YAMLException).message;
+      }
+      return { value, log };
+    };
+    return [read(real), read({ CORE_SCHEMA, defineMappingTag, mergeTag, load } as never)];
+  };
+
+  it("merges what a mapping tag built through its keys and get, even an array", () => {
+    for (const input of [
+      "base: &a !p {k: 1}\ncopy: {<<: *a}\n",
+      "base: &a !p {k: 1}\ncopy: [*a, {<<: *a}]\n",
+      "a: &a !p {k: 1}\nb: &b !p {k: 2, j: 3}\ncopy: {<<: [*a, *b], j: 7}\n",
+      "base: &a {k: 1}\nmid: &m !p {<<: *a, j: 2}\ncopy: {<<: *m, k: 3}\n",
+    ])
+      for (const json of [false, true]) {
+        const [theirs, ours] = withPairs(input, json);
+        expect(ours!.value, input).toEqual(theirs!.value);
+      }
+    expect(withPairs("base: &a !p {k: 1}\ncopy: {<<: *a}\n", false)[1]!.value).toEqual({
+      base: [["k", 1]],
+      copy: { k: 1 },
+    });
+  });
+
+  it("gives a mapping tag a merge's pairs, overrides and repeats as js-yaml 5 does", () => {
+    for (const input of [
+      "base: &a {k: 1}\ncopy: !p {<<: *a, k: 2}\n",
+      "base: &a {k: 1}\ncopy: !p {k: 2, <<: *a}\n",
+      "base: &a {k: 1}\ncopy: !p {<<: *a, k: 2, k: 3}\n",
+      "copy: !p {a: 1, k: 2, k: 3}\n",
+      "base: &a {k: 1}\ncopy: !p {<<: [*a, {k: 5, j: 6}], j: 7}\n",
+      "a: &a !p {k: 1}\nb: &b !p {k: 2, j: 3}\ncopy: !p {<<: [*a, *b], j: 7}\n",
+      "base: &a {k: 1}\ncopy: !p {x: !p {<<: *a, k: 2}, <<: *a}\n",
+      "base: &a {k: 1}\nmid: &m !p {<<: *a, j: 2}\ncopy: !p {<<: *m, k: 3}\n",
+      "base: &a {k: 1}\ncopy: !p\n  <<: *a\n  k: 2\n  <<: {k: 9, z: 1}\n  z: 2\n",
+      "base: &a {k: 1}\ncopy: !p {<<: *a, <<: *a, k: 2}\n",
+      "base: &a !p {k: 1, j: 3}\ncopy: !p {k: 2, <<: *a}\n",
+    ])
+      for (const json of [false, true]) {
+        const [theirs, ours] = withPairs(input, json);
+        expect(ours!.value, input).toEqual(theirs!.value);
+        // Each carrier sees its pairs in js-yaml 5's order. Where tinyaml
+        // differs, it's when carriers are made and where it finds a repeat.
+        const calls = (log: string[]) => log.filter((call) => /^(?:has|add|get) 2 /.test(call));
+        if (typeof theirs!.value !== "string" && !input.includes("x: !p"))
+          expect(calls(ours!.log), input).toEqual(calls(theirs!.log));
+      }
+    const [theirs, ours] = withPairs("base: &a {k: 1}\ncopy: !p {<<: *a, k: 2}\n", false);
+    expect(ours!.value).toEqual({
+      base: { k: 1 },
+      copy: [
+        ["k", 1],
+        ["k", 2],
+      ],
+    });
+    expect(ours!.log).toEqual(theirs!.log);
+  });
+
+  it("lets only an equal key override a merged one, as js-yaml 5 does", () => {
+    const schema = CORE_SCHEMA.withTags(mergeTag);
+    for (const input of [
+      "a: &a {1: x, b: z}\nb: {<<: *a, 1: w}\n",
+      "a: &a {1: x, b: z}\nb: {<<: *a, '1': w}\n",
+      "a: &a {true: x}\nb: {<<: *a, true: w}\n",
+    ]) {
+      let theirs: unknown, ours: unknown;
+      try {
+        theirs = real.load(input, { schema: real.CORE_SCHEMA.withTags(real.mergeTag) });
+      } catch (e) {
+        theirs = (e as YAMLException).message;
+      }
+      try {
+        ours = load(input, { schema });
+      } catch (e) {
+        ours = (e as YAMLException).message;
+      }
+      expect(ours, input).toEqual(theirs);
+    }
+    expect(() => load("a: &a {1: x}\nb: {<<: *a, 1: w}\n", { schema })).toThrow(
+      "duplicated mapping key (2:13)",
+    );
+  });
+
+  it("points at a repeated alias key's name and a collection key at 0, as js-yaml 5 does", () => {
+    const schema = YAML11_SCHEMA.withTags(legacyMapTag);
+    for (const input of [
+      "{&b b: 1, *b : 2}\n",
+      "- &a [1]\n- {*a : 1, *a : 2}\n",
+      "{? [1] : a, ? [1] : b}\n",
+      "x: {? {a: 1} : a, ? {a: 1} : b}\n",
+    ]) {
+      const theirs = error(() =>
+        real.load(input, { schema: real.YAML11_SCHEMA.withTags(real.legacyMapTag) }),
+      );
+      const ours = error(() => load(input, { schema }));
+      expect([ours.reason, ours.mark?.position], input).toEqual([
+        theirs.reason,
+        theirs.mark?.position,
+      ]);
+    }
+  });
+
   it("takes null for options, as js-yaml 5 does", () => {
     expect(load("a: 1\n", null as never)).toEqual({ a: 1 });
     expect(loadAll("a: 1\n---\nb\n", null, null as never)).toEqual([{ a: 1 }, "b"]);
@@ -377,6 +527,14 @@ describe("load", () => {
       "cannot resolve a node with !<!upper> explicit tag",
     );
     expect(error(() => load("!pair [1, 2, 3]", { schema })).reason).toBe("too many items");
+  });
+
+  it("keeps a key a custom tag resolves to undefined, as js-yaml 5 does", () => {
+    const tag = { resolve: () => undefined, identify: () => false };
+    const schema = CORE_SCHEMA.withTags(defineScalarTag("!u", tag));
+    const theirs = real.CORE_SCHEMA.withTags(real.defineScalarTag("!u", tag));
+    expect(load("!u x: 1", { schema })).toEqual({ undefined: 1 });
+    expect(real.load("!u x: 1", { schema: theirs })).toEqual({ undefined: 1 });
   });
 
   it("builds schemas like js-yaml 5", () => {

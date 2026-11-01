@@ -68,6 +68,28 @@ describe("parse", () => {
     same("<<: {a: 1}\na: 2\n", "a: 2\n<<: {a: 1}\n");
   });
 
+  it("keeps the last of duplicate keys in a block mapping after a merge", () => {
+    same(
+      "<<: {}\na: 1\na: 2",
+      "a: 1\n<<: {}\na: 2",
+      "a: 1\na: 2\n<<: {}\na: 3",
+      "a: 1\na: 2\n<<: {}",
+      "<<: {a: 1}\na: 2\na: 3",
+      "a: 1\n<<: {}\nb: 1\nb: 2",
+      "x: &x {a: 1}\ny:\n  a: 2\n  <<: *x\n  a: 3",
+      "<<: [{a: 1}, {a: 2, b: 2}]\nb: 3\nb: 4",
+      "- <<: {}\n  a: 1\n  a: 2",
+      "- a: 1\n  <<: {}\n  a: 2\n- a: 1\n  a: 2",
+    );
+    expect(parse("<<: {}\na: 1\na: 2")).toEqual({ a: 2 });
+    // Each block mapping on its own, and never a flow mapping.
+    same(
+      "<<: {}\nb:\n  a: 1\n  a: 2",
+      "b:\n  <<: {}\n  a: 1\na: 1\na: 2",
+      "<<: {}\nb: {a: 1, a: 2}",
+    );
+  });
+
   it("merges any number of mappings", () => {
     same(`a: &a {x: 1}\n<<: [${Array(101).fill("*a").join(",")}]\n`);
   });
@@ -117,6 +139,12 @@ describe("parse", () => {
       a: ["!foo", "bar"],
     });
     expect(() => parse("a: !foo bar", true)).toThrow(ParseException);
+  });
+
+  it("keeps a key objectDecoder decodes to undefined, as yamljs does", () => {
+    const decode = () => undefined;
+    expect(parse("!u x: 1", false, decode)).toEqual({ undefined: 1 });
+    expect(yamljs.parse("!u x: 1", false, decode)).toEqual({ undefined: 1 });
   });
 
   it("passes a tagged flow collection to objectDecoder as its text", () => {

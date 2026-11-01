@@ -66,6 +66,12 @@ describe("a tag that parses another document", () => {
     expect(() => parse("[*a]")).toThrow(/unknown alias/);
   });
 
+  it("keeps the outer node's state, as a flow key's", () => {
+    const tags = (inner: string) => ({ "!x": (value: unknown) => (parse(inner), value) });
+    expect(parse('{!x "a":b}', { tags: tags("0") })).toEqual({ a: "b" });
+    expect(() => parse("{!x a #\n:b}", { tags: tags('"q"') })).toThrow(/white space after ":"/);
+  });
+
   it("keeps the outer error's position", () => {
     const tags = { "!include": (value: unknown) => parse(`inside: ${value as string}`) };
     expect(() => parse(`${input}bad: [`, { tags })).toThrow(/\(5:/);

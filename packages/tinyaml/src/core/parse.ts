@@ -50,9 +50,10 @@ export interface Engine {
   /**
    * yaml's, read only in `spec` mode: called on a just-finished key while
    * `tag` isn't empty, it returns the key's value as a key, since a tag may
-   * read a plain scalar only there, and may set `tag`.
+   * read a plain scalar only there, and may set `tag`. `anchors` are the
+   * current document's.
    */
-  atKey?: ((key: unknown) => unknown) | undefined;
+  atKey?: ((key: unknown, anchors: Map<string, unknown>) => unknown) | undefined;
   /**
    * yaml's, read only in `spec` mode: called on each anchor, with the depth
    * and whether its node `starts`. A collection's comes as it starts and
@@ -63,15 +64,20 @@ export interface Engine {
   anchor?: ((name: string, depth: number, value?: unknown, starts?: boolean) => void) | undefined;
   /**
    * What a `<<` merges the keys of in place of `source`, outside `lenient`
-   * mode. `anchors` are the current document's.
+   * mode, called on each source of the `<<` in `map` whose value is `value`.
+   * `anchors` are the current document's.
    */
-  merge?: ((source: unknown, anchors: Map<string, unknown>) => unknown) | undefined;
-  // The next three are js-yaml 5's: the parser reads them only when the engine
+  merge?:
+    | ((source: unknown, anchors: Map<string, unknown>, map: object, value: unknown) => unknown)
+    | undefined;
+  // The next four are js-yaml 5's: the parser reads them only when the engine
   // is neither `lenient` nor `spec`, so the other entries' builds drop them.
   /** Pass string keys to `key` too. */
   allKeys?: boolean | undefined;
   /** Called on each alias, with the current document's anchors. */
   alias?: ((name: string, anchors: Map<string, unknown>) => void) | undefined;
+  /** Whether an array is a mapping a tag built, which `<<` merges as one. */
+  mapping?: ((value: unknown[]) => boolean) | undefined;
   /**
    * Byte order marks to drop after the first. Without it, the spec engines
    * drop one that starts a document after a `...`, and the others none.
@@ -84,13 +90,16 @@ export interface Engine {
   warn?: ((reason: string, mark: Mark, code: number) => void) | undefined;
   /** Allow duplicate keys; the last one wins. */
   json?: boolean | undefined;
-  /** With `json`, in `lenient` mode, keep a repeated key's first value, as yamljs does. */
+  /**
+   * With `json`, in `lenient` mode, keep a repeated key's first value, as
+   * yamljs does, but in a block mapping after a `<<`, the last.
+   */
   first?: boolean | undefined;
   /**
-   * In `spec` mode, whether `key`, stored in `map` as `name`, repeats a key
-   * already in it. Without it, a name already in `map` does.
+   * In `spec` mode, whether `key`, stored in `map` as `name` with `value`,
+   * repeats a key already in it. Without it, a name already in `map` does.
    */
-  duplicate?: ((map: object, key: unknown, name: string) => boolean) | undefined;
+  duplicate?: ((map: object, key: unknown, name: string, value: unknown) => boolean) | undefined;
   /**
    * In `spec` mode, reject a non-printable character anywhere, as the spec
    * does, and not only in plain and block scalars, as yaml does.
@@ -175,6 +184,8 @@ export const MERGE_TAG = `${YAML_TAG}merge`;
 const MERGE = Symbol();
 // Stands in for the next key of a block mapping where no node starts.
 const END = Symbol();
+// Stands in for the key of an explicit `?` entry, not read yet.
+const EXPLICIT = Symbol();
 
 // Each escape character in ESCAPES stands for the character at the same index
 // in ESCAPED.
@@ -225,7 +236,8 @@ let explicitAt = -1;
 let overridable = new WeakMap<object, Set<string>>();
 
 // Where a node last reached the level right above maxDepth, which a key in a
-// flow sequence pushes past it when it turns out to start a pair.
+// flow sequence, or a block mapping's first key, pushes past it when it turns
+// out to start a pair or the mapping.
 let brink = -1;
 
 // A scalar one level below the current node, or a node at `level`.
@@ -282,6 +294,9 @@ export function original(
  */
 export const sanitize = (input: string): string =>
   input.replace(/^\uFEFF/, "").replace(/[^\r\n]$/, "$&\n");
+
+/** Where the parser is in the input it reads, from inside the engine. */
+export const at = (): number => pos;
 
 /** Throws the error for a code from codes.ts, or for the engine's own reason. */
 export function fail(reason: number | string, arg?: string | number): never {
@@ -414,10 +429,10 @@ function indented(directiveEnd: number): number | false {
 
 /** Every document in `input`. */
 export function parse(input: string, use: Engine): unknown[] {
-  // The caller's state, when a tag parses a document in the middle of another.
-  // `plain` and `lastTag` are read right after they're set, so they're left out.
+  // The caller's state, all of it, when a tag parses a document in the middle
+  // of another.
   // prettier-ignore
-  const outer = [src, pos, lineStart, len, anchors, tabbed, crossed, emptyKey, pendingAnchor, depth, brink, tabs, maxDepth, keyAt, engine, implicit, mergeKeys, handles] as const;
+  const outer = [src, pos, lineStart, len, anchors, plain, tabbed, crossed, emptyKey, pendingAnchor, depth, brink, tabs, maxDepth, lastTag, keyAt, engine, implicit, mergeKeys, explicitAt, handles] as const;
   const outerMode = setMode(use);
   engine = use;
   implicit = use.implicit;
@@ -425,7 +440,6 @@ export function parse(input: string, use: Engine): unknown[] {
   pendingAnchor = undefined;
   depth = mergeKeys = 0;
   brink = -1;
-  // A tag in the key may parse a document, after the key's scalar.
   if (lenient) explicitAt = -1;
   const docs: unknown[] = [];
   try {
@@ -557,7 +571,7 @@ export function parse(input: string, use: Engine): unknown[] {
     throw error;
   } finally {
     // prettier-ignore
-    [src, pos, lineStart, len, anchors, tabbed, crossed, emptyKey, pendingAnchor, depth, brink, tabs, maxDepth, keyAt, engine, implicit, mergeKeys, handles] = outer;
+    [src, pos, lineStart, len, anchors, plain, tabbed, crossed, emptyKey, pendingAnchor, depth, brink, tabs, maxDepth, lastTag, keyAt, engine, implicit, mergeKeys, explicitAt, handles] = outer;
     if (outerMode) setMode(outerMode);
   }
   return docs;
@@ -710,7 +724,7 @@ function kindOf(value: unknown): Kind {
 // A just-finished key, with `<<` swapped for the merge marker.
 function asKey(key: unknown): unknown {
   if (spec && lastTag && engine.atKey) {
-    key = engine.atKey(key);
+    key = engine.atKey(key, anchors);
     lastTag = engine.tag;
   }
   return lastTag === MERGE_TAG ? MERGE : key;
@@ -860,7 +874,7 @@ function parseBlockNode(
     const props = mergeProps(node, own, inSeq);
     if (inline || (own && (!lenient || ch === DASH))) fail(E.MAP_INDENT);
     return finish(
-      ch === DASH ? parseBlockSeq(col) : parseBlockMap(col, undefined, indent),
+      ch === DASH ? parseBlockSeq(col) : parseBlockMap(col, EXPLICIT, indent),
       props,
       false,
     );
@@ -914,6 +928,12 @@ function parseBlockNode(
     if (tabbed) return tabbedCollection(indent, col);
     if (spec && inline) fail(E.MAP_INDENT);
     if (multiline) fail(E.MULTILINE_KEY);
+    // The key turns out to be a level below the mapping it starts, and so is
+    // everything in it.
+    if (spec && !isAlias) {
+      if (brink >= keyAt) fail(E.MAX_DEPTH, maxDepth);
+      leaf(depth + 2);
+    }
     const resolved = isAlias ? key : asKey(finish(key, own, wasPlain));
     pendingAnchor = node?.anchor;
     // A key with properties isn't omitted, so no compact value follows it.
@@ -979,23 +999,24 @@ function parseAlias(props?: Props): unknown {
 
 // Stores a pair the way js-yaml 4 does: keys become strings, arrays join
 // their items, objects become "[object Object]", and `<<` merges mappings.
-// Returns `map`.
+// `block` tells a block mapping. Returns `map`.
 function setKey(
   map: Record<string, unknown>,
   key: unknown,
   value: unknown,
   at: number,
+  block?: boolean,
 ): Record<string, unknown> {
   if (key === MERGE) {
     const end = pos;
     // js-yaml 5 points at the `<<` for what's wrong with what it merges.
     if (js5) pos = at;
-    const sources = Array.isArray(value) ? value : [value];
+    const sources = Array.isArray(value) && !(js5 && engine.mapping?.(value)) ? value : [value];
     if ((js5 || (lenient && engine.mergeSize)) && sources.length > 100) fail(E.MERGE_SIZE);
     let keys = overridable.get(map);
     if (!keys) overridable.set(map, (keys = new Set()));
     for (let source of sources) {
-      if (!lenient && engine.merge) source = engine.merge(source, anchors);
+      if (!lenient && engine.merge) source = engine.merge(source, anchors, map, value);
       if (typeof source !== "object" || source === null || (!lenient && Array.isArray(source)))
         fail(E.MERGE_SOURCE);
       chargeMerge();
@@ -1011,14 +1032,22 @@ function setKey(
     return map;
   }
   const name = typeof key === "string" && !(js5 && engine.allKeys) ? key : engine.key(key);
-  if (spec && engine.duplicate ? engine.duplicate(map, key, name) : Object.hasOwn(map, name)) {
+  if (
+    spec && engine.duplicate ? engine.duplicate(map, key, name, value) : Object.hasOwn(map, name)
+  ) {
     const keys = overridable.get(map);
-    if (!keys?.has(name)) {
+    // js-yaml 5 lets only an equal key override a merged one, whose keys are strings.
+    if (!keys?.has(name) || (js5 && typeof key !== "string")) {
       if (!engine.json) {
         pos = at;
+        // js-yaml 5 places an alias key at its name, and another collection
+        // key at 0, where its end event is.
+        if (js5 && src.charCodeAt(at) === STAR) pos++;
+        else if (js5 && typeof key === "object" && key) pos = 0;
         fail(E.DUPLICATE_KEY);
       }
-      if (lenient && engine.first) return map;
+      // yamljs keeps the last value in a block mapping once it has merged.
+      if (lenient && engine.first && !(block && overridable.has(map))) return map;
     }
     keys?.delete(name);
   }
@@ -1046,7 +1075,7 @@ function chargeMerge(): void {
   if (max !== -1 && ++mergeKeys > max) fail(E.MERGE_KEYS, max);
 }
 
-// `key` is the already-parsed first key, or undefined when the map starts
+// `key` is the already-parsed first key, or EXPLICIT when the map starts
 // with an explicit `?` entry. The position is on the `:` or `?`. `indent` is
 // the parent block's column. yamljs reads one that merges no keys as null.
 function parseBlockMap(col: number, key: unknown, indent: number): Record<string, unknown> | null {
@@ -1056,7 +1085,7 @@ function parseBlockMap(col: number, key: unknown, indent: number): Record<string
     let value: unknown;
     // js-yaml lets a tab indent the line after an explicit entry without a value.
     let tab = false;
-    if (key === undefined) {
+    if (key === EXPLICIT) {
       // Explicit entry: `? key`, then an optional `: value` at the same column.
       at = ++pos;
       // A block sequence may sit at the `?` column, which js-yaml 5 rejects.
@@ -1077,14 +1106,15 @@ function parseBlockMap(col: number, key: unknown, indent: number): Record<string
         pos++;
         value = parseValue(col, false, true);
       } else {
+        if (spec) leaf();
+        else tab = lineStart > at;
         value = implicit(null);
-        if (!spec) tab = lineStart > at;
       }
     } else {
       pos++;
       value = parseValue(col, false, !spec && emptyKey);
     }
-    setKey(map, key, value, at);
+    setKey(map, key, value, at, true);
     let next = skipLines(tab);
     // A value that ends on a later line indented like the mapping, as a flow
     // collection can, may be followed by the next entry in js-yaml 4.
@@ -1141,13 +1171,13 @@ function checkKey(start: number): void {
     fail(E.KEY_LENGTH);
 }
 
-// The key of the next entry, undefined for an explicit `?` entry, or END
+// The key of the next entry, EXPLICIT for an explicit `?` entry, or END
 // where js-yaml reads no node and leaves the line to the mapping's parent.
 // Leaves the position on the key's `:`.
 function parseNextKey(allowTab: boolean, indent: number): unknown {
   if (tabbed && !allowTab) fail(E.TAB_INDENT);
   keyAt = pos;
-  if (indicator(QMARK)) return undefined;
+  if (indicator(QMARK)) return EXPLICIT;
   if (!spec) frame(pos);
   const props = parseProps();
   const ch = src.charCodeAt(pos);
@@ -1566,10 +1596,11 @@ function parseFlowCollection(indent: number): unknown {
     crossed = false;
     if (!spec) frame(at);
     const node = empty ? finish(null) : parseFlowNode(indent);
-    const key = asKey(node);
     const multiline = crossed;
     const broken = skipFlowSpace(indent);
     ch = src.charCodeAt(pos);
+    // An entry of a sequence is a key only before a `:`.
+    const key = isMap || explicit || ch === COLON ? asKey(node) : node;
     // An implicit key in a flow sequence must end on its own line, and in
     // js-yaml 4 any implicit key on the line it starts.
     const lines = lenient && engine.lines;
@@ -1598,7 +1629,10 @@ function parseFlowCollection(indent: number): unknown {
       else value = spec ? finish(null) : implicit(null);
       skipFlowSpace(indent);
       ch = src.charCodeAt(pos);
-    } else if (pair) value = implicit(null);
+    } else if (pair) {
+      if (spec) leaf();
+      value = implicit(null);
+    }
     if (isMap) setKey(result as Record<string, unknown>, key, value, at);
     else (result as unknown[]).push(pair ? setKey({}, key, value, at) : node);
     if (nested) depth--;
