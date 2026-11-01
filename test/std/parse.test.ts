@@ -59,6 +59,37 @@ describe("parse", () => {
         same(input, { schema });
   });
 
+  it("words and points at errors as std does", () => {
+    for (const input of [
+      "a\nb: c",
+      "x: 1\n]\n",
+      "a:\n  x: 1\n  c",
+      "x: 1\nfoo\n",
+      "x: 1\n&a",
+      "|x\n",
+      "[a",
+      "'a':1",
+      "message: !!binary",
+      "- [foo",
+    ])
+      same(input);
+  });
+
+  it("gives its errors the same own keys as std", () => {
+    const keys = (fn: typeof parse) => {
+      try {
+        fn("a: [b");
+      } catch (error) {
+        return Object.keys(error as object);
+      }
+    };
+    expect(keys(parse)).toEqual(keys(std.parse));
+    const position = { line: 1, column: 1, offset: 0 };
+    expect(Object.keys(new YamlSyntaxError("x", position))).toEqual(
+      Object.keys(new std.YamlSyntaxError("x", position)),
+    );
+  });
+
   it("throws what std throws for explicit tags", () => {
     for (const input of [
       "!!int",

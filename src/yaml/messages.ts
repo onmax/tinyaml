@@ -2,7 +2,7 @@
 // message, which is js-yaml 4's where yaml's own wording isn't copied. An
 // unidentified alias and a bad merge source are other errors, so they have
 // no code. Directive warnings are worded where they're raised, from the
-// directive's name. See core/codes.ts.
+// directive's name, and so is the one about an anchor. See core/codes.ts.
 export const MESSAGES = `
 MISSING_CHAR comments must be separated from other tokens by white space characters
 UNEXPECTED_TOKEN end of line expected
@@ -64,4 +64,6 @@ BAD_INDENT unexpected end of the stream within a flow collection
 UNEXPECTED_TOKEN expected the node content, but found ','
 MISSING_CHAR missed comma between flow collection entries
 KEY_OVER_1024_CHARS implicit key longer than 1024 characters
+
+
 `.split("\n");

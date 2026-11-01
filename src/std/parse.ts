@@ -41,11 +41,11 @@ export class YamlSyntaxError extends SyntaxError {
     super(
       `${message} at line ${position.line}, column ${position.column}${snippet ? `:\n${snippet}` : ""}`,
     );
-    this.name = "YamlSyntaxError";
     this.line = position.line;
     this.column = position.column;
     this.offset = position.offset;
-    if (snippet !== undefined) this.snippet = snippet;
+    this.snippet = snippet;
+    this.name = "YamlSyntaxError";
   }
 }
 

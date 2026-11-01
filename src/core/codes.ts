@@ -70,4 +70,7 @@ export const EMPTY_ENTRY = 58;
 export const MISSED_COMMA = 59;
 export const KEY_LENGTH = 60;
 export const TAG_FLOW = 61;
-export const COUNT = 62;
+export const KEY_COLON = 62;
+/** A warning in `spec` mode only. */
+export const ANCHOR_COLON = 63;
+export const COUNT = 64;

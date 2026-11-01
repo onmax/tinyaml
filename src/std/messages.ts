@@ -61,4 +61,6 @@ Cannot read flow collection: unexpected end of the stream within a flow collecti
 expected the node content, but found ','
 Cannot read flow collection: missing comma between flow collection entries
 
-Cannot read tag property: tag suffix cannot contain flow indicator characters`.split("\n");
+Cannot read tag property: tag suffix cannot contain flow indicator characters
+Cannot read an implicit mapping pair: missing colon
+`.split("\n");

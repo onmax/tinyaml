@@ -45,7 +45,8 @@ const BUILD_ERRORS = [E.DUPLICATE_KEY, E.ALIAS_UNKNOWN, E.MERGE_SOURCE, E.MERGE_
 const PLACEHOLDER = "\0\uDBFF\uDFFF";
 
 type Collection = SequenceTagDefinition<any, any> | MappingTagDefinition<any, any>;
-type Built = YAMLException & { built?: boolean };
+// Errors in building values, which a syntax error anywhere comes before.
+const BUILT = new WeakSet<object>();
 
 // js-yaml 5 drops a byte order mark only before a document's directives or
 // `---`, or right after a `...`.
@@ -83,11 +84,9 @@ function parseError(
   code?: number,
   filename?: string,
   tag?: string,
-): Built {
-  // js-yaml 5 says when the stream ends inside a flow collection, and points
-  // at the first line that's less indented than the leading empty lines.
-  if (code === E.MISSED_COMMA && at.position >= at.buffer.length - 1)
-    reason = MESSAGES[E.FLOW_END]!;
+): YAMLException {
+  // js-yaml 5 points at the first line that's less indented than the
+  // leading empty lines.
   if (code === E.LEADING_EMPTY)
     at = {
       ...at,
@@ -105,8 +104,8 @@ function parseError(
   }
   // The parser counts one level more; see `depth`.
   if (code === E.MAX_DEPTH) reason = reason.replace(/(?<=\()\d+/, (n) => String(+n - 1));
-  const error: Built = exceptionAt(input, position, reason, filename);
-  error.built = code !== undefined && BUILD_ERRORS.includes(code);
+  const error = exceptionAt(input, position, reason, filename);
+  if (code !== undefined && BUILD_ERRORS.includes(code)) BUILT.add(error);
   return error;
 }
 
@@ -145,8 +144,8 @@ function engine(input: string, options: LoadOptions) {
     building = true;
     tagged = tag;
     if (parsing && at === undefined) return fail(reason);
-    const error: Built = exceptionAt(input, at ?? 0, reason, options.filename);
-    error.built = true;
+    const error = exceptionAt(input, at ?? 0, reason, options.filename);
+    BUILT.add(error);
     throw error;
   }
 
@@ -298,7 +297,7 @@ function engine(input: string, options: LoadOptions) {
     },
     error(reason, at, code) {
       const error = parseError(input, at, reason, code, options.filename, tagged);
-      error.built ||= building;
+      if (building) BUILT.add(error);
       building = false;
       tagged = undefined;
       return error;
@@ -391,7 +390,7 @@ function loadDocuments(input: string, options: LoadOptions = {}): unknown[] {
         // Where isn't known.
         throw exceptionAt(source, 0, `aliases exceeded maxAliases (${max})`, options.filename);
     } catch (error) {
-      if (!(error as Built).built) throw error;
+      if (!BUILT.has(error as object)) throw error;
     }
   };
   const use = engine(source, options);
@@ -401,7 +400,7 @@ function loadDocuments(input: string, options: LoadOptions = {}): unknown[] {
   } catch (error) {
     // js-yaml 5 parses the whole stream before building any value, so a
     // syntax error anywhere wins over a value error.
-    if ((error as Built).built) syntax(false);
+    if (BUILT.has(error as object)) syntax(false);
     throw error;
   }
   if (max >= 0 && !use.countsAliases()) syntax(true);

@@ -3,6 +3,7 @@
 // codes.
 import * as E from "../core/codes.ts";
 import {
+  define,
   fail,
   MERGE_TAG,
   original,
@@ -25,6 +26,8 @@ import {
 } from "./tags.ts";
 
 export type Reviver = (this: unknown, key: unknown, value: unknown) => unknown;
+type Pos = Pick<Mark, "buffer" | "position">;
+type Span = [number, number];
 
 export interface ParseOptions {
   /** "core" (default), "json", "failsafe" or "yaml-1.1". */
@@ -68,10 +71,18 @@ const counted = () => {
   if (why) throw new ReferenceError(why);
 };
 
-function report<T extends YAMLError>(error: T, mark: Mark | undefined): T {
+// Points `error` at `mark`, or at the span from there to `end` in the same
+// copy of the input, which holds no line break or byte order mark the parser
+// dropped.
+function report<T extends YAMLError>(error: T, mark: Pos | undefined, end?: number): T {
   if (mark) {
-    const offset = original(source, mark);
-    error.pos = [offset, offset + 1];
+    let from = original(source, mark);
+    let to = from + 1;
+    if (end !== undefined) {
+      to = original(source, { buffer: mark.buffer, position: end });
+      from = to - end + mark.position;
+    }
+    error.pos = [from, to];
     if (pretty) prettify(source, error);
   }
   return error;
@@ -91,17 +102,31 @@ function toError(reason: string, mark: Mark, code: number): Error {
   return report(new YAMLParseError([0, 0], name, reason.slice(space + 1)), mark);
 }
 
-// A warning or an error raised where the parser is now, from inside the
-// engine, which isn't handed a position.
-function here(code: ErrorCode, message: string, warning?: boolean): void {
-  let mark: Mark | undefined;
+// Where the parser is now, from inside the engine, which isn't handed a mark.
+function where(): Mark {
   try {
     fail("");
   } catch (error) {
-    mark = (error as { mark?: Mark }).mark;
+    return (error as { mark: Mark }).mark;
   }
-  if (!warning) throw report(new YAMLParseError([0, 0], code, message), mark);
-  warnings.push(report(new YAMLWarning([0, 0], code, message), mark));
+}
+
+// yaml warns about an anchor or alias name ending in `:` at the colon, which
+// the parser has just read.
+function colon(kind: string, { buffer, position }: Pos): void {
+  const warning = new YAMLWarning([0, 0], "BAD_ALIAS", `${kind} ending in : is ambiguous`);
+  warnings.push(report(warning, { buffer, position: position - 1 }));
+}
+
+// A warning or an error raised from inside the engine: on the tag at `span`,
+// else where the parser is now.
+function here(code: ErrorCode, message: string, warning?: boolean, span?: Span): void {
+  const mark = where();
+  const at = span && { buffer: mark.buffer, position: span[0] };
+  const error = new (warning ? YAMLWarning : YAMLParseError)([0, 0], code, message);
+  report(error, at ?? mark, span?.[1]);
+  if (!warning) throw error;
+  warnings.push(error);
 }
 
 // yaml's guard against alias expansion, which it runs as it converts the
@@ -186,26 +211,102 @@ function aliasCounter(max: number): [Engine["anchor"], () => string | undefined]
   ];
 }
 
-function engine(options: ParseOptions, version: string): Engine {
+// yaml merges a mapping by converting it to JS again, so what's in it is
+// copied, except for aliases and scalars, and each anchor in it names the
+// copy from then on. A node anchored after the mapping opened and before it
+// closed is in it; one anchored outside it is an alias.
+function merger(): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>, WeakSet<object>] {
+  // When each anchored node opened and closed, and its anchor, which names
+  // the node's latest copy.
+  const nodes = new WeakMap<object, [number, number, { name: string; value: unknown }?]>();
+  const scalars = new WeakSet<object>();
+  let clock = 0;
+  return [
+    (name, _, value, starts) => {
+      if (value && typeof value === "object")
+        nodes.set(
+          value,
+          starts ? [clock++, Infinity] : [nodes.get(value)?.[0] ?? clock, clock++, { name, value }],
+        );
+    },
+    (source, anchors) => {
+      const [from, to] = nodes.get(source as object) ?? [];
+      if (from === undefined) return source;
+      const copies = new Map<object, any>();
+      const copy = (value: unknown): unknown => {
+        if (!value || typeof value !== "object" || scalars.has(value)) return value;
+        const [, at, anchor] = nodes.get(value) ?? [];
+        if (anchor && !(at! > from && at! < to!)) return anchor.value;
+        let out = copies.get(value);
+        if (out) return out;
+        const set = value instanceof Set;
+        const map = value instanceof Map;
+        out = Array.isArray(value)
+          ? []
+          : set
+            ? new Set()
+            : map
+              ? new Map()
+              : Object.getPrototypeOf(value) === Object.prototype && {};
+        if (!out) return value;
+        copies.set(value, out);
+        const span: [number, number, typeof anchor] = [clock++, Infinity, anchor];
+        // The anchor names the copy before what's in it is copied, which may
+        // hold aliases to it.
+        if (anchor) {
+          if (anchors.get(anchor.name) === anchor.value) anchors.set(anchor.name, out);
+          anchor.value = out;
+          nodes.set(out, span);
+        }
+        if (set) for (const v of value) out.add(copy(v));
+        else if (map) for (const [k, v] of value) out.set(copy(k), copy(v));
+        else for (const [k, v] of Object.entries(value)) define(out, k, copy(v));
+        span[1] = clock++;
+        return out;
+      };
+      return Object.fromEntries(Object.entries(source as object).map(([k, v]) => [k, copy(v)]));
+    },
+    scalars,
+  ];
+}
+
+function engine(options: ParseOptions, version: string, directive?: string): Engine {
   const v11 = version === "1.1";
-  const schema = options.schema ?? (v11 ? "yaml-1.1" : "core");
-  const tags = getTags(options.customTags, schema, options.merge);
-  const knownTags = (options.resolveKnownTags ?? !v11) ? known : [];
+  // yaml reads the schema options over its version's defaults, which take
+  // them even when undefined.
+  const { schema, resolveKnownTags } = {
+    schema: v11 ? "yaml-1.1" : "core",
+    resolveKnownTags: !v11,
+    ...options,
+  };
+  const tags = getTags(
+    options.customTags,
+    (typeof schema === "string" && schema) || "core",
+    options.merge,
+  );
+  const knownTags = resolveKnownTags ? known : [];
   const flags: ParseFlags = options;
-  const resolve = (type: Tag, text: unknown): unknown => {
+  const [track, merge, scalars] = merger();
+  const resolve = (type: Tag, text: unknown, span?: Span): unknown => {
     let value: unknown;
     try {
       value = type.resolve
-        ? type.resolve(text, (message) => here("TAG_RESOLVE_FAILED", message), flags)
+        ? type.resolve(text, (message) => here("TAG_RESOLVE_FAILED", message, false, span), flags)
         : text;
     } catch (error) {
       if (error instanceof YAMLParseError) throw error;
-      here("TAG_RESOLVE_FAILED", error instanceof Error ? error.message : String(error));
+      here(
+        "TAG_RESOLVE_FAILED",
+        error instanceof Error ? error.message : String(error),
+        false,
+        span,
+      );
     }
     if (value === MERGE) {
       self.tag = MERGE_TAG;
       return "<<";
     }
+    if (value && typeof value === "object" && !type.collection) scalars.add(value);
     return value;
   };
   // The keys under each name in a mapping, where a key that isn't a string
@@ -215,7 +316,8 @@ function engine(options: ParseOptions, version: string): Engine {
   // With a uniqueKeys function, every key in a mapping so far.
   const unique = options.uniqueKeys;
   const earlier = new WeakMap<object, { value: unknown }[]>();
-  const [anchor, check] = aliasCounter(options.maxAliasCount ?? 100);
+  const max = options.maxAliasCount;
+  const [count, check] = aliasCounter(typeof max === "number" ? max : 100);
   excess = check;
   const self: Engine = {
     tag: "",
@@ -224,7 +326,12 @@ function engine(options: ParseOptions, version: string): Engine {
     maxDepth: Infinity,
     maxMergeKeys: -1,
     spec: true,
-    anchor,
+    anchor(name, depth, value, starts) {
+      if (starts === undefined && name.endsWith(":")) colon("Alias", where());
+      count?.(name, depth, value, starts);
+      track(name, depth, value, starts);
+    },
+    merge,
     duplicate(map, key, name) {
       if (typeof unique === "function") {
         const keys = earlier.get(map) ?? [];
@@ -253,7 +360,7 @@ function engine(options: ParseOptions, version: string): Engine {
       );
       return type ? resolve(type, text) : text;
     },
-    explicit(value, name, kind) {
+    explicit(value, name, kind, _, span) {
       if (kind === "sequence" || kind === "mapping") {
         const type = kind === "sequence" ? "seq" : "map";
         if (name === Y + type) return value;
@@ -267,12 +374,13 @@ function engine(options: ParseOptions, version: string): Engine {
                 "BAD_COLLECTION_TYPE",
                 `${name} used for ${type} collection, but expects ${kt.collection ?? "scalar"}`,
                 true,
+                span,
               );
-            else here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, true);
+            else here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, true, span);
             return value;
           }
         }
-        return resolve(found, value);
+        return resolve(found, value, span);
       }
       const text = (value ?? "") as string;
       const named = tags.filter((t) => !t.collection && t.tag === name);
@@ -280,8 +388,8 @@ function engine(options: ParseOptions, version: string): Engine {
         named.find((t) => !(t.default && t.test)) ??
         named.find((t) => t.test!.test(text)) ??
         knownTags.find((t) => !t.collection && t.tag === name);
-      if (found) return resolve(found, text);
-      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, name !== `${Y}str`);
+      if (found) return resolve(found, text, span);
+      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, name !== `${Y}str`, span);
       return text;
     },
     key(key) {
@@ -304,11 +412,20 @@ function engine(options: ParseOptions, version: string): Engine {
     // The engine's own reason is empty, from `here`, which only wants the position.
     error: (reason, mark, code) =>
       code === undefined ? ({ mark } as never) : toError(reason, mark, code),
-    // The table words an unknown directive as its name and an unsupported
-    // version as nothing; a directive without a name gets the latter too.
-    warn(name, mark) {
-      const message = name ? `Unknown directive %${name}` : `Unsupported YAML version ${version}`;
-      warnings.push(report(new YAMLWarning([0, 0], "BAD_DIRECTIVE", message), mark));
+    // The table words an unknown directive as its name. yaml points from the
+    // start of the directive's line, or 6 characters in for the version, to
+    // the end of what's before its comment, which the parser has passed.
+    warn(reason, mark, code) {
+      if (code === E.ANCHOR_COLON) return colon("Anchor", mark);
+      const { buffer, position } = mark;
+      const version = code === E.YAML_UNSUPPORTED;
+      const message = version
+        ? `Unsupported YAML version ${directive}`
+        : `Unknown directive %${reason}`;
+      const start = buffer.lastIndexOf("\n", position - 2) + 1;
+      const end = start + /^[^\n]*?(?=[ \t]*(?:[ \t]#|\n))/.exec(buffer.slice(start))![0].length;
+      const at = { buffer, position: start + (version ? 6 : 0) };
+      warnings.push(report(new YAMLWarning([0, 0], "BAD_DIRECTIVE", message), at, end));
     },
   };
   return self;
@@ -331,13 +448,17 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
   if (typeof reviver === "function") fn = reviver;
   else if (options === undefined && reviver && typeof reviver === "object") options = reviver;
   options ??= {};
+  const prettyErrors = options.prettyErrors;
+  // yaml reads its own copy of the options over defaults, which an option
+  // set to undefined still replaces.
+  options = { logLevel: "warn", version: "1.2", ...options };
   if ("reviver" in options) fn = options.reviver;
-  const level = options.logLevel ?? "warn";
+  const level = options.logLevel;
   // A custom tag may parse another document in the middle of this one.
   const outer = [warnings, source, pretty, keyWarned, excess, [...keys]] as const;
   try {
     source = src;
-    pretty = options.prettyErrors !== false;
+    pretty = prettyErrors !== false;
     warnings = [];
     keyWarned = false;
     keys.clear();
@@ -363,7 +484,22 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
     }
     let docs: unknown[];
     try {
-      const use = engine(options, directive ?? options.version ?? "1.2");
+      // A %YAML directive yaml supports sets the version. Another one leaves
+      // it to the option, or 1.2 when that's unset.
+      let version: unknown =
+        directive === "1.1" || directive === "1.2"
+          ? directive
+          : directive
+            ? options.version || "1.2"
+            : options.version;
+      if (typeof version === "number") version = String(version);
+      if (version !== "1.1" && version !== "1.2" && version !== "next")
+        throw new Error(
+          version === null
+            ? "With a null YAML version, the { schema: Schema } option is required"
+            : `Expected '1.1', '1.2' or null as first argument, but found: ${JSON.stringify(version)}`,
+        );
+      const use = engine(options, version, directive);
       try {
         docs = parseDocs(src, use);
       } catch (error) {
@@ -376,6 +512,9 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
       empty += docs.length;
       if (!docs.length && empty) docs.push(use.implicit(null, true));
     } finally {
+      // yaml warns in the order of the input, where the parser warns about a
+      // collection's tag only once it has read the collection.
+      warnings.sort((a, b) => a.pos[0] - b.pos[0]);
       for (const warning of warnings) emit(level, warning);
     }
     if (empty > 1) {
