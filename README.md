@@ -27,7 +27,8 @@ pnpm install
 pnpm build    # every package
 pnpm check    # format, lint and typecheck every package
 pnpm test     # every package's tests
-pnpm charts   # measure every package again and redraw .github/assets/drop-ins.svg
+pnpm fixtures # download what the comparisons and benchmarks run against
+pnpm charts   # fetch fixtures, measure every package again, redraw .github/assets/drop-ins.svg
 pnpm brand    # redraw the logo, favicon and banners from .github/scripts/brand.ts
 ```
 

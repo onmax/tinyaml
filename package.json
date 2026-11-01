@@ -9,8 +9,9 @@
     "ready": "pnpm -r ready",
     "size": "pnpm -r size",
     "bench": "pnpm -r bench",
-    "charts": "node --no-warnings .github/scripts/charts.ts",
-    "brand": "node --no-warnings .github/scripts/brand.ts"
+    "charts": "pnpm fixtures && node --no-warnings .github/scripts/charts.ts",
+    "brand": "node --no-warnings .github/scripts/brand.ts",
+    "fixtures": "pnpm --filter tinyaml fixtures && (test -d packages/tinyjson5/.cache/json5-2.2.3 || pnpm --filter tinyjson5 json5:fetch)"
   },
   "engines": {
     "node": ">=22.12.0"
