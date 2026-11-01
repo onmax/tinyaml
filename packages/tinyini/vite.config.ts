@@ -5,7 +5,8 @@ import { defineConfig } from "vite-plus";
 // src/core/mode/<mode>.ts there, whose constants the bundler folds, so an
 // entry carries none of the other modes' branches.
 export const MODES = {
-  ini: { index: "src/index.ts", ini: "src/ini/index.ts" },
+  root: { index: "src/index.ts" },
+  ini: { ini: "src/ini/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");

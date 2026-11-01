@@ -1,0 +1,6 @@
+// Stands in for ../mode.ts in the entries built for this mode: tinyini's own API.
+import type { Mode } from "../mode.ts";
+
+export type { Mode };
+export const root = true;
+export const withMode = <F>(_mode: Mode, fn: F): F => fn;

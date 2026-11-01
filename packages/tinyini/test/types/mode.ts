@@ -3,6 +3,7 @@
 // does, each export usable where the original is. tsrs checks this file.
 import type * as Mode from "../../src/core/mode.ts";
 import type * as Ini from "../../src/core/mode/ini.ts";
+import type * as Root from "../../src/core/mode/root.ts";
 import { same, type Equal } from "./assert.ts";
 
 type StandsIn<T> =
@@ -11,3 +12,4 @@ type StandsIn<T> =
     : false;
 
 same<StandsIn<typeof Ini>, true>(true);
+same<StandsIn<typeof Root>, true>(true);

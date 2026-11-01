@@ -33,6 +33,8 @@ const BUDGET: Record<string, number> = {
 // in its own mode's entries, so a marker that goes stale fails too, and in no
 // other.
 const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
+  // The root's error for an object in an array.
+  root: ["inside an array"],
   // ini's options, normalized onto the caller's object.
   ini: ["bracketedArray"],
 };
