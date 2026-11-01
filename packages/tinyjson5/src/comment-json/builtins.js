@@ -6,9 +6,10 @@
 // `untouched(object, key)` says whether a built-in is still that one, the
 // same way. Otherwise the faster paths step aside for comment-json's own.
 //
-// What this reads before it can check anything is trusted: the globalThis
-// and Object bindings, Object.getOwnPropertyDescriptor, which reads the rest,
-// and Reflect.apply and Function.prototype.toString, which the check calls.
+// What this reads before it can check anything is trusted: the globalThis,
+// Object, Function and Reflect bindings, Object.getOwnPropertyDescriptor,
+// which reads the rest, and Reflect.apply and Function.prototype.toString,
+// which the check calls.
 // A program that replaces one of those before this module loads can make
 // anything look like a built-in.
 const descriptor_of = Object.getOwnPropertyDescriptor
@@ -25,19 +26,35 @@ const own = (object, key) => {
 }
 
 const GLOBAL = globalThis
-const prototype = name => own(own(GLOBAL, name), 'prototype')
 const ObjectCtor = own(GLOBAL, 'Object')
-const SymbolCtor = own(GLOBAL, 'Symbol')
-const MapCtor = own(GLOBAL, 'Map')
 const ReflectObject = own(GLOBAL, 'Reflect')
-const object_prototype = prototype('Object')
-const array_prototype = prototype('Array')
-const string_prototype = prototype('String')
-const number_prototype = prototype('Number')
-const function_prototype = prototype('Function')
-const map_prototype = prototype('Map')
+const function_prototype = own(own(GLOBAL, 'Function'), 'prototype')
 const apply = own(ReflectObject, 'apply')
 const to_source = own(function_prototype, 'toString')
+
+// Whether fn is the engine's own function of that name, which no bound
+// function or user function prints as. A proxy prints without a name, and
+// runs no trap for it.
+const native = (fn, name) => {
+  try {
+    return typeof fn === 'function' && apply(to_source, fn, []) === `function ${name}() { [native code] }`
+  } catch {
+    return false
+  }
+}
+
+// The global constructor of that name if it's the engine's own, checked
+// before any of its properties are read, and its prototype.
+const global_constructor = name => {
+  const fn = own(GLOBAL, name)
+  return native(fn, name) ? fn : undefined
+}
+const SymbolCtor = global_constructor('Symbol')
+const MapCtor = global_constructor('Map')
+const object_prototype = own(ObjectCtor, 'prototype')
+const array_prototype = own(global_constructor('Array'), 'prototype')
+const string_prototype = own(global_constructor('String'), 'prototype')
+const map_prototype = own(MapCtor, 'prototype')
 
 // [object, key] for each built-in kept here, and its value at load.
 const PAIRS = [
@@ -59,15 +76,6 @@ for (let i = 0; i < PAIRS.length; i ++) {
   VALUES[i] = own(PAIRS[i][0], PAIRS[i][1])
 }
 
-// Whether fn is the engine's own function of that name, which no bound
-// function or user function prints as.
-const native = (fn, name) => {
-  try {
-    return typeof fn === 'function' && apply(to_source, fn, []) === `function ${name}() { [native code] }`
-  } catch {
-    return false
-  }
-}
 
 // Whether each kept built-in does its own job, which another built-in of the
 // same name put in its place (WeakMap's get on Map.prototype, Array's slice
@@ -84,7 +92,7 @@ const behaves = () => {
   const key = {__proto__: null}
   const list = {__proto__: null, length: 0}
   return symbols.length === 1 && symbols[0] === symbol
-    && apply(VALUES[3], ObjectCtor, [1]) === number_prototype
+    && typeof apply(VALUES[3], ObjectCtor, [1]) === 'object'
     && apply(VALUES[3], ObjectCtor, [apply(VALUES[4], ObjectCtor, [null])]) === null
     && apply(apply(VALUES[6], VALUES[5], [VALUES[10]]), undefined, ['abc', 1, 2]) === 'b'
     && apply(VALUES[8], map, [key, list]) === map

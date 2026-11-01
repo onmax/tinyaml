@@ -188,7 +188,25 @@ const read_comments = host => {
   return comments
 }
 
+// The TypeError the engine throws for a call of what isn't a function, as
+// comment-json's Symbol.for(key) gets it, whatever the global TypeError is.
+const not_a_function = name => {
+  try {
+    reflect_apply(undefined, undefined, [])
+  } catch (error) {
+    error.message = `${name} is not a function`
+    return error
+  }
+}
+
 const comments_of = (host, tag, prop) => {
+  // A key other than a string or number, which a replaced Object.keys can
+  // give, is converted for each lookup as comment-json converts it.
+  if (prop !== NO_PROP && typeof prop !== 'string' && typeof prop !== 'number') {
+    const key = symbol_key(tag, prop)
+    return host[Symbol.for(key)]
+  }
+
   if (hosts === PENDING) {
     hosts = standard_prototypes()
       ? new HostMap()
@@ -208,7 +226,7 @@ const comments_of = (host, tag, prop) => {
   const symbol_for_now = symbol.for
   if (symbol !== symbol_constructor || symbol_for_now !== symbol_for) {
     if (typeof symbol_for_now !== 'function') {
-      throw new TypeError('Symbol.for is not a function')
+      throw not_a_function('Symbol.for')
     }
 
     return host[reflect_apply(symbol_for_now, symbol, [symbol_key(tag, prop)])]
@@ -589,6 +607,9 @@ export default (value, replacer_, space) => {
 
   replacer = replacer_
   indent = indent_
+  // tinyjson5: a stringify that a getter calls while this one runs has
+  // comments of its own, and leaves this one's as they were.
+  const outer_hosts = hosts
   hosts = replacer_
     ? null
     : PENDING
@@ -607,6 +628,6 @@ export default (value, replacer_, space) => {
         + process_comments(value, PREFIX_AFTER_ALL, NO_PROP, EMPTY).trimRight()
       : str
   } finally {
-    hosts = null
+    hosts = outer_hosts
   }
 }
