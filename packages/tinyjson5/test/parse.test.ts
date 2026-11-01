@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createRequire } from "node:module";
-import JSON5, { parse } from "../src/index.ts";
+import JSON5, { parse } from "../src/json5/index.ts";
 
 describe("parse", () => {
   it("reads JSON5", () => {

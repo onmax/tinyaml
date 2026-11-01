@@ -1,13 +1,15 @@
-// Runs every json5-tests case through tinyjson5 and json5 2.2.3. Files ending
-// in .json or .json5 must parse, .js and .txt must throw; tinyjson5 must also
-// return json5's value, or throw json5's error, for every file.
-// Usage: node scripts/corpus.ts   (after `pnpm corpus:fetch`)
-import { createRequire } from "node:module";
+// Runs every json5-tests case through one entry and the library it replaces
+// (scripts/engines.ts). Files ending in .json or .json5 must parse, .js and
+// .txt must throw; the entry must also return the library's value, or throw
+// its error, for every file.
+// Usage: node scripts/corpus.ts [engine]   (after `pnpm corpus:fetch`)
 import { readFileSync } from "node:fs";
-import { parse } from "../src/index.ts";
+import { engineFromArgs } from "./engines.ts";
 import { attempt, corpus, same } from "./shared.ts";
 
-const json5 = createRequire(import.meta.url)("json5") as { parse: typeof parse };
+const engine = await engineFromArgs();
+const parse = engine.o.parse;
+const json5 = engine.t;
 let correct = 0;
 let matches = 0;
 const files = corpus();
@@ -27,6 +29,6 @@ for (const { file, valid } of files) {
   if (rightKind) correct++;
   else console.log(`wrong outcome: ${file} (${ours.ok ? "parsed" : ours.error})`);
   if (sameResult) matches++;
-  else console.log(`differs from json5: ${file}`);
+  else console.log(`differs from ${engine.library}: ${file}`);
 }
-console.log(`${files.length} files, ${correct} correct, ${matches} match json5 2.2.3`);
+console.log(`${files.length} files, ${correct} correct, ${matches} match ${engine.library}`);

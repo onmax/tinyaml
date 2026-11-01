@@ -11,9 +11,14 @@ export type Comparison = {
   entry: string;
   gzip: Timing;
   parse: Timing;
-  stringify: Timing;
+  /** Absent for a library that only parses, such as strip-json-comments. */
+  stringify?: Timing;
+  /** Where this row was measured, when not on the file's `machine`. */
+  machine?: string;
 };
-export type DropIns = { machine: string; dropIns: Comparison[]; root: Comparison };
+// `root` is tinyaml's own API against yaml; `roots` the other packages' own
+// APIs, each against the library its users switch from.
+export type DropIns = { machine: string; dropIns: Comparison[]; root: Comparison; roots?: Comparison[] };
 
 const BADGE = "https://comark-ui.onmax.me/badge.svg";
 const REPO = "onmax/tiny";
@@ -37,10 +42,21 @@ const times = ({ theirs, ours }: Timing) => `${(theirs / ours).toFixed(1)}×`;
 
 const readDropIns = (): DropIns => JSON.parse(readFileSync(".github/drop-ins.json", "utf8"));
 
+// The machines the rows were measured on: one, or each with its packages.
+const machines = (data: DropIns, rows: Comparison[]) => {
+  const packages = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const machine = r.machine ?? data.machine;
+    packages.set(machine, (packages.get(machine) ?? new Set()).add(r.package));
+  }
+  if (packages.size <= 1) return [...packages.keys()][0] ?? data.machine;
+  return [...packages].map(([machine, names]) => `${machine} (${[...names].join(", ")})`).join(" and ");
+};
+
 // The size of the package's own entry, which for tinyaml is its root API.
 const facts = (name: string, section: string) => {
   const data = readDropIns();
-  const own = [data.root, ...data.dropIns].find((r) => r.entry === name)!;
+  const own = [data.root, ...(data.roots ?? []), ...data.dropIns].find((r) => r.entry === name)!;
   const pkg = JSON.parse(readFileSync(`packages/${name}/package.json`, "utf8"));
   const dependencies = String(Object.keys(pkg.dependencies ?? {}).length);
   return [
@@ -107,7 +123,7 @@ export default {
               `\`${r.entry}\``,
               `${kib(r.gzip.theirs)} → ${kib(r.gzip.ours)} KiB`,
               `${times(r.parse)} faster`,
-              `${times(r.stringify)} faster`,
+              r.stringify ? `${times(r.stringify)} faster` : "—",
             ]),
           ],
           [false, false, true, true, true],
@@ -121,13 +137,22 @@ export default {
             "",
             `Starting fresh with YAML? The root \`tinyaml\` API is the smallest of all: ${kib(root.gzip.ours)} KiB, ` +
               `${smaller(jsYaml.gzip.theirs)}× smaller than js-yaml 4 and ${smaller(root.gzip.theirs)}× smaller than yaml. ` +
-              `It parses ${times(root.parse)} faster than yaml and stringifies ${times(root.stringify)} faster.`,
+              `It parses ${times(root.parse)} faster than yaml and stringifies ${times(root.stringify!)} faster.`,
           );
         }
+        // Another package's own API, from `roots`, against the library its users switch from.
+        const own = data.roots?.find((r) => r.package === args.package);
+        if (own)
+          lines.push(
+            "",
+            `The root \`${own.entry}\` API is ${kib(own.gzip.ours)} KiB against ${kib(own.gzip.theirs)} KiB for ${own.library}. ` +
+              `It parses ${times(own.parse)} faster than ${own.library}` +
+              (own.stringify ? ` and stringifies ${times(own.stringify)} faster.` : "."),
+          );
         lines.push(
           "",
           `Size is the minified bundle, gzipped. Speed is the median time to parse and stringify ` +
-            `${args.package ? "the" : "each package's"} large benchmark file. Measured on ${data.machine}.`,
+            `${args.package ? "the" : "each package's"} large benchmark file. Measured on ${machines(data, rows)}.`,
         );
         return { contents: lines.join("\n") };
       },

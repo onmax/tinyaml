@@ -1,7 +1,7 @@
 // json5 2.2.3's own parse, stringify, and errors tests, unchanged, with
 // tinyjson5 in place of json5. See scripts/tap.ts for the stand-ins.
 import { describe, expect, it } from "vite-plus/test";
-import * as tinyjson5 from "../src/index.ts";
+import * as tinyjson5 from "../src/json5/index.ts";
 import { runTapFile } from "../scripts/tap.ts";
 
 describe("json5 2.2.3 test suite", () => {

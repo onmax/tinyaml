@@ -44,7 +44,12 @@ const AMBIGUOUS: [RegExp, string, string][] = [
     "Quote it to keep the string, or write it as a JSON number.",
   ],
   [
-    /^\d{4}-\d\d?-\d\d?(?:(?:[Tt]|[ \t]+)\d\d?:\d\d:\d\d(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d\d?(?::\d\d)?))?)?$/,
+    /^[-+]?\d[\d_]*(?::[0-5]?\d)+(?:\.[\d_]*)?$/,
+    "js-yaml's YAML 1.1 schema reads it as a sexagesimal number",
+    "Quote it to keep the string, or write it as a JSON number.",
+  ],
+  [
+    /^(?:\d{4}-\d\d-\d\d|\d{4}-\d\d?-\d\d?(?:[Tt]|[ \t]+)\d\d?:\d\d:\d\d(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d\d?(?::\d\d)?))?)$/,
     "js-yaml's default schema reads it as a date",
     "Quote it so every reader gets the same string.",
   ],
@@ -73,13 +78,13 @@ function* plainScalars(text: string) {
     return end < 0 ? source.length : end;
   };
   const separated = (offset: number) =>
-    offset >= source.length || /[\s,[\]{}]/.test(source[offset]!);
+    offset >= source.length || /[ \t\n,[\]{}]/.test(source[offset]!);
   const marker = (offset: number) =>
-    /^(?:---|\.\.\.)(?:\s|$)/.test(source.slice(offset, offset + 4));
+    /^(?:---|\.\.\.)(?:[ \t\n]|$)/.test(source.slice(offset, offset + 4));
 
   while (at < source.length) {
     const ch = source[at]!;
-    if (/\s/.test(ch)) {
+    if (/[ \t\n]/.test(ch)) {
       advance();
       continue;
     }
@@ -120,7 +125,9 @@ function* plainScalars(text: string) {
       continue;
     }
     if (ch === ":" && (quoted || separated(at + 1))) {
-      parentIndent = nodeColumn;
+      // An explicit value on its own line is indented with the mapping,
+      // independently of the key after `?` on the preceding line.
+      parentIndent = /^[ \t]*$/.test(source.slice(start, at)) ? at - start : nodeColumn;
       quoted = false;
       at++;
       continue;
@@ -145,7 +152,7 @@ function* plainScalars(text: string) {
       while (at < source.length) {
         const end = lineEnd(at);
         const content = source.slice(at, end);
-        if (content.trim()) {
+        if (/[^ \t]/.test(content)) {
           const indent = /^ */.exec(content)![0].length;
           if (marker(at) || indent <= parentIndent || indent < (contentIndent ?? indent)) break;
           contentIndent ??= indent;
@@ -162,12 +169,15 @@ function* plainScalars(text: string) {
         if (
           (flow && /[[\]{},]/.test(next)) ||
           (next === ":" && separated(at + 1)) ||
-          (next === "#" && /\s/.test(source[at - 1]!))
+          (next === "#" && /[ \t]/.test(source[at - 1]!))
         )
           break;
         if (next === "\n") {
           let following = at + 1;
-          while (following < source.length && !source.slice(following, lineEnd(following)).trim())
+          while (
+            following < source.length &&
+            /^[ \t]*$/.test(source.slice(following, lineEnd(following)))
+          )
             following = lineEnd(following) + 1;
           const indent = /^ */.exec(source.slice(following))![0].length;
           const first = source[following + indent];
@@ -181,7 +191,13 @@ function* plainScalars(text: string) {
         }
         advance();
       }
-      if (!tagged) yield { token: source.slice(from, at).trimEnd(), line: scalarLine, column };
+      if (!tagged) {
+        const raw = source.slice(from, at).replace(/[ \t\n]+$/, "");
+        // Let the parser fold complete multiline plain scalars while keeping
+        // the original start position for the diagnostic.
+        const token = raw.includes("\n") ? parseAll(raw)[0] : raw;
+        if (typeof token === "string") yield { token, line: scalarLine, column };
+      }
     }
     parentIndent = -1;
     tagged = false;

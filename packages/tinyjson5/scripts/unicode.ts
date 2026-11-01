@@ -3,7 +3,7 @@
 // and prints the code points where they disagree as ranges.
 // Usage: node scripts/unicode.ts
 import { createRequire } from "node:module";
-import { isIdContinue, isIdStart } from "../src/unicode.ts";
+import { isIdContinue, isIdStart } from "../src/core/unicode.ts";
 
 const util = createRequire(import.meta.url)("json5/lib/util.js") as Record<
   "isIdStartChar" | "isIdContinueChar" | "isSpaceSeparator",

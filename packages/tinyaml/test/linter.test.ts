@@ -45,6 +45,22 @@ describe("lint", () => {
     expect(lint('a: True\nb: ~\nc: 0x10\nd: .inf\ne: "0x10"\n')).toEqual([]);
   });
 
+  it.each(["12:30:00", "-1:20", "+1:20", "1_000:20", "12:30:00.5", "-1:20.5"])(
+    "reports YAML 1.1 sexagesimal numbers: %s",
+    (value) => {
+      expect(at(`duration: ${value}\n`)).toEqual(["tinyaml/ambiguous-value 1:11"]);
+      expect(lint(`duration: ${value}\n`)[0]?.message).toContain("YAML 1.1 schema");
+      expect(lint(`duration: "${value}"\n`)).toEqual([]);
+    },
+  );
+
+  it("checks folded timestamps at their original source position", () => {
+    expect(at("a: 2026-01-01\n  12:00:00\n")).toEqual(["tinyaml/ambiguous-value 1:4"]);
+    expect(at("a: 2026-1-1\r\n  12:00:00\r\n")).toEqual(["tinyaml/ambiguous-value 1:4"]);
+    // A blank line folds to a newline, so this is no longer a timestamp.
+    expect(lint("a: 2026-01-01\n\n  12:00:00\n")).toEqual([]);
+  });
+
   it.each([
     ['a: "no"\n# example: no\n', []],
     ['a: "yes"\n# example: yes\n', []],
@@ -65,6 +81,19 @@ describe("lint", () => {
     ['a: 1\nb: !!str 1\nc: "1"\n', []],
     ["1: value\n", []],
     ["a: .5\nb: -.5\nc: +.5\n", []],
+    ["a: yes\u00a0\n", []],
+    ["a: \u00a0yes\n", []],
+    ["a: yes\u2003\n", []],
+    ["a: \u2003yes\n", []],
+    ["a: yes\u00a0#word\n", []],
+    ["a: yes \t# comment\n", ["1:4"]],
+    ["? key\n: yes\n  indeed\n", []],
+    ["? key\n: |2\n  no\n", []],
+    ["- ? key\n  : yes\n    indeed\n", []],
+    ["- ? key\n  : |2\n    no\n  next: yes\n", ["4:9"]],
+    ["a: 2026-1-1\nb: 2026-01-1\nc: 2026-1-01\n", []],
+    ["a: 2026-1-1 12:00:00\nb: 2026-01-01\n", ["1:4", "2:4"]],
+    ["duration: 12:60:00\n", []],
   ])("recognizes plain scalar nodes in %j", (text, positions) => {
     expect(lint(text).map(({ line, column }) => `${line}:${column}`)).toEqual(positions);
   });

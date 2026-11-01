@@ -31,8 +31,8 @@ const iniSize: Sizes = run("tinyini", "scripts/size.ts");
 const iniBench: Rows = run("tinyini", "bench/index.ts");
 
 const timing = (rows: Rows, operation: string, library?: string) => {
-  const r = rows.find((r) => r.operation === operation && (!library || r.library === library))!;
-  return { theirs: r.theirs, ours: r.ours ?? r.tinyaml! };
+  const r = rows.find((r) => r.operation === operation && (!library || r.library === library));
+  return r && { theirs: r.theirs, ours: r.ours ?? r.tinyaml! };
 };
 const compare = (
   pkg: string,
@@ -47,7 +47,8 @@ const compare = (
   library,
   entry,
   gzip: { theirs: sizes[theirs]!.gzip, ours: sizes[ours]!.gzip },
-  parse: timing(rows, "parse large", benchLibrary),
+  parse: timing(rows, "parse large", benchLibrary)!,
+  // A library that only parses, such as strip-json-comments, has no stringify row.
   stringify: timing(rows, "stringify large", benchLibrary),
 });
 const yaml = (library: string, entry: string, size: string, bench: string) =>
@@ -61,13 +62,20 @@ const data: DropIns = {
     yaml("yaml", "tinyaml/yaml", "yaml", "yaml"),
     yaml("yamljs", "tinyaml/yamljs", "yamljs", "yamljs"),
     yaml("@std/yaml", "tinyaml/std", "@std/yaml", "@std/yaml"),
-    compare(
-      "tinyjson5",
-      "json5 2.2.3",
-      "tinyjson5",
-      json5Size,
-      ["json5 (parse + stringify)", "tinyjson5 (parse + stringify)"],
-      json5Bench,
+    // Each tinyjson5 subpath, by the names its size.ts and bench/index.ts use.
+    ...(
+      [
+        ["json5 2.2.3", "tinyjson5/json5"],
+        ["json5 1.0.2", "tinyjson5/json5-v1"],
+        ["strip-json-comments 3", "tinyjson5/strip-json-comments"],
+        ["strip-json-comments 2", "tinyjson5/strip-json-comments-v2"],
+        ["strip-json-comments 5", "tinyjson5/strip-json-comments-v5"],
+        ["jsonc-parser 3.3.1", "tinyjson5/jsonc-parser"],
+        ["comment-json 4.6.2", "tinyjson5/comment-json"],
+        ["jju 1.4.0", "tinyjson5/jju"],
+      ] as const
+    ).map(([library, entry]) =>
+      compare("tinyjson5", library, entry, json5Size, [library, entry], json5Bench, library),
     ),
     compare(
       "tinyini",
@@ -79,6 +87,17 @@ const data: DropIns = {
     ),
   ],
   root: yaml("yaml", "tinyaml", "yaml", "yaml (tinyaml root)"),
+  roots: [
+    compare(
+      "tinyjson5",
+      "json5 2.2.3",
+      "tinyjson5",
+      json5Size,
+      ["json5 2.2.3", "tinyjson5"],
+      json5Bench,
+      "json5 2.2.3 (tinyjson5 root)",
+    ),
+  ],
 };
 
 writeFileSync(".github/drop-ins.json", `${JSON.stringify(data, null, 2)}\n`);

@@ -19,12 +19,55 @@
     "directory": "packages/tinyjson5"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "type": "module",
   "sideEffects": false,
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "./package.json"
+      ],
+      "json5": [
+        "./dist/json5.d.mts"
+      ],
+      "json5-v1": [
+        "./dist/json5-v1.d.mts"
+      ],
+      "strip-json-comments": [
+        "./dist/strip-json-comments.d.mts"
+      ],
+      "strip-json-comments-v2": [
+        "./dist/strip-json-comments-v2.d.mts"
+      ],
+      "strip-json-comments-v5": [
+        "./dist/strip-json-comments-v5.d.mts"
+      ],
+      "jsonc-parser": [
+        "./dist/jsonc-parser.d.mts"
+      ],
+      "comment-json": [
+        "./dist/comment-json.d.mts"
+      ],
+      "jju": [
+        "./dist/jju.d.mts"
+      ],
+      "*": [
+        "./dist/index.d.mts"
+      ]
+    }
+  },
   "exports": {
     ".": "./dist/index.mjs",
+    "./json5": "./dist/json5.mjs",
+    "./json5-v1": "./dist/json5-v1.mjs",
+    "./strip-json-comments": "./dist/strip-json-comments.mjs",
+    "./strip-json-comments-v2": "./dist/strip-json-comments-v2.mjs",
+    "./strip-json-comments-v5": "./dist/strip-json-comments-v5.mjs",
+    "./jsonc-parser": "./dist/jsonc-parser.mjs",
+    "./comment-json": "./dist/comment-json.mjs",
+    "./jju": "./dist/jju.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -43,23 +86,38 @@
     "corpus": "node scripts/corpus.ts",
     "corpus:fetch": "git clone https://github.com/json5/json5-tests .cache/json5-tests && git -C .cache/json5-tests checkout ceb24d4080137d70833f86c25659c1331b80a387",
     "json5:fetch": "git clone --depth 1 --branch v2.2.3 https://github.com/json5/json5 .cache/json5-2.2.3",
+    "json5:main:fetch": "git clone https://github.com/json5/json5 .cache/json5-main && git -C .cache/json5-main checkout 6d21f2f86f58379171dbbadc5b00d0ae17ab9919",
+    "own-tests": "node scripts/own-tests.ts",
     "json5-tests": "node scripts/json5-tests.ts",
     "fuzz": "node scripts/fuzz.ts",
     "fuzz:stringify": "node scripts/fuzz-stringify.ts",
+    "fuzz:strip": "node scripts/fuzz-strip.ts",
+    "fuzz:jsonc": "node scripts/fuzz-jsonc.ts",
+    "fuzz:comment-json": "node scripts/fuzz-comment-json.ts",
+    "fuzz:jju": "node scripts/fuzz-jju.ts",
     "unicode": "node scripts/unicode.ts",
     "size": "node scripts/size.ts",
     "bench": "node bench/index.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "comment-json": "4.6.2",
+    "comment-json-v5": "npm:comment-json@5.0.0",
     "esbuild": "^0.28.2",
+    "jju": "1.4.0",
+    "js-yaml-v3": "npm:js-yaml@3.14.1",
     "json5": "2.2.3",
+    "json5-v1": "npm:json5@1.0.2",
+    "jsonc-parser": "3.3.1",
     "publint": "^0.3.25",
+    "strip-json-comments": "3.1.1",
+    "strip-json-comments-v2": "npm:strip-json-comments@2.0.1",
+    "strip-json-comments-v5": "npm:strip-json-comments@5.0.3",
     "tsrs": "0.20.1-ts7.1.0-beta",
     "typescript": "^7.0.2",
     "vite-plus": "^1.4.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   }
 }

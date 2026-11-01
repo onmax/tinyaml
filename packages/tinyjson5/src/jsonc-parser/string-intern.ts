@@ -1,0 +1,36 @@
+// jsonc-parser 3.3.1's string-intern (MIT, Copyright (c) Microsoft Corporation):
+// the indents and line breaks its formatter looks up, unchanged.
+/* eslint-disable unicorn/no-new-array -- kept as jsonc-parser writes it */
+export const cachedSpaces = new Array(20).fill(0).map((_, index) => {
+  return " ".repeat(index);
+});
+
+const maxCachedValues = 200;
+
+export const cachedBreakLinesWithSpaces = {
+  " ": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + " ".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + " ".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + " ".repeat(index);
+    }),
+  },
+  "\t": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + "\t".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + "\t".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + "\t".repeat(index);
+    }),
+  },
+};
+
+export const supportedEols = ["\n", "\r", "\r\n"] as const;
+export type SupportedEOL = "\n" | "\r" | "\r\n";

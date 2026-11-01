@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { stringify } from "../src/index.ts";
+import { stringify } from "../src/json5/index.ts";
 
 describe("stringify", () => {
   it("writes identifier keys bare and picks the quote that needs fewer escapes", () => {
