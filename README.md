@@ -58,14 +58,14 @@ Each package matches its original on that library's own tests and on tens of tho
 | yaml                  | `tinyaml/yaml`                     | 29.9 → 16.8 KiB | 12.6× faster | 2.8× faster |
 | yamljs                | `tinyaml/yamljs`                   |   8.8 → 8.0 KiB |  5.0× faster | 1.1× faster |
 | @std/yaml             | `tinyaml/std`                      | 11.3 → 10.7 KiB |  2.0× faster | 1.6× faster |
-| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB |  7.7× faster | 5.3× faster |
-| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB |  8.1× faster | 6.4× faster |
+| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB |  7.5× faster | 5.6× faster |
+| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB |  8.4× faster | 6.4× faster |
 | strip-json-comments 3 | `tinyjson5/strip-json-comments`    |   0.8 → 0.5 KiB |  4.1× faster |           — |
 | strip-json-comments 2 | `tinyjson5/strip-json-comments-v2` |   0.7 → 0.5 KiB |  4.5× faster |           — |
-| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB |  4.2× faster |           — |
-| jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.9 KiB |  1.2× faster |           — |
-| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 17.5 KiB |  1.6× faster | 1.2× faster |
-| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.6 KiB |  1.2× faster | 1.4× faster |
+| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB |  3.8× faster |           — |
+| jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.8 KiB |  1.3× faster |           — |
+| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 18.4 KiB |  1.5× faster | 1.7× faster |
+| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.7 KiB |  1.2× faster | 1.5× faster |
 | ini 7.0.0             | `tinyini`                          |   1.6 → 1.6 KiB |  2.0× faster | 2.9× faster |
 
 Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 7.8 KiB, 1.8× smaller than js-yaml 4 and 3.8× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.

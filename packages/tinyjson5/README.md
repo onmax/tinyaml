@@ -27,16 +27,16 @@ tinyjson5 ships drop-in replacements for json5 2 and 1, strip-json-comments 3, 2
 
 | You use               | Switch to                          |      Size, gzip |      Parses | Stringifies |
 | --------------------- | ---------------------------------- | --------------: | ----------: | ----------: |
-| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB | 7.7× faster | 5.3× faster |
-| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB | 8.1× faster | 6.4× faster |
+| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB | 7.5× faster | 5.6× faster |
+| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB | 8.4× faster | 6.4× faster |
 | strip-json-comments 3 | `tinyjson5/strip-json-comments`    |   0.8 → 0.5 KiB | 4.1× faster |           — |
 | strip-json-comments 2 | `tinyjson5/strip-json-comments-v2` |   0.7 → 0.5 KiB | 4.5× faster |           — |
-| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB | 4.2× faster |           — |
-| jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.9 KiB | 1.2× faster |           — |
-| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 17.5 KiB | 1.6× faster | 1.2× faster |
-| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.6 KiB | 1.2× faster | 1.4× faster |
+| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB | 3.8× faster |           — |
+| jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.8 KiB | 1.3× faster |           — |
+| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 18.4 KiB | 1.5× faster | 1.7× faster |
+| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.7 KiB | 1.2× faster | 1.5× faster |
 
-The root `tinyjson5` API is 3.4 KiB against 7.6 KiB for json5 2.2.3. It parses 8.1× faster than json5 2.2.3 and stringifies 5.2× faster.
+The root `tinyjson5` API is 3.4 KiB against 7.6 KiB for json5 2.2.3. It parses 8.1× faster than json5 2.2.3 and stringifies 5.5× faster.
 
 Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0.
 
@@ -89,9 +89,9 @@ Each subpath exports the functions, options and types of the library it replaces
 | strip-json-comments 3.1.1 | `"tinyjson5/strip-json-comments"`    | 0.8 → 0.5 KiB   | 10 of 10                   |
 | strip-json-comments 2.0.1 | `"tinyjson5/strip-json-comments-v2"` | 0.7 → 0.5 KiB   | 9 of 9                     |
 | strip-json-comments 5.0.3 | `"tinyjson5/strip-json-comments-v5"` | 654 → 646 B     | 13 of 13                   |
-| jsonc-parser 3.3.1        | `"tinyjson5/jsonc-parser"`           | 6.6 → 5.9 KiB   | 83 of 83                   |
-| comment-json 4.6.2        | `"tinyjson5/comment-json"`           | 35.7 → 17.5 KiB | 384 of 384                 |
-| jju 1.4.0                 | `"tinyjson5/jju"`                    | 9.8 → 9.6 KiB   | 420 of 422                 |
+| jsonc-parser 3.3.1        | `"tinyjson5/jsonc-parser"`           | 6.6 → 5.8 KiB   | 83 of 83                   |
+| comment-json 4.6.2        | `"tinyjson5/comment-json"`           | 35.7 → 18.4 KiB | 384 of 384                 |
+| jju 1.4.0                 | `"tinyjson5/jju"`                    | 9.8 → 9.7 KiB   | 420 of 422                 |
 
 jju fails the same 2 of its own tests itself under today's Node: they compare it with `eval`. json5 2.2.3's tests include json5's errors tests, and tinyjson5's root runs json5's main-branch tests too: 197 of 198 pass, and the one left needs an identifier character from Unicode 18, which Node 24 doesn't know yet.
 
@@ -171,9 +171,9 @@ Bundled with esbuild, minified ESM, every export kept, then gzip -9 (`pnpm size`
 | `tinyjson5/strip-json-comments`    |  0.9 KiB |  0.5 KiB | strip-json-comments 3.1.1 |   1.3 KiB |  0.8 KiB |
 | `tinyjson5/strip-json-comments-v2` |  0.9 KiB |  0.5 KiB | strip-json-comments 2.0.1 |   1.2 KiB |  0.7 KiB |
 | `tinyjson5/strip-json-comments-v5` |  1.1 KiB |  0.6 KiB | strip-json-comments 5.0.3 |   1.1 KiB |  0.6 KiB |
-| `tinyjson5/jsonc-parser`           | 17.0 KiB |  5.9 KiB | jsonc-parser 3.3.1        |  19.7 KiB |  6.6 KiB |
-| `tinyjson5/comment-json`           | 57.5 KiB | 17.5 KiB | comment-json 4.6.2        | 151.8 KiB | 35.7 KiB |
-| `tinyjson5/jju`                    | 28.0 KiB |  9.6 KiB | jju 1.4.0                 |  28.4 KiB |  9.8 KiB |
+| `tinyjson5/jsonc-parser`           | 16.8 KiB |  5.8 KiB | jsonc-parser 3.3.1        |  19.7 KiB |  6.6 KiB |
+| `tinyjson5/comment-json`           | 59.8 KiB | 18.4 KiB | comment-json 4.6.2        | 151.8 KiB | 35.7 KiB |
+| `tinyjson5/jju`                    | 28.0 KiB |  9.7 KiB | jju 1.4.0                 |  28.4 KiB |  9.8 KiB |
 
 jju needs Node's `fs` and `assert`, so it's measured for Node, without them. Each entry is built on its own, so it carries no code of another; the root carries json5 3's additions and the `jsonc` mode, which put it above `tinyjson5/json5`.
 
@@ -184,50 +184,50 @@ Every entry is faster than its original at every operation, from 1.05× (jsonc-p
 <details>
 <summary>Every operation</summary>
 
-| Original | Operation | Original | tinyjson5 | Speedup |
-| --- | --- | ---: | ---: | ---: |
-| json5 2.2.3 | parse tsconfig | 28.3 µs | 2.9 µs | 9.7× |
-| json5 2.2.3 | stringify tsconfig | 7.3 µs | 1.9 µs | 3.8× |
-| json5 2.2.3 | parse test.json5 | 3.2 µs | 386 ns | 8.3× |
-| json5 2.2.3 | stringify test.json5 | 271 ns | 181 ns | 1.5× |
-| json5 2.2.3 | parse large | 14.73 ms | 1.96 ms | 7.5× |
-| json5 2.2.3 | stringify large | 4.07 ms | 732.5 µs | 5.6× |
-| json5 1.0.2 | parse tsconfig | 28.0 µs | 2.9 µs | 9.6× |
-| json5 1.0.2 | stringify tsconfig | 5.0 µs | 1.4 µs | 3.7× |
-| json5 1.0.2 | parse test.json5 | 2.3 µs | 247 ns | 9.2× |
-| json5 1.0.2 | stringify test.json5 | 268 ns | 188 ns | 1.4× |
-| json5 1.0.2 | parse large | 15.26 ms | 1.82 ms | 8.4× |
-| json5 1.0.2 | stringify large | 4.34 ms | 682.4 µs | 6.4× |
-| strip-json-comments 3 | parse tsconfig | 5.6 µs | 1.1 µs | 5.0× |
-| strip-json-comments 3 | parse large | 3.97 ms | 969.3 µs | 4.1× |
-| strip-json-comments 2 | parse tsconfig | 6.2 µs | 1.1 µs | 5.5× |
-| strip-json-comments 2 | parse large | 4.15 ms | 913.9 µs | 4.5× |
-| strip-json-comments 5 | parse tsconfig | 5.6 µs | 1.2 µs | 4.7× |
-| strip-json-comments 5 | parse large | 3.79 ms | 1.01 ms | 3.8× |
-| jsonc-parser 3.3.1 | parse tsconfig | 4.8 µs | 4.2 µs | 1.2× |
-| jsonc-parser 3.3.1 | parseTree tsconfig | 5.3 µs | 4.6 µs | 1.2× |
-| jsonc-parser 3.3.1 | visit tsconfig | 3.5 µs | 3.2 µs | 1.1× |
-| jsonc-parser 3.3.1 | format tsconfig | 3.2 µs | 3.1 µs | 1.0× |
-| jsonc-parser 3.3.1 | parse large | 2.27 ms | 1.81 ms | 1.3× |
-| jsonc-parser 3.3.1 | parseTree large | 2.10 ms | 1.73 ms | 1.2× |
-| jsonc-parser 3.3.1 | visit large | 1.81 ms | 1.59 ms | 1.1× |
-| jsonc-parser 3.3.1 | format large | 2.29 ms | 1.82 ms | 1.3× |
-| comment-json 4.6.2 | parse tsconfig | 38.0 µs | 25.5 µs | 1.5× |
-| comment-json 4.6.2 | stringify tsconfig | 13.2 µs | 9.1 µs | 1.4× |
-| comment-json 4.6.2 | parse large | 13.92 ms | 9.59 ms | 1.5× |
-| comment-json 4.6.2 | stringify large | 8.52 ms | 5.06 ms | 1.7× |
-| jju 1.4.0 | parse tsconfig | 7.4 µs | 6.2 µs | 1.2× |
-| jju 1.4.0 | stringify tsconfig | 6.5 µs | 4.1 µs | 1.6× |
-| jju 1.4.0 | parse test.json5 | 1.1 µs | 756 ns | 1.4× |
-| jju 1.4.0 | stringify test.json5 | 1.0 µs | 740 ns | 1.4× |
-| jju 1.4.0 | parse large | 3.21 ms | 2.66 ms | 1.2× |
-| jju 1.4.0 | stringify large | 2.97 ms | 1.96 ms | 1.5× |
-| json5 2.2.3, against the root | parse tsconfig | 26.4 µs | 3.0 µs | 8.8× |
-| json5 2.2.3, against the root | stringify tsconfig | 4.9 µs | 1.4 µs | 3.5× |
-| json5 2.2.3, against the root | parse test.json5 | 2.3 µs | 249 ns | 9.1× |
-| json5 2.2.3, against the root | stringify test.json5 | 278 ns | 195 ns | 1.4× |
-| json5 2.2.3, against the root | parse large | 13.98 ms | 1.72 ms | 8.1× |
-| json5 2.2.3, against the root | stringify large | 4.02 ms | 732.1 µs | 5.5× |
+| Original                      | Operation            | Original | tinyjson5 | Speedup |
+| ----------------------------- | -------------------- | -------: | --------: | ------: |
+| json5 2.2.3                   | parse tsconfig       |  28.3 µs |    2.9 µs |    9.7× |
+| json5 2.2.3                   | stringify tsconfig   |   7.3 µs |    1.9 µs |    3.8× |
+| json5 2.2.3                   | parse test.json5     |   3.2 µs |    386 ns |    8.3× |
+| json5 2.2.3                   | stringify test.json5 |   271 ns |    181 ns |    1.5× |
+| json5 2.2.3                   | parse large          | 14.73 ms |   1.96 ms |    7.5× |
+| json5 2.2.3                   | stringify large      |  4.07 ms |  732.5 µs |    5.6× |
+| json5 1.0.2                   | parse tsconfig       |  28.0 µs |    2.9 µs |    9.6× |
+| json5 1.0.2                   | stringify tsconfig   |   5.0 µs |    1.4 µs |    3.7× |
+| json5 1.0.2                   | parse test.json5     |   2.3 µs |    247 ns |    9.2× |
+| json5 1.0.2                   | stringify test.json5 |   268 ns |    188 ns |    1.4× |
+| json5 1.0.2                   | parse large          | 15.26 ms |   1.82 ms |    8.4× |
+| json5 1.0.2                   | stringify large      |  4.34 ms |  682.4 µs |    6.4× |
+| strip-json-comments 3         | parse tsconfig       |   5.6 µs |    1.1 µs |    5.0× |
+| strip-json-comments 3         | parse large          |  3.97 ms |  969.3 µs |    4.1× |
+| strip-json-comments 2         | parse tsconfig       |   6.2 µs |    1.1 µs |    5.5× |
+| strip-json-comments 2         | parse large          |  4.15 ms |  913.9 µs |    4.5× |
+| strip-json-comments 5         | parse tsconfig       |   5.6 µs |    1.2 µs |    4.7× |
+| strip-json-comments 5         | parse large          |  3.79 ms |   1.01 ms |    3.8× |
+| jsonc-parser 3.3.1            | parse tsconfig       |   4.8 µs |    4.2 µs |    1.2× |
+| jsonc-parser 3.3.1            | parseTree tsconfig   |   5.3 µs |    4.6 µs |    1.2× |
+| jsonc-parser 3.3.1            | visit tsconfig       |   3.5 µs |    3.2 µs |    1.1× |
+| jsonc-parser 3.3.1            | format tsconfig      |   3.2 µs |    3.1 µs |    1.0× |
+| jsonc-parser 3.3.1            | parse large          |  2.27 ms |   1.81 ms |    1.3× |
+| jsonc-parser 3.3.1            | parseTree large      |  2.10 ms |   1.73 ms |    1.2× |
+| jsonc-parser 3.3.1            | visit large          |  1.81 ms |   1.59 ms |    1.1× |
+| jsonc-parser 3.3.1            | format large         |  2.29 ms |   1.82 ms |    1.3× |
+| comment-json 4.6.2            | parse tsconfig       |  38.0 µs |   25.5 µs |    1.5× |
+| comment-json 4.6.2            | stringify tsconfig   |  13.2 µs |    9.1 µs |    1.4× |
+| comment-json 4.6.2            | parse large          | 13.92 ms |   9.59 ms |    1.5× |
+| comment-json 4.6.2            | stringify large      |  8.52 ms |   5.06 ms |    1.7× |
+| jju 1.4.0                     | parse tsconfig       |   7.4 µs |    6.2 µs |    1.2× |
+| jju 1.4.0                     | stringify tsconfig   |   6.5 µs |    4.1 µs |    1.6× |
+| jju 1.4.0                     | parse test.json5     |   1.1 µs |    756 ns |    1.4× |
+| jju 1.4.0                     | stringify test.json5 |   1.0 µs |    740 ns |    1.4× |
+| jju 1.4.0                     | parse large          |  3.21 ms |   2.66 ms |    1.2× |
+| jju 1.4.0                     | stringify large      |  2.97 ms |   1.96 ms |    1.5× |
+| json5 2.2.3, against the root | parse tsconfig       |  26.4 µs |    3.0 µs |    8.8× |
+| json5 2.2.3, against the root | stringify tsconfig   |   4.9 µs |    1.4 µs |    3.5× |
+| json5 2.2.3, against the root | parse test.json5     |   2.3 µs |    249 ns |    9.1× |
+| json5 2.2.3, against the root | stringify test.json5 |   278 ns |    195 ns |    1.4× |
+| json5 2.2.3, against the root | parse large          | 13.98 ms |   1.72 ms |    8.1× |
+| json5 2.2.3, against the root | stringify large      |  4.02 ms |  732.1 µs |    5.5× |
 
 </details>
 

@@ -95,12 +95,12 @@
         "ours": 3257
       },
       "parse": {
-        "theirs": 15.48792074999983,
-        "ours": 1.9987026874999856
+        "theirs": 14.725413500000286,
+        "ours": 1.9584066250000092
       },
       "stringify": {
-        "theirs": 4.659287812499997,
-        "ours": 0.8740176718749808
+        "theirs": 4.069320375000075,
+        "ours": 0.7325031796874981
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -113,12 +113,12 @@
         "ours": 3374
       },
       "parse": {
-        "theirs": 15.297098499999265,
-        "ours": 1.8776925937499982
+        "theirs": 15.25660225000047,
+        "ours": 1.8226116562500465
       },
       "stringify": {
-        "theirs": 4.510616000000027,
-        "ours": 0.7092208359374865
+        "theirs": 4.339629062499853,
+        "ours": 0.6824289765625053
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -131,8 +131,8 @@
         "ours": 537
       },
       "parse": {
-        "theirs": 3.8581448750001073,
-        "ours": 0.9364382031250216
+        "theirs": 3.973261937499956,
+        "ours": 0.9693047812500026
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -145,8 +145,8 @@
         "ours": 530
       },
       "parse": {
-        "theirs": 4.441258749999861,
-        "ours": 0.9852250781249836
+        "theirs": 4.154098249999834,
+        "ours": 0.9138610937500289
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -159,8 +159,8 @@
         "ours": 646
       },
       "parse": {
-        "theirs": 4.265937062499688,
-        "ours": 1.0081917968750531
+        "theirs": 3.794043624999631,
+        "ours": 1.0054483281249986
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -170,11 +170,11 @@
       "entry": "tinyjson5/jsonc-parser",
       "gzip": {
         "theirs": 6788,
-        "ours": 6045
+        "ours": 5925
       },
       "parse": {
-        "theirs": 2.405307031250004,
-        "ours": 1.9323742500000662
+        "theirs": 2.2742567812501875,
+        "ours": 1.8069410937500834
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -184,15 +184,15 @@
       "entry": "tinyjson5/comment-json",
       "gzip": {
         "theirs": 36531,
-        "ours": 17883
+        "ours": 18868
       },
       "parse": {
-        "theirs": 17.048514750000322,
-        "ours": 10.392416749999938
+        "theirs": 13.920736000000034,
+        "ours": 9.59290724999937
       },
       "stringify": {
-        "theirs": 9.525805749999563,
-        "ours": 7.815169750000678
+        "theirs": 8.524874624999939,
+        "ours": 5.063181187499595
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -202,15 +202,15 @@
       "entry": "tinyjson5/jju",
       "gzip": {
         "theirs": 9988,
-        "ours": 9866
+        "ours": 9894
       },
       "parse": {
-        "theirs": 3.2553084999999555,
-        "ours": 2.664856249999957
+        "theirs": 3.2101796249999097,
+        "ours": 2.658241562499825
       },
       "stringify": {
-        "theirs": 3.1540077812501295,
-        "ours": 2.1916777187498155
+        "theirs": 2.9734796562502197,
+        "ours": 1.9592444374998195
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
@@ -259,12 +259,12 @@
         "ours": 3510
       },
       "parse": {
-        "theirs": 15.135260999999446,
-        "ours": 1.8766778750000412
+        "theirs": 13.983328000002075,
+        "ours": 1.723666249999951
       },
       "stringify": {
-        "theirs": 4.181681312499677,
-        "ours": 0.8088465781249852
+        "theirs": 4.017440187500142,
+        "ours": 0.7320568046875451
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     }
