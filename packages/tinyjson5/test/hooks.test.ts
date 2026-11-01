@@ -8,7 +8,10 @@ import * as json5 from "../src/json5/index.ts";
 import * as json5V1 from "../src/json5-v1/index.ts";
 
 const require = createRequire(import.meta.url);
-const main = await import("../.cache/json5-main/lib/index.js").catch(() => undefined);
+// json5's main branch, which `pnpm json5:main:fetch` puts in .cache; the
+// path is built so the typecheck doesn't need it.
+const mainPath = new URL("../.cache/json5-main/lib/index.js", import.meta.url).href;
+const main: Lib | undefined = await import(mainPath).catch(() => undefined);
 type Lib = { parse: (...args: any[]) => unknown; stringify: (...args: any[]) => unknown };
 const pairs: [string, Lib, Lib][] = [
   ["json5 2.2.3", json5, require("json5")],

@@ -22,21 +22,21 @@ const SUITES: Record<
   "json5-v1": {
     files: ["parse.js", "stringify.js", "errors.js"],
     targets: [
-      ["json5 1.0.2", "node_modules/json5-v1/lib/index.js"],
+      ["json5 1.0.2", "scripts/originals/json5-v1.ts"],
       ["tinyjson5/json5-v1", "src/json5-v1/index.ts"],
     ],
   },
   "strip-json-comments-v2": {
     files: ["test.js"],
     targets: [
-      ["strip-json-comments 2", "node_modules/strip-json-comments-v2/index.js"],
+      ["strip-json-comments 2", "scripts/originals/strip-json-comments-v2.ts"],
       ["tinyjson5/strip-json-comments-v2", "src/strip-json-comments-v2/index.ts"],
     ],
   },
   "strip-json-comments": {
     files: ["test.js"],
     targets: [
-      ["strip-json-comments 3", "node_modules/strip-json-comments/index.js"],
+      ["strip-json-comments 3", "scripts/originals/strip-json-comments.ts"],
       ["tinyjson5/strip-json-comments", "src/strip-json-comments/index.ts"],
     ],
   },
