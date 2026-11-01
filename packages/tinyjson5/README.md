@@ -2,36 +2,24 @@
   <img src="./.github/banner.svg" alt="tinyjson5" width="100%">
 </h1>
 
-<!-- automd:comark-badges name=tinyjson5 size=size-and-speed -->
-
-[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyjson5&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
-[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=3.0+KiB+gzip)](#size-and-speed)
-[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyjson5?activeTab=dependencies)
-[![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
-[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
-
+<!-- automd:comark-badges name=tinyjson5 size=size -->
 <!-- /automd -->
 
-**JSON5 for JavaScript in 3.0 KiB.** No dependencies, reads and writes JSON5 the way [json5](https://github.com/json5/json5) 2.2.3 does, and passes all 160 of json5's own test assertions.
+**JSON5 for JavaScript in 3.4 KiB.** No dependencies, json5 3's rules before json5 3 is out, and strict JSON with comments with one option.
 
-Already on json5? Change one import and keep your code:
+Already on a JSON5 or JSONC library? Change one import and keep your code:
 
 ```diff
 - import JSON5 from "json5";
-+ import JSON5 from "tinyjson5";
++ import JSON5 from "tinyjson5/json5";
 ```
 
+tinyjson5 ships drop-in replacements for json5 2 and 1, strip-json-comments 3, 2 and 5, jsonc-parser, comment-json and jju. Each one is smaller and faster than the library it replaces, passes that library's own tests, and gives the same result on a million fuzzed inputs.
+
 <!-- automd:drop-ins package=tinyjson5 -->
-
-| You use     | Switch to   |    Size, gzip |      Parses | Stringifies |
-| ----------- | ----------- | ------------: | ----------: | ----------: |
-| json5 2.2.3 | `tinyjson5` | 7.5 → 3.0 KiB | 8.1× faster | 4.8× faster |
-
-Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
-
 <!-- /automd -->
 
-[Get started](#get-started) · [Coming from json5](#coming-from-json5) · [Compatibility](#compatibility-with-json5-223) · [Size and speed](#size-and-speed)
+[Get started](#get-started) · [Switching](#switching-from-another-library) · [Size](#size) · [Speed](#speed) · [API](#api) · [Develop](#develop)
 
 An independent project by [@onmax](https://github.com/onmax).
 
@@ -41,104 +29,106 @@ An independent project by [@onmax](https://github.com/onmax).
 pnpm add tinyjson5
 ```
 
+npm holds only a 0.0.0 placeholder under this name until the first release. Until then, clone this repository and run `pnpm install` and `pnpm build` to get the package in `dist/`.
+
 ```ts
 import JSON5, { parse, stringify } from "tinyjson5";
 
 parse("{name: 'app', tags: ['a', 'b',], /* comment */ size: 0x10}");
 // { name: "app", tags: ["a", "b"], size: 16 }
+parse('// tsconfig\n{"strict": true}', { jsonc: true }); // { strict: true }
+parse("9007199254740993", { bigint: true }); // 9007199254740993n
 stringify({ name: "app", "a-b": [1, NaN] }); // "{name:'app','a-b':[1,NaN]}"
 stringify({ a: 1 }, null, 2); // "{\n  a: 1,\n}"
 JSON5.parse("[1, 2]"); // [1, 2]
 ```
 
-`parse(text, reviver?)` takes the same reviver as `JSON.parse`. Invalid input throws a `SyntaxError` with json5's message and position, as in `JSON5: invalid character '@' at 2:5`, and with `lineNumber` and `columnNumber` set. An unescaped U+2028 or U+2029 inside a string parses, with the same `console.warn` json5 prints.
+The root follows [json5](https://github.com/json5/json5)'s main branch, which holds json5 3 before its release, and adds a strict JSONC mode. Where json5 2 and JSON differ, it does what `JSON.parse` and `JSON.stringify` do:
 
-`stringify(value, replacer?, space?)` takes a replacer function or a list of keys, and a space as `JSON.stringify` does. The second argument can also be an options object:
+- No `console.warn`. json5 2 warns about U+2028 and U+2029 in strings.
+- The reviver walks own keys, as `JSON.parse`'s does, and a property it can't update stays as it is instead of throwing.
+- Error positions count `\r`, `\r\n`, U+2028 and U+2029 as line breaks, and an error on a line break is reported on the line it ends.
+- `{ bigint: true }` returns integers outside the safe range as BigInts.
+- `stringify` throws on a BigInt, takes only `'` or `"` as `quote`, escapes lone surrogates, writes keys with identifier characters above U+FFFF bare, and reads replacer lists, arrays and `toJSON5`/`toJSON` once, as `JSON.stringify` does.
 
-| Option     | Default | What it does                                                                                |
-| ---------- | ------- | ------------------------------------------------------------------------------------------- |
-| `replacer` | none    | A function that changes each value, or a list of the keys to keep.                          |
-| `space`    | none    | Spaces per level (at most 10) or a string (its first 10 characters). Adds trailing commas.  |
-| `quote`    | auto    | The quote to use for strings. By default `'`, or `"` when the string has more `'` than `"`. |
+`{ jsonc: true }` accepts JSON with `//` and `/* */` comments and nothing more: no single quotes, unquoted keys, hex, `+`, `Infinity`, `NaN`, trailing commas, escapes JSON lacks, or whitespace other than JSON's. Comments end at `\n` or `\r`.
 
-Keys that are identifiers are written bare. `NaN`, `Infinity`, and `-Infinity` are written as such, `-0` as `0`. `toJSON5()` is used before `toJSON()`. A cycle throws `TypeError: Converting circular structure to JSON5`.
+Invalid input throws a `SyntaxError` with json5's message and its `lineNumber` and `columnNumber`, as in `JSON5: invalid character '@' at 2:5`.
 
-### Coming from json5
+## Switching from another library
+
+Each subpath exports the functions, options and types of the library it replaces, apart from the gaps listed below, so switching is a change to the import line. The last column is that library's own test suite, copied unchanged into `test/` and run with tinyjson5 in its place.
+
+<!-- SWITCHING -->
 
 ```ts
-// json5
-import JSON5 from "json5";
-// or, as confbox does
-import parse from "json5/lib/parse.js";
-import stringify from "json5/lib/stringify";
-
-// tinyjson5
-import JSON5, { parse, stringify } from "tinyjson5";
+// before
+import { parse, modify, applyEdits } from "jsonc-parser";
+// after
+import { parse, modify, applyEdits } from "tinyjson5/jsonc-parser";
 ```
 
-The calls, options, output, and errors are the same. tinyjson5 has no CommonJS build, no `json5` CLI, and no `json5/lib/register` hook for `require("./file.json5")`.
+Every subpath is checked a second way, with differential fuzzing: inputs made by editing the json5-tests corpus, each library's own test inputs and generated documents at random, and run through both with every option the subpath takes. The details below give the counts and list each known difference.
 
-## Compatibility with json5 2.2.3
+All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` hook for `.json5` files.
 
-I tested tinyjson5 against json5 2.2.3 five ways:
+<!-- DETAILS -->
 
-- json5's own `parse`, `stringify`, and `errors` tests, copied unchanged into `test/json5` and run with tinyjson5 in place of json5. All 160 assertions pass: 49 parse, 67 stringify, 44 errors.
-- The [json5-tests](https://github.com/json5/json5-tests) corpus. All 114 files are right: every `.json` and `.json5` file parses, every `.js` and `.txt` file throws, and each gives json5's value or json5's error.
-- 1,000,000 inputs made by editing corpus files, json5's test inputs, and generated documents at random. Every one gives the same value, or the same error message, `lineNumber`, and `columnNumber` (791,888 of 791,888 errors identical). The `console.warn` calls match too.
-- 10,000 random values, with nested objects and arrays, awkward keys, both quote kinds, control characters, U+2028, `NaN`, `-0`, dates, boxed primitives, `toJSON` and `toJSON5`, functions, symbols, and cycles. Each is stringified with 6 space settings, 3 quote settings, and 3 replacers, positionally and as an options object, plus odd options on every tenth value: 741,000 calls with byte-identical output. Where json5 throws, in 9,993 of them, tinyjson5 throws the same `TypeError`: for cycles, and when a `"__proto__"` entry in the key list reaches `Date.prototype.toJSON`.
-- The same values round-trip: `parse(stringify(x))` equals what JSON5 can hold of `x` in all 147,015 checks.
+## Size
 
-Where tinyjson5 differs:
+<!-- SIZE -->
 
-- Identifier characters. json5 2.2.3 ships Unicode 10 tables; tinyjson5 asks the JavaScript engine with `\p{ID_Start}` and `\p{ID_Continue}`. On Node 26.13 (Unicode 17) that adds 20,588 code points as an identifier start and 21,146 as an identifier part, such as U+0560 (added in Unicode 11) and U+00B7 MIDDLE DOT (an identifier part that json5's table leaves out). `parse` accepts unquoted keys with them where json5 throws, and `stringify` writes such keys bare where json5 quotes them. Older engines know fewer characters. json5 accepts no identifier character that tinyjson5 rejects; U+2E2F VERTICAL TILDE, which json5's tables count as a letter, is special-cased to keep it that way. `pnpm unicode` prints the full list.
-- Stack depth. Both parse nesting of any depth without recursion. `stringify` and the reviver recurse in both, and run out of stack at slightly different depths: here `stringify` handles 3,906 nested arrays to json5's 3,672, and the reviver 5,675 nested objects to json5's 5,859.
-- Packaging. ESM only, with named exports next to the default. There is no CommonJS or browser build, no CLI, and no `register` or `require` hook. The types are the same signatures, written for ESM, plus exported `Reviver`, `Replacer`, and `StringifyOptions`.
+## Speed
 
-## Size and speed
+<!-- SPEED -->
 
-Bundled with esbuild, minified ESM, then gzip level 9:
+## API
 
-|                                              | Minified | Gzip   |
-| -------------------------------------------- | -------- | ------ |
-| tinyjson5, `parse` and `stringify`           | 7.6 KB   | 3.0 KB |
-| tinyjson5, `parse` only                      | 4.9 KB   | 2.0 KB |
-| json5, `parse` and `stringify`               | 26.4 KB  | 7.5 KB |
-| json5, `lib/parse.js` and `lib/stringify.js` | 27.2 KB  | 7.9 KB |
-| json5, `lib/parse.js` only                   | 24.5 KB  | 6.9 KB |
+### `parse(text, reviver?, options?)`
 
-json5's Unicode tables alone are 15.9 KB minified and 4.1 KB gzipped.
+Parses JSON5 and returns the value. `parse(text, options)` works too. The reviver is the one `JSON.parse` takes.
 
-Median time per call on an Apple M4 with Node 26.13. The tsconfig is a 15-line file with comments and trailing commas, `test.json5` is json5's own `{a: 1, b: 2}`, and the large file is json5's `package-lock.json` as 215 KB of JSON5. Stringify uses a 2-space indent.
+| Option   | Default | What it does                                                          |
+| -------- | ------- | --------------------------------------------------------------------- |
+| `bigint` | `false` | Return integers outside the safe range as BigInts. Must be a boolean. |
+| `jsonc`  | `false` | Accept only JSON with comments.                                       |
 
-| Operation               | json5   | tinyjson5 | Speedup |
-| ----------------------- | ------- | --------- | ------- |
-| Parse tsconfig          | 13.0 µs | 1.5 µs    | 8.6x    |
-| Parse `test.json5`      | 1.1 µs  | 125 ns    | 9.1x    |
-| Parse a 215 KB file     | 7.37 ms | 0.92 ms   | 8.1x    |
-| Stringify tsconfig      | 2.8 µs  | 899 ns    | 3.1x    |
-| Stringify `test.json5`  | 161 ns  | 129 ns    | 1.3x    |
-| Stringify a 215 KB file | 2.22 ms | 0.47 ms   | 4.8x    |
+### `stringify(value, replacer?, space?)` and `stringify(value, options)`
 
-The parser reads character codes in one pass with an explicit stack and builds values directly, where json5 runs a lexer state machine that copies each character into a string. The stringifier only escapes strings that need it.
+Writes JSON5. The replacer is a function or a list of keys, and `space` works as in `JSON.stringify`, up to 10 characters.
+
+| Option     | Default | What it does                                                                               |
+| ---------- | ------- | ------------------------------------------------------------------------------------------ |
+| `replacer` | none    | A function that changes each value, or a list of the keys to keep.                         |
+| `space`    | none    | Spaces per level (at most 10) or a string (its first 10 characters). Adds trailing commas. |
+| `quote`    | auto    | `'` or `"`. By default `'`, or `"` when the string has more `'` than `"`.                  |
+
+Keys that are identifiers are written bare. `NaN`, `Infinity` and `-Infinity` are written as such, `-0` as `0`. `toJSON5()` is used before `toJSON()`. A cycle throws `TypeError: Converting circular structure to JSON5`.
 
 ## Develop
 
-tinyjson5 uses pnpm 12, Node 26, and [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, tests, and the build. [tsrs](https://github.com/oxc-project/tsrs) does the typecheck.
+tinyjson5 uses pnpm 12, Node 24 or later, and [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, tests and the build. [tsrs](https://github.com/oxc-project/tsrs) does the typecheck. Each entry is built on its own, with `src/core/mode/<mode>.ts` in place of `src/core/mode.ts`, so it carries no other entry's code; `pnpm size` fails if one does.
 
 ```sh
 pnpm install
-pnpm ready                  # format, build, lint, typecheck, and test
-pnpm corpus:fetch           # json5-tests, into .cache, so the conformance tests run
-pnpm json5:fetch            # json5 2.2.3, into .cache, for the large benchmark input
-pnpm json5-tests            # json5's own tests against json5 and tinyjson5
-pnpm corpus                 # every json5-tests case against json5
-pnpm fuzz 200000 3          # 200,000 mutated inputs with seed 3
-pnpm fuzz:stringify 10000 1 # 10,000 random values through every option
-pnpm unicode                # identifier characters that differ from json5's tables
-pnpm size                   # bundle sizes next to json5
-pnpm bench                  # speed next to json5
+pnpm ready                       # format, build, lint, typecheck, and test
+pnpm corpus:fetch                # json5-tests, into .cache
+pnpm json5:fetch                 # json5 2.2.3, into .cache, for the large benchmark input
+pnpm json5:main:fetch            # json5's main branch, into .cache, the root's reference
+pnpm json5-tests                 # json5 2.2.3's own tests against tinyjson5/json5
+pnpm own-tests <suite>           # an original's own tests: json5-main, json5-v1, strip-json-comments(-v2, -v5), jsonc-parser, comment-json, jju
+pnpm corpus [engine]             # every json5-tests case
+pnpm fuzz 200000 3 [engine]      # mutated inputs: json5, json5-v1, root, root-bigint, jsonc
+pnpm fuzz:stringify 10000 1 [engine]
+pnpm fuzz:strip 100000 1 v3      # strip-json-comments v2, v3 or v5
+pnpm fuzz:jsonc 20000 1          # jsonc-parser's whole API
+pnpm fuzz:comment-json 20000 1
+pnpm fuzz:jju 20000 1
+pnpm unicode                     # identifier characters that differ from json5's tables
+pnpm size                        # bundle sizes next to each original
+pnpm bench                       # speed next to each original
 ```
 
 ## License
 
-[MIT](./LICENSE). The tests in `test/json5` are json5's, under its [MIT license](./test/json5/LICENSE.md).
+[MIT](./LICENSE). The ported code and copied tests keep their licenses: json5's tests (MIT), jsonc-parser (MIT, Microsoft), comment-json (MIT), esprima's tokenizer (BSD-2-Clause, JS Foundation), array-timsort (MIT), jju (MIT, Alex Kocharin) and strip-json-comments' tests (MIT, Sindre Sorhus). Each copy has its license next to it.

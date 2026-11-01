@@ -95,7 +95,7 @@ const pieces = [
 const keys = ["a", "b", "x", "$schema", "", "a b", "__proto__"];
 const values = [1, "s", true, null, undefined, [1, 2], { c: 1 }, { d: [{ e: null }] }, "\n"];
 const formatOptions = () => ({
-  tabSize: pick([undefined, 0, 1, 2, 4, 8, 2.5, -1]),
+  tabSize: pick([undefined, 0, 1, 2, 4, 8, 2.5, -1, 25, "length", "2"]),
   insertSpaces: pick([true, false, undefined]),
   eol: pick([undefined, "\n", "\r\n", "\r", "\n\n"]),
   insertFinalNewline: pick([undefined, true]),
@@ -151,7 +151,9 @@ function checks(text: string): [string, (api: Api) => unknown][] {
         return tokens;
       },
     ]);
-  const restart = int(text.length + 1);
+  // A seek anywhere, or to a position that isn't a whole one in the text.
+  // Not NaN: from there jsonc-parser loops until memory runs out, on most text.
+  const restart = next() < 0.85 ? int(text.length + 1) : pick([0.5, -1, text.length + 3, 1.5]);
   list.push([
     `scan from ${restart}`,
     (api) => {
@@ -262,7 +264,12 @@ function checks(text: string): [string, (api: Api) => unknown][] {
   for (const replace of [undefined, " ", "*"])
     list.push([`stripComments ${replace}`, (api) => api.stripComments(text, replace)]);
   const start = int(text.length + 1);
-  const range = next() < 0.5 ? undefined : { offset: start, length: int(text.length - start + 1) };
+  const range =
+    next() < 0.5
+      ? undefined
+      : next() < 0.85
+        ? { offset: start, length: int(text.length - start + 1) }
+        : { offset: start - int(8), length: int(text.length + 10) };
   const fmt = formatOptions();
   list.push([
     `format ${show(range)} ${show(fmt)}`,

@@ -1,12 +1,14 @@
 // jsonc-parser 3.3.1's formatter (MIT, Copyright (c) Microsoft Corporation),
-// without its tables of cached indents, whose quirks it keeps.
-
+// unchanged but for its imports and token numbers, and its edits compared
+// in place, marked "tinyjson5".
 import type { Edit, FormattingOptions, Range } from "./index.ts";
 import { createScanner } from "./scanner.ts";
-
-// A line break and indent of each length, filled in as they're needed, for
-// each indent character and line break.
-const INDENTS: Record<string, string[]> = {};
+import {
+  cachedBreakLinesWithSpaces,
+  cachedSpaces,
+  supportedEols,
+  type SupportedEOL,
+} from "./string-intern.ts";
 
 export function format(
   documentText: string,
@@ -40,25 +42,19 @@ export function format(
     rangeEnd = documentText.length;
   }
   const eol = getEOL(options, documentText);
-  // jsonc-parser looks the line break and indent up in tables for these line breaks.
-  const eolFastPathSupported = eol === "\n" || eol === "\r" || eol === "\r\n";
+  const eolFastPathSupported = supportedEols.includes(eol as any);
 
   let numberLineBreaks = 0;
 
   let indentLevel = 0;
   let indentValue: string;
   if (options.insertSpaces) {
-    // A table of 0 to 19 spaces, and a loop for any other count, which a fraction rounds up.
-    const tabSize = options.tabSize || 4;
     indentValue =
-      Number.isInteger(tabSize) && tabSize >= 0 && tabSize < 20
-        ? " ".repeat(tabSize)
-        : repeat(" ", tabSize);
+      cachedSpaces[options.tabSize || 4] ?? repeat(cachedSpaces[1]!, options.tabSize || 4);
   } else {
     indentValue = "\t";
   }
   const indentType = indentValue === "\t" ? "\t" : " ";
-  const indents = eolFastPathSupported ? (INDENTS[indentType + eol] ??= []) : undefined;
 
   let scanner = createScanner(formatText, false);
   let hasError = false;
@@ -70,7 +66,10 @@ export function format(
 
     const amountOfSpaces = indentValue.length * (initialIndentLevel + indentLevel);
 
-    if (!eolFastPathSupported || amountOfSpaces > 200) {
+    if (
+      !eolFastPathSupported ||
+      amountOfSpaces > cachedBreakLinesWithSpaces[indentType][eol as SupportedEOL].length
+    ) {
       return eol + repeat(indentValue, initialIndentLevel + indentLevel);
     }
 
@@ -78,9 +77,7 @@ export function format(
       return eol;
     }
 
-    // The table holds 0 to 199 characters, so 200 finds nothing there.
-    if (amountOfSpaces === 200) return undefined as never;
-    return (indents![amountOfSpaces] ??= eol + indentType.repeat(amountOfSpaces));
+    return cachedBreakLinesWithSpaces[indentType][eol as SupportedEOL][amountOfSpaces]!;
   }
 
   function scanNext(): number {
@@ -103,13 +100,22 @@ export function format(
     if (
       !hasError &&
       (!range || (startOffset < rangeEnd && endOffset > rangeStart)) &&
-      // The text there differs: compared in place, without cutting it out.
-      !(startOffset <= endOffset
-        ? endOffset - startOffset === text?.length && documentText.startsWith(text, startOffset)
-        : documentText.substring(startOffset, endOffset) === text)
+      !sameText(text, startOffset, endOffset)
     ) {
       editOperations.push({ offset: startOffset, length: endOffset - startOffset, content: text });
     }
+  }
+
+  // tinyjson5: compared in place, without cutting the text out, where the
+  // offsets are whole and in the text; else as jsonc-parser compares it.
+  function sameText(text: string, startOffset: number, endOffset: number) {
+    return Number.isInteger(startOffset) &&
+      Number.isInteger(endOffset) &&
+      0 <= startOffset &&
+      startOffset <= endOffset &&
+      endOffset <= documentText.length
+      ? endOffset - startOffset === text?.length && documentText.startsWith(text, startOffset)
+      : documentText.substring(startOffset, endOffset) === text;
   }
 
   let firstToken = scanNext();
@@ -121,7 +127,7 @@ export function format(
     let firstTokenStart = scanner.getTokenOffset() + formatTextStart;
     let initialIndent =
       indentValue.length * initialIndentLevel < 20 && options.insertSpaces
-        ? " ".repeat(indentValue.length * initialIndentLevel)
+        ? cachedSpaces[indentValue.length * initialIndentLevel]!
         : repeat(indentValue, initialIndentLevel);
     addEdit(initialIndent, formatTextStart, firstTokenStart);
   }
@@ -137,7 +143,7 @@ export function format(
       (secondToken === 12 /* LineCommentTrivia */ || secondToken === 13) /* BlockCommentTrivia */
     ) {
       let commentTokenStart = scanner.getTokenOffset() + formatTextStart;
-      addEdit(" ", firstTokenEnd, commentTokenStart);
+      addEdit(cachedSpaces[1]!, firstTokenEnd, commentTokenStart);
       firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + formatTextStart;
       needsLineBreak = secondToken === 12; /* LineCommentTrivia */
       replaceContent = needsLineBreak ? newLinesAndIndent() : "";
@@ -155,7 +161,7 @@ export function format(
       ) {
         replaceContent = newLinesAndIndent();
       } else if (options.keepLines) {
-        replaceContent = " ";
+        replaceContent = cachedSpaces[1]!;
       }
     } else if (secondToken === 4 /* CloseBracketToken */) {
       if (firstToken !== 3 /* OpenBracketToken */) {
@@ -168,7 +174,7 @@ export function format(
       ) {
         replaceContent = newLinesAndIndent();
       } else if (options.keepLines) {
-        replaceContent = " ";
+        replaceContent = cachedSpaces[1]!;
       }
     } else {
       switch (firstToken) {
@@ -178,14 +184,14 @@ export function format(
           if ((options.keepLines && numberLineBreaks > 0) || !options.keepLines) {
             replaceContent = newLinesAndIndent();
           } else {
-            replaceContent = " ";
+            replaceContent = cachedSpaces[1]!;
           }
           break;
         case 5 /* CommaToken */:
           if ((options.keepLines && numberLineBreaks > 0) || !options.keepLines) {
             replaceContent = newLinesAndIndent();
           } else {
-            replaceContent = " ";
+            replaceContent = cachedSpaces[1]!;
           }
           break;
         case 12 /* LineCommentTrivia */:
@@ -195,14 +201,14 @@ export function format(
           if (numberLineBreaks > 0) {
             replaceContent = newLinesAndIndent();
           } else if (!needsLineBreak) {
-            replaceContent = " ";
+            replaceContent = cachedSpaces[1]!;
           }
           break;
         case 6 /* ColonToken */:
           if (options.keepLines && numberLineBreaks > 0) {
             replaceContent = newLinesAndIndent();
           } else if (!needsLineBreak) {
-            replaceContent = " ";
+            replaceContent = cachedSpaces[1]!;
           }
           break;
         case 10 /* StringLiteral */:
@@ -226,7 +232,7 @@ export function format(
                 secondToken === 13) /* BlockCommentTrivia */ &&
               !needsLineBreak
             ) {
-              replaceContent = " ";
+              replaceContent = cachedSpaces[1]!;
             } else if (secondToken !== 5 /* CommaToken */ && secondToken !== 17 /* EOF */) {
               hasError = true;
             }
@@ -271,7 +277,7 @@ function computeIndentLevel(content: string, options: FormattingOptions): number
   const tabSize = options.tabSize || 4;
   while (i < content.length) {
     let ch = content.charAt(i);
-    if (ch === " ") {
+    if (ch === cachedSpaces[1]!) {
       nChars++;
     } else if (ch === "\t") {
       nChars += tabSize;

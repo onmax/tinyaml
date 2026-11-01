@@ -35,4 +35,46 @@ describe("jsonc-parser", () => {
       true,
     );
   });
+
+  it("reads tabSize as jsonc-parser does, twice when its table has no such indent", () => {
+    const options = (reads: string[]) => ({
+      insertSpaces: true,
+      get tabSize() {
+        reads.push("tabSize");
+        return reads.length === 1 ? 24 : 2;
+      },
+    });
+    const a: string[] = [];
+    const b: string[] = [];
+    expect(ours.format("[1]", undefined, options(a))).toEqual(
+      theirs.format("[1]", undefined, options(b)),
+    );
+    expect(a).toEqual(b);
+    for (const tabSize of ["length", 2.5, -1] as never[])
+      expect(ours.format("[1]", undefined, { tabSize, insertSpaces: true })).toEqual(
+        theirs.format("[1]", undefined, { tabSize, insertSpaces: true }),
+      );
+  });
+
+  it("formats a range that starts before the text as jsonc-parser does", () => {
+    const range = { offset: -5, length: 10 };
+    expect(ours.format("\n [1]", range, {})).toEqual(theirs.format("\n [1]", range, {}));
+  });
+
+  it("names error codes without reading the exported enum", () => {
+    const codes = ours.ParseErrorCode as Record<number, string>;
+    const name = codes[1];
+    codes[1] = "changed";
+    try {
+      expect(ours.printParseErrorCode(1 as never)).toBe("InvalidSymbol");
+    } finally {
+      codes[1] = name!;
+    }
+  });
+
+  it("scans from NaN as jsonc-parser does", () => {
+    const scanner = ours.createScanner("1");
+    scanner.setPosition(NaN);
+    expect(scanner.scan()).toBe(11);
+  });
 });

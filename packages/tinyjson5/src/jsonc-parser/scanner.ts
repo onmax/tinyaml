@@ -52,31 +52,35 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
     scanError = 0;
   }
 
+  // jsonc-parser's own, bounds checks included: they stop it at a position
+  // that isn't a number, such as setPosition(NaN) leaves.
   function scanNumber(): string {
     const start = pos;
     if (text.charCodeAt(pos) === 48) pos++;
     else {
       pos++;
-      while (isDigit(text.charCodeAt(pos))) pos++;
+      while (pos < text.length && isDigit(text.charCodeAt(pos))) pos++;
     }
-    if (text.charCodeAt(pos) === 46 /* . */) {
+    if (pos < text.length && text.charCodeAt(pos) === 46 /* . */) {
       pos++;
-      if (!isDigit(text.charCodeAt(pos))) {
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) pos++;
+      } else {
         scanError = 3; /* UnexpectedEndOfNumber */
         return text.substring(start, pos);
       }
-      pos++;
-      while (isDigit(text.charCodeAt(pos))) pos++;
     }
     let end = pos;
-    const e = text.charCodeAt(pos);
-    if (e === 69 || e === 101 /* E e */) {
+    if (
+      pos < text.length &&
+      (text.charCodeAt(pos) === 69 || text.charCodeAt(pos) === 101) /* E e */
+    ) {
       pos++;
-      const sign = text.charCodeAt(pos);
-      if (sign === 43 || sign === 45) pos++;
-      if (isDigit(text.charCodeAt(pos))) {
+      if ((pos < text.length && text.charCodeAt(pos) === 43) || text.charCodeAt(pos) === 45) pos++;
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
         pos++;
-        while (isDigit(text.charCodeAt(pos))) pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) pos++;
         end = pos;
       } else scanError = 3;
     }
@@ -84,7 +88,8 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
   }
 
   function scanString(): string {
-    const end = text.indexOf('"', pos);
+    // At a whole position only: jsonc-parser steps a fractional or NaN one by 1.
+    const end = Number.isInteger(pos) ? text.indexOf('"', pos) : -1;
     if (end >= 0) {
       if (backslashAt < pos) {
         backslashAt = text.indexOf("\\", pos);
