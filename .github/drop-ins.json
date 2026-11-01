@@ -217,19 +217,84 @@
     {
       "package": "tinyini",
       "library": "ini 7.0.0",
-      "entry": "tinyini",
+      "entry": "tinyini/ini",
       "gzip": {
         "theirs": 1682,
-        "ours": 1670
+        "ours": 1576
       },
       "parse": {
-        "theirs": 1.41,
-        "ours": 0.7
+        "theirs": 3.4146791250000206,
+        "ours": 2.388202531250016
       },
       "stringify": {
-        "theirs": 1.27,
-        "ours": 0.44
-      }
+        "theirs": 2.334256625000023,
+        "ours": 1.051113015624992
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyini",
+      "library": "ini 2.0.0",
+      "entry": "tinyini/ini-v2",
+      "gzip": {
+        "theirs": 1435,
+        "ours": 1401
+      },
+      "parse": {
+        "theirs": 2.893240031250002,
+        "ours": 1.7389292812499662
+      },
+      "stringify": {
+        "theirs": 1.8273546875000193,
+        "ours": 1.3103023593749867
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyini",
+      "library": "ini 1.3.8",
+      "entry": "tinyini/ini-v1",
+      "gzip": {
+        "theirs": 1452,
+        "ours": 1406
+      },
+      "parse": {
+        "theirs": 3.133525406249987,
+        "ours": 2.3444913749999614
+      },
+      "stringify": {
+        "theirs": 2.1009477187499215,
+        "ours": 1.6262973749999219
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyini",
+      "library": "@one-ini/wasm 0.2.1",
+      "entry": "tinyini/one-ini",
+      "gzip": {
+        "theirs": 37044,
+        "ours": 1731
+      },
+      "parse": {
+        "theirs": 14.590562000001228,
+        "ours": 1.1103650937500333
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyini",
+      "library": "@one-ini/wasm 0.1.1",
+      "entry": "tinyini/one-ini-v0.1",
+      "gzip": {
+        "theirs": 33299,
+        "ours": 1735
+      },
+      "parse": {
+        "theirs": 18.76125350000075,
+        "ours": 1.277727046875043
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     }
   ],
   "root": {
@@ -265,6 +330,24 @@
       "stringify": {
         "theirs": 3.7629261250003765,
         "ours": 0.7354244609375655
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyini",
+      "library": "ini 7.0.0",
+      "entry": "tinyini",
+      "gzip": {
+        "theirs": 1682,
+        "ours": 1360
+      },
+      "parse": {
+        "theirs": 3.3653124375000516,
+        "ours": 1.4501298437500054
+      },
+      "stringify": {
+        "theirs": 2.5585498750001534,
+        "ours": 0.8900440781250154
       },
       "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     }

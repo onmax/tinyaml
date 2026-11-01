@@ -53,6 +53,8 @@ const compare = (
 });
 const yaml = (library: string, entry: string, size: string, bench: string) =>
   compare("tinyaml", library, entry, yamlSize, [size, entry], yamlBench, bench);
+const ini = (library: string, entry: string, bench = library) =>
+  compare("tinyini", library, entry, iniSize, [library, entry], iniBench, bench);
 
 const data: DropIns = {
   machine: `${cpus()[0]!.model.trim()}, Node ${process.versions.node}`,
@@ -77,16 +79,14 @@ const data: DropIns = {
     ).map(([library, entry]) =>
       compare("tinyjson5", library, entry, json5Size, [library, entry], json5Bench, library),
     ),
-    compare(
-      "tinyini",
-      "ini 7.0.0",
-      "tinyini",
-      iniSize,
-      ["ini 7.0.0", "tinyini/ini"],
-      iniBench,
-    ),
+    ini("ini 7.0.0", "tinyini/ini"),
+    ini("ini 2.0.0", "tinyini/ini-v2"),
+    ini("ini 1.3.8", "tinyini/ini-v1"),
+    ini("@one-ini/wasm 0.2.1", "tinyini/one-ini"),
+    ini("@one-ini/wasm 0.1.1", "tinyini/one-ini-v0.1"),
   ],
   root: yaml("yaml", "tinyaml", "yaml", "yaml (tinyaml root)"),
+  // The other packages' own APIs, each against the library its users switch from.
   roots: [
     compare(
       "tinyjson5",
@@ -97,6 +97,7 @@ const data: DropIns = {
       json5Bench,
       "json5 2.2.3 (tinyjson5 root)",
     ),
+    ini("ini 7.0.0", "tinyini", "ini 7.0.0 (tinyini root)"),
   ],
 };
 

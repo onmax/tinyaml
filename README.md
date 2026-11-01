@@ -22,7 +22,7 @@ Smaller, faster, dependency-free parsers you can drop in for the libraries you a
 | --- | --- | --- |
 | [tinyaml](./packages/tinyaml) | YAML | js-yaml 4 and 5, yaml, yamljs, @std/yaml |
 | [tinyjson5](./packages/tinyjson5) | JSON5 | json5 2.2.3 |
-| [tinyini](./packages/tinyini) | INI | ini 7.0.0 |
+| [tinyini](./packages/tinyini) | INI | ini 1.3.8, 2 to 4.0 and 4.1.3 to 7, @one-ini/wasm 0.1.1 to 0.2 |
 
 Each package is published on its own, so install only the ones you use:
 
@@ -42,7 +42,7 @@ Change the import. The calls, options, output and errors stay the same.
 + import JSON5 from "tinyjson5/json5";
 
 - import ini from "ini";
-+ import ini from "tinyini";
++ import ini from "tinyini/ini";
 ```
 
 Each package matches its original on that library's own tests and on tens of thousands to millions of fuzzed inputs, and lists every place it still differs.
@@ -66,15 +66,19 @@ Each package matches its original on that library's own tests and on tens of tho
 | jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.7 KiB |  1.2× faster |           — |
 | comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 18.4 KiB |  1.6× faster | 1.7× faster |
 | jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.7 KiB |  1.2× faster | 1.6× faster |
-| ini 7.0.0             | `tinyini`                          |   1.6 → 1.6 KiB |  2.0× faster | 2.9× faster |
+| ini 7.0.0             | `tinyini/ini`                      |   1.6 → 1.5 KiB |  1.4× faster | 2.2× faster |
+| ini 2.0.0             | `tinyini/ini-v2`                   |   1.4 → 1.4 KiB |  1.7× faster | 1.4× faster |
+| ini 1.3.8             | `tinyini/ini-v1`                   |   1.4 → 1.4 KiB |  1.3× faster | 1.3× faster |
+| @one-ini/wasm 0.2.1   | `tinyini/one-ini`                  |  36.2 → 1.7 KiB | 13.1× faster |           — |
+| @one-ini/wasm 0.1.1   | `tinyini/one-ini-v0.1`             |  32.5 → 1.7 KiB | 14.7× faster |           — |
 
 Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 7.8 KiB, 1.8× smaller than js-yaml 4 and 3.8× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
 
-Size is the minified bundle, gzipped. Speed is the median time to parse and stringify each package's large benchmark file. Measured on Apple M4, Node 26.13 (tinyaml, tinyini) and AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0 (tinyjson5).
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify each package's large benchmark file. @one-ini/wasm's size adds its .wasm file, gzipped, and its speed is parse_to_uint32array on a 100 KB .editorconfig. Measured on Apple M4, Node 26.13 (tinyaml) and AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0 (tinyjson5, tinyini).
 
 <!-- /automd -->
 
-tinyini is as small as ini already is, so it only wins on speed. Each package's README has the full results and the inputs they come from.
+ini is already small, so the tinyini entries that replace it save little and win on speed. Each package's README has the full results and the inputs they come from.
 
 ## Develop
 

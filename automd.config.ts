@@ -152,7 +152,11 @@ export default {
         lines.push(
           "",
           `Size is the minified bundle, gzipped. Speed is the median time to parse and stringify ` +
-            `${args.package ? "the" : "each package's"} large benchmark file. Measured on ${machines(data, rows)}.`,
+            `${args.package ? "the" : "each package's"} large benchmark file.` +
+            (rows.some((r) => r.library.startsWith("@one-ini/wasm"))
+              ? " @one-ini/wasm's size adds its .wasm file, gzipped, and its speed is parse_to_uint32array on a 100 KB .editorconfig."
+              : "") +
+            ` Measured on ${machines(data, rows)}.`,
         );
         return { contents: lines.join("\n") };
       },
