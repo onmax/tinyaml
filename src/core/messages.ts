@@ -64,4 +64,5 @@ non-printable character
 unclosed flow collection
 unexpected ","
 missing comma in flow collection
-${lenient ? "" : "implicit key longer than 1024 characters"}`.split("\n");
+${lenient ? "" : "implicit key longer than 1024 characters"}
+`.split("\n");

@@ -105,8 +105,12 @@ function engine(exceptionOnInvalidType: unknown, objectDecoder: ObjectDecoder | 
       if (text === "<<") self.tag = MERGE_TAG;
       return text === null ? null : evaluate(text);
     },
-    explicit(value, tag) {
+    explicit(value, tag, kind, source) {
       const name = tag.replace(/^tag:yaml\.org,2002:/, "!!");
+      // yamljs reads a collection that starts on its tag's line as the text
+      // it's written as.
+      if (kind !== "scalar" && value && /^[\t ]*\S/.test(source!))
+        value = source!.trim().replace(/\n\s*/g, "\n");
       const text = typeof value === "string" ? value : "";
       switch (name.toLowerCase()) {
         case "!str":

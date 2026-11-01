@@ -246,4 +246,36 @@ describe("where std's parser, js-yaml 3's, misreads", () => {
       "a multiline key may not be an implicit key",
     );
   });
+
+  it("rejects a key with properties mid-line, where js-yaml 4 starts a mapping", () => {
+    const options = { schema: "extended", allowDuplicateKeys: false } as const;
+    for (const input of [
+      "key1: &alias value1&a &b *alias : value2\n",
+      "a: &x b: c\n",
+      "a: !!str b: c",
+    ]) {
+      expect(() => std.parseAll(input, options)).toThrow();
+      expect(() => parseAll(input, options)).toThrow(YamlSyntaxError);
+    }
+  });
+
+  it("reads flow keys and tags as std does", () => {
+    for (const input of [
+      "k: {\nk\n:\nv\n}\n",
+      "{a\n b: c}\n",
+      "- { y: x\nz }- invalid\n",
+      "{a: !x, b: 1}\n",
+      "[!!str,a]\n",
+    ])
+      same(input);
+  });
+
+  it("reads a node that ends on a later line, or an empty key, as a value", () => {
+    for (const input of ["? [\n\n] : x\n", "[23\n]: 42\n", '- - "bar\nbar": x\n', "- &a : a\n"])
+      same(input);
+  });
+
+  it("ends a block scalar at a tab before a comment", () => {
+    same("foo: |\n\t #\nbar: 1\n");
+  });
 });

@@ -105,6 +105,13 @@ describe("stringify", () => {
     expect(stringify({ b: 1, a: 2 }, { sortMapEntries: true })).toBe("a: 2\nb: 1\n");
     expect(stringify({ s: "it's" }, { singleQuote: true })).toBe("s: it's\n");
     expect(stringify({ s: "a\nb" }, { blockQuote: false })).toBe('s: "a\\nb"\n');
+    // A folded block with nothing but its kept line breaks stays folded.
+    for (const options of [
+      { blockQuote: "folded" as const },
+      { blockQuote: "folded" as const, indent: 1 },
+    ])
+      for (const text of ["\n", "\n\n"])
+        expect(stringify(text, options)).toBe(yaml.stringify(text, options));
     expect(stringify({ s: "é\u0007" }, { doubleQuotedAsJSON: true })).toBe('s: "é\\u0007"\n');
   });
 

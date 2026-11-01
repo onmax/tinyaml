@@ -35,8 +35,12 @@ export interface ParseOptions {
   merge?: boolean;
   /** Resolve !!binary, !!omap, !!pairs, !!set and !!timestamp with the core schema. Default true. */
   resolveKnownTags?: boolean;
-  /** Reject duplicate keys. Default true. */
-  uniqueKeys?: boolean;
+  /**
+   * Reject duplicate keys. Default true. A function tells whether two keys
+   * are the same; yaml passes it its key nodes, tinyaml `{ value }` with each
+   * key's parsed value.
+   */
+  uniqueKeys?: boolean | ((a: { value: unknown }, b: { value: unknown }) => boolean);
   intAsBigInt?: boolean;
   /** Cap on alias expansion, as yaml counts it; -1 for none. Default 100. */
   maxAliasCount?: number;
@@ -56,8 +60,13 @@ let warnings: YAMLWarning[] = [];
 let source = "";
 let pretty = true;
 let keyWarned: string | false = false;
-// Why to throw once the document is read, from the alias count.
-let excess: string | undefined;
+// Why to throw from the alias count, once the aliases read so far are
+// counted.
+let excess: (() => string | undefined) | undefined;
+const counted = () => {
+  const why = excess?.();
+  if (why) throw new ReferenceError(why);
+};
 
 function report<T extends YAMLError>(error: T, mark: Mark | undefined): T {
   if (mark) {
@@ -95,92 +104,86 @@ function here(code: ErrorCode, message: string, warning?: boolean): void {
   warnings.push(report(new YAMLWarning([0, 0], code, message), mark));
 }
 
-// yaml's guard against alias expansion, kept as the parser goes. An anchor
-// counts its node and each alias of it. An alias weighs its anchor's count
-// times the anchor's weight, which is taken at the anchor's first alias:
-// the most any alias in its node weighs then, or 1 with a scalar or pair in
-// it. No alias may weigh more than `max`. Past it, counting stops, and the
-// error comes once the document is read, after any yaml reports first.
+// yaml's guard against alias expansion, which it runs as it converts the
+// document, in order: each alias adds one to its anchor's count and weighs
+// that count times the anchor's weight, taken at its first alias that finds
+// one. A node weighs 1 with a scalar or a pair in it, an alias in it its
+// anchor's weight then, and a collection the most of what it holds. No alias
+// may weigh more than `max`. A node's weight depends on what follows the
+// alias, so the parser records the anchors and aliases, and `check` replays
+// them once they're read.
 interface Anchor {
   count: number;
   weight: number;
-  // The most an alias in the node weighs, kept up to date.
-  most: number;
+  // A scalar or pair in the node, outside its aliases and anchored collections.
   leaf: boolean;
-  // The anchored collection the node is in.
+  // The anchors of the aliases, and the anchored collections, right in it.
+  aliases: Anchor[];
+  kids: Anchor[];
   parent: Anchor | undefined;
-  // Its collection's depth while it's open, else -1.
+  // Its collection's depth while it's open.
   depth: number;
-  // The innermost anchored collections it's aliased in, which hold it.
-  inside: Anchor[];
-  node: unknown;
 }
 
-function aliasCounter(max: number): Engine["anchor"] {
+function aliasCounter(max: number): [Engine["anchor"], () => string | undefined] {
   const anchors = new Map<string, Anchor>();
+  const nodes = new Set<unknown>();
+  const read: Anchor[] = [];
+  let done = 0;
+  let why: string | undefined;
   let open: Anchor | undefined;
-  const limit = (anchor: Anchor, leaf: boolean) => {
-    anchor.weight ||= Math.max(+leaf, anchor.most);
-    const weight = anchor.count * anchor.weight;
-    if (weight > max) excess = "Excessive alias count indicates a resource exhaustion attack";
-    return weight;
+  const hasLeaf = (value: unknown): boolean =>
+    !value || typeof value !== "object" || (!nodes.has(value) && leafIn(value));
+  const leafIn = (value: object): boolean =>
+    Array.isArray(value)
+      ? value.some(hasLeaf)
+      : Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).length > 0;
+  const weigh = (anchor: Anchor): number =>
+    anchor.aliases.reduce(
+      (most, a) => Math.max(most, a.count * a.weight),
+      anchor.kids.reduce((most, a) => Math.max(most, weigh(a)), +anchor.leaf),
+    );
+  const check = () => {
+    while (!why && done < read.length) {
+      const anchor = read[done++]!;
+      anchor.weight ||= weigh(anchor);
+      if (++anchor.count * anchor.weight > max)
+        why = "Excessive alias count indicates a resource exhaustion attack";
+    }
+    return why;
   };
-  return max < 0
-    ? undefined
-    : (name, depth, value, starts) => {
-        if (excess) return;
-        if (starts === undefined) {
-          if (!max) return void (excess = "Alias resolution is disabled");
-          const anchor = anchors.get(name)!;
-          anchor.count++;
-          // Inside its own node, a mapping has a pair, and a sequence the
-          // scalars read so far. Without, the node is weighed as it ends.
-          const node = anchor.node;
-          const weight = limit(
-            anchor,
-            anchor.depth < 0 ? anchor.leaf : !Array.isArray(node) || node.some(isScalar),
-          );
-          if (!weight || excess) return;
-          if (open && anchor.inside.at(-1) !== open) anchor.inside.push(open);
-          for (const at of anchor.inside)
-            for (let a: Anchor | undefined = at; a && a.most < weight; a = a.parent)
-              a.most = weight;
-        } else if (!starts && open?.depth === depth + 1) {
-          open.leaf = hasLeaf(value);
-          open.depth = -1;
-          if (open.count > 1) limit(open, open.leaf);
-          open = open.parent;
-        } else {
-          const anchor: Anchor = {
-            count: 1,
-            weight: 0,
-            most: 0,
-            leaf: !starts,
-            parent: open,
-            depth: starts ? depth : -1,
-            inside: [],
-            node: value,
-          };
-          anchors.set(name, anchor);
-          if (starts) open = anchor;
-        }
-      };
-}
-
-// Whether a node holds a scalar or a pair, looking into its sequences. A
-// sequence is looked into once.
-const leafy = new WeakMap<object, boolean>();
-const isScalar = (value: unknown) => !value || typeof value !== "object";
-function hasLeaf(value: unknown): boolean {
-  if (!value || typeof value !== "object") return true;
-  if (!Array.isArray(value))
-    return Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).length > 0;
-  let known = leafy.get(value);
-  if (known === undefined) {
-    leafy.set(value, false);
-    leafy.set(value, (known = value.some(hasLeaf)));
-  }
-  return known;
+  return [
+    max < 0
+      ? undefined
+      : (name, depth, value, starts) => {
+          if (starts === undefined) {
+            if (!max) why ||= "Alias resolution is disabled";
+            const anchor = anchors.get(name)!;
+            read.push(anchor);
+            open?.aliases.push(anchor);
+          } else if (!starts && open?.depth === depth + 1) {
+            open.leaf = leafIn(value as object);
+            open = open.parent;
+          } else {
+            const anchor: Anchor = {
+              count: 1,
+              weight: 0,
+              leaf: !starts,
+              aliases: [],
+              kids: [],
+              parent: open,
+              depth,
+            };
+            anchors.set(name, anchor);
+            if (starts) {
+              open?.kids.push(anchor);
+              nodes.add(value);
+              open = anchor;
+            }
+          }
+        },
+    check,
+  ];
 }
 
 function engine(options: ParseOptions, version: string): Engine {
@@ -205,6 +208,15 @@ function engine(options: ParseOptions, version: string): Engine {
     }
     return value;
   };
+  // The keys under each name in a mapping, where a key that isn't a string
+  // went: yaml tells scalar keys apart by their values, so 1 and "1", or null
+  // and "", go under one name, the last winning.
+  const typed = new WeakMap<object, Map<string, unknown[]>>();
+  // With a uniqueKeys function, every key in a mapping so far.
+  const unique = options.uniqueKeys;
+  const earlier = new WeakMap<object, { value: unknown }[]>();
+  const [anchor, check] = aliasCounter(options.maxAliasCount ?? 100);
+  excess = check;
   const self: Engine = {
     tag: "",
     messages: MESSAGES,
@@ -212,7 +224,23 @@ function engine(options: ParseOptions, version: string): Engine {
     maxDepth: Infinity,
     maxMergeKeys: -1,
     spec: true,
-    anchor: aliasCounter(options.maxAliasCount ?? 100),
+    anchor,
+    duplicate(map, key, name) {
+      if (typeof unique === "function") {
+        const keys = earlier.get(map) ?? [];
+        const node = { value: key };
+        earlier.set(map, keys);
+        return keys.some((k) => unique(k, node)) || !keys.push(node);
+      }
+      const fresh = !Object.hasOwn(map, name);
+      if (fresh && typeof key === "string") return false;
+      const names = typed.get(map) ?? new Map<string, unknown[]>();
+      const seen = names.get(name) ?? (fresh ? [] : [name]);
+      typed.set(map, names.set(name, [...seen, key]));
+      // NaN is a key of its own. yaml's collection keys are too, but tinyaml
+      // tells them apart only by how they're written out.
+      return !!seen.length && (key === Object(key) || seen.indexOf(key) >= 0);
+    },
     // yaml resolves an empty node like "", but a pair without a value is
     // null whatever the schema.
     implicit(text, node) {
@@ -264,7 +292,7 @@ function engine(options: ParseOptions, version: string): Engine {
         return text;
       }
       // Writing it out expands its aliases.
-      if (excess) throw new ReferenceError(excess);
+      counted();
       const text = stringifyKey(key);
       if (!keyWarned) {
         let json = JSON.stringify(text);
@@ -360,7 +388,7 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
       throw error;
     }
     if (keyWarned) emit(level, keyWarned);
-    if (excess) throw new ReferenceError(excess);
+    counted();
     const value = docs.length ? docs[0] : null;
     return fn ? revive(fn, { "": value }, "", value) : value;
   } finally {

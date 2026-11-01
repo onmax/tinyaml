@@ -34,12 +34,12 @@ const entries: [string, string][] = [
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
-  tinyaml: 8085,
-  "tinyaml/js-yaml": 11525,
-  "tinyaml/js-yaml-v5": 16055,
-  "tinyaml/yaml": 14685,
-  "tinyaml/yamljs": 8350,
-  "tinyaml/std": 10700,
+  tinyaml: 8100,
+  "tinyaml/js-yaml": 11660,
+  "tinyaml/js-yaml-v5": 16080,
+  "tinyaml/yaml": 14825,
+  "tinyaml/yamljs": 8495,
+  "tinyaml/std": 10840,
 };
 
 // Code that only one mode's parser has, as it reads once minified. Each must

@@ -215,6 +215,13 @@ folded: >
     expect(load("a:\n  -\n- b\nc: 1")).toEqual({ a: [null, "b"], c: 1 });
     expect(() => load("a:\n  - x\n- b\n")).toThrow(YAMLException);
     expect(() => load("-\n\t- b\n")).toThrow(/tab characters/);
+    // A tab before a comment ends a block scalar with no content yet.
+    for (const input of [
+      "foo: |\n\t #\nbar: 1\n",
+      "- >\n\t# c\n- b\n",
+      "a:\n  b: |\n\t #\n  c: 1\n",
+    ])
+      expect(load(input), input).toEqual(jsYaml.load(input));
   });
 
   it("reads a flow node's properties across lines, as js-yaml 4 does", () => {
@@ -244,6 +251,60 @@ folded: >
       "- &a \n  &b c",
       "a: &a \n  &b k: v",
       "- &a \n  !!str \n  &b c",
+    ])
+      expect(outcome(loadAll, input), input).toEqual(outcome(jsYaml.loadAll, input));
+  });
+
+  it("reads flow keys and tags as js-yaml 4 does", () => {
+    const outcome = (load: (input: string) => unknown, input: string) => {
+      try {
+        return { value: load(input) };
+      } catch (e) {
+        return { message: (e as Error).message };
+      }
+    };
+    for (const input of [
+      // An implicit key's `:` is on the line the key starts on.
+      "k: {\nk\n:\n0v\n}\n",
+      "k: {\nk\n:\nv\n}\n",
+      '{"a"\n: b}\n',
+      "{a: b,\n c\n : d}\n",
+      "[{a: 1\n}: 2]\n",
+      "{? a\n: b}\n",
+      // A plain scalar doesn't go on to a line indented no deeper than its block.
+      "- { y: x\nz }- invalid\n",
+      // A tag runs to white space.
+      "a: !!str,x\n",
+      "[!!str,a]\n",
+      "{a: !x, b: 1}\n",
+      "[!<a,b> x]\n",
+    ])
+      expect(outcome(loadAll, input), input).toEqual(outcome(jsYaml.loadAll, input));
+  });
+
+  it("reads a node that ends on a later line as a value, not a key, as js-yaml 4 does", () => {
+    const outcome = (load: (input: string) => unknown, input: string) => {
+      try {
+        return { value: load(input) };
+      } catch (e) {
+        return { message: (e as Error).message };
+      }
+    };
+    for (const input of [
+      "[23\n]: 42\n",
+      "a\nb: c\n",
+      '"a\nb": c\n',
+      "a: [1\n]: 2\n",
+      "a:\n  [1\n  ]: 2\n",
+      // After an explicit key, the `:` may follow on the key's last line.
+      "? [\n\n] : x\n",
+      '? "a\nb" : c\n',
+      "? [1,\n  2] : x\n",
+      "? [1,\n2] : x\n: y\n",
+      // A sequence entry ends on a line indented like the sequence, or less.
+      '- - "bar\nbar": x\n',
+      "- [1\n  ]: 2\n",
+      "- [a,\nb] - c\n",
     ])
       expect(outcome(loadAll, input), input).toEqual(outcome(jsYaml.loadAll, input));
   });

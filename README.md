@@ -62,11 +62,11 @@ Each subpath exports the functions, options and types of the library it replaces
 
 | Library         | Change the import to   | Size, gzip      | Its own tests on tinyaml |
 | --------------- | ---------------------- | --------------- | ------------------------ |
-| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.2 KiB | 301 of 304 pass          |
+| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.3 KiB | 301 of 304 pass          |
 | js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 15.6 KiB | 1,023 of 1,646 pass      |
-| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 14.2 KiB | 195 of 220 pass          |
-| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.1 KiB   | 103 of 103 pass          |
-| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.3 KiB | 92 of 95 pass            |
+| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 14.4 KiB | 195 of 220 pass          |
+| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.2 KiB   | 103 of 103 pass          |
+| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.5 KiB | 92 of 95 pass            |
 
 ```ts
 // before
@@ -87,8 +87,8 @@ Every subpath runs the same parser code as the root. The details below list each
 - The `listener` option isn't supported. It accounts for 2 of the 3 tests that don't pass. js-yaml skips the third test itself.
 - `safeLoad`, `safeLoadAll` and `safeDump` work and do what `load`, `loadAll` and `dump` do. js-yaml 4 throws for them.
 - js-yaml's tests make 746 calls to `load`, `loadAll` and `dump`. Replayed through tinyaml, 727 give the same result. 16 throw the same error at a different position, and 3 throw with a different message. tinyaml throws in every case js-yaml does.
-- On the yaml-test-suite, 387 of 402 cases give the same result as js-yaml. 13 are valid YAML that tinyaml loads and js-yaml rejects. The other 2 are js-yaml bugs tinyaml doesn't copy: js-yaml drops a tag on its own line above a less indented block scalar ([M5C3](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/M5C3)), and it loads the invalid [H7J7](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/H7J7).
-- 5,000 randomly edited suite inputs: none load to a different value, and 88 load where js-yaml throws. One throws only in tinyaml: `foo: |` followed by a line that starts with a tab and a `#`, which js-yaml reads as an empty string and tinyaml rejects as a tab in indentation. 5,000 random values give matching outcomes, including matching errors: 4,021 dump to the same text and 979 throw the same error.
+- On the yaml-test-suite, 399 of 402 cases give the same result as js-yaml. 1 is valid YAML that tinyaml loads and js-yaml rejects ([9KAX](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/9KAX)). The other 2 are js-yaml bugs tinyaml doesn't copy: js-yaml drops a tag on its own line above a less indented block scalar ([M5C3](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/M5C3)), and it loads the invalid [H7J7](https://github.com/yaml/yaml-test-suite/tree/data-2022-01-17/H7J7).
+- 5,000 randomly edited suite inputs: none load to a different value, none throw only in tinyaml, and 15 load where js-yaml throws, 2 of them invalid YAML. 5,000 random values give matching outcomes, including matching errors: 4,021 dump to the same text and 979 throw the same error.
 
 </details>
 
@@ -139,8 +139,8 @@ On the yaml-test-suite's 402 cases, 186 give the same result as yamljs, and 144 
 <summary>@std/yaml: what's different</summary>
 
 - `unstable_parse` and `unstable_stringify` aren't supported. They account for 2 of the 3 tests that don't pass. The third starts a Deno subprocess, which can't run under Node.
-- On the yaml-test-suite, 347 of 402 cases give the same result as std, 70 of them the same error message. 24 parse where std throws. The other 31 differ, and in all 31 std's own result is wrong by the suite's answers.
-- 5,000 randomly edited suite inputs: 118 parse to a different value, 146 throw only in tinyaml, and 150 parse where std throws, so values or acceptance differ in 414 of them, 8.3%. 2,764 throw in both, 1,872 of them with the same message and 2,102 with the same message apart from the position.
+- On the yaml-test-suite, 360 of 402 cases give the same result as std, 88 of them the same error message. 11 parse where std throws. The other 31 differ, and in all 31 std's own result is wrong by the suite's answers.
+- 5,000 randomly edited suite inputs: 117 parse to a different value, 146 throw only in tinyaml, and 52 parse where std throws, so values or acceptance differ in 315 of them, 6.3%. 2,862 throw in both, 2,247 of them with the same message and 2,466 with the same message apart from the position.
 - 5,000 random values give matching outcomes, including matching errors: 3,499 stringify to the same text and 1,501 throw the same error.
 
 </details>
@@ -156,16 +156,16 @@ Each entry as npm ships it in `dist/`, bundled with esbuild, minified ESM, then 
 
 | Entry                | Minified | Gzip     |
 | -------------------- | -------- | -------- |
-| `tinyaml`            | 17.2 KiB | 7.8 KiB  |
-| `tinyaml/js-yaml`    | 25.0 KiB | 11.2 KiB |
+| `tinyaml`            | 17.3 KiB | 7.8 KiB  |
+| `tinyaml/js-yaml`    | 25.3 KiB | 11.3 KiB |
 | js-yaml 4            | 42.8 KiB | 14.4 KiB |
-| `tinyaml/js-yaml-v5` | 38.0 KiB | 15.6 KiB |
+| `tinyaml/js-yaml-v5` | 38.1 KiB | 15.6 KiB |
 | js-yaml 5            | 56.4 KiB | 17.1 KiB |
-| `tinyaml/yaml`       | 33.3 KiB | 14.2 KiB |
+| `tinyaml/yaml`       | 33.6 KiB | 14.4 KiB |
 | yaml                 | 95.8 KiB | 29.9 KiB |
-| `tinyaml/yamljs`     | 17.9 KiB | 8.1 KiB  |
+| `tinyaml/yamljs`     | 18.3 KiB | 8.2 KiB  |
 | yamljs               | 28.4 KiB | 8.8 KiB  |
-| `tinyaml/std`        | 23.7 KiB | 10.3 KiB |
+| `tinyaml/std`        | 24.0 KiB | 10.5 KiB |
 | @std/yaml            | 35.4 KiB | 11.3 KiB |
 
 The tinyaml entries export everything in the subpath. js-yaml 4 and yamljs are bundled whole, js-yaml 5 with `load`, `loadAll`, `dump`, `Schema` and `YAMLException`, yaml with only `parse` and `stringify`, and @std/yaml with `parse`, `parseAll` and `stringify`.

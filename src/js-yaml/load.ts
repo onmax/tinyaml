@@ -40,6 +40,7 @@ function engine(input: string, options: LoadOptions): Engine {
     tag: "",
     messages: MESSAGES,
     lenient: true,
+    lines: true,
     json: options.json,
     maxDepth: options.maxDepth,
     maxMergeKeys: options.maxTotalMergeKeys,

@@ -125,6 +125,7 @@ function engine(content: string, options: ParseOptions): Engine {
     messages: MESSAGES,
     lenient: true,
     repeats: true,
+    lines: true,
     json: options.allowDuplicateKeys,
     maxDepth: Infinity,
     maxMergeKeys: -1,

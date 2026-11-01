@@ -60,4 +60,5 @@ Stream contains non-printable characters
 Cannot read flow collection: unexpected end of the stream within a flow collection
 expected the node content, but found ','
 Cannot read flow collection: missing comma between flow collection entries
-`.split("\n");
+
+Cannot read tag property: tag suffix cannot contain flow indicator characters`.split("\n");

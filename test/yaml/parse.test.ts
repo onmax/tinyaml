@@ -154,6 +154,64 @@ describe("parse", () => {
     expect(warned()[0]).toMatch(/^Keys with collection values will be stringified/);
   });
 
+  it("tells scalar keys apart by their values before they become strings", () => {
+    warnings();
+    for (const input of [
+      ": !x a\n!!str : b\n",
+      ': a\n"": b\n',
+      '1: a\n"1": b\n',
+      '1: a\n"1": b\n1: c\n',
+      'true: a\n"true": b\n',
+      ".nan: a\n.nan: b\n",
+      "1: a\n0x1: b\n",
+      '{1: a, "1": b, 1: c}',
+    ])
+      for (const options of [{}, { uniqueKeys: false }]) {
+        const outcome = (fn: (input: string, options: { uniqueKeys?: boolean }) => unknown) => {
+          try {
+            return { value: fn(input, options) };
+          } catch (e) {
+            return { message: (e as Error).message };
+          }
+        };
+        expect(outcome(parse), input).toEqual(outcome(yaml.parse));
+      }
+  });
+
+  it("compares keys with a uniqueKeys function, as yaml does", () => {
+    // yaml passes its nodes, tinyaml { value }.
+    const value = (node: object) => ("value" in node ? node.value : undefined);
+    const same = {
+      never: () => false,
+      always: () => true,
+      value: (a: object, b: object) => value(a) === value(b),
+      lower: (a: object, b: object) =>
+        String(value(a)).toLowerCase() === String(value(b)).toLowerCase(),
+    };
+    type Equal = (a: object, b: object) => boolean;
+    for (const input of [
+      "a: 1\na: 2",
+      "a: 1\nb: 2",
+      'a: 1\n"1": b\n1: c',
+      "A: 1\na: 2",
+      "{a: 1, A: 2}",
+      "[a: 1, a: 2]",
+    ])
+      for (const [name, equal] of Object.entries(same)) {
+        const outcome = (fn: (input: string, options: { uniqueKeys: Equal }) => unknown) => {
+          let calls = 0;
+          try {
+            const result = fn(input, { uniqueKeys: (a, b) => (calls++, equal(a, b)) });
+            return { value: result, calls };
+          } catch (e) {
+            // yaml reads on after the first error, tinyaml doesn't.
+            return { message: (e as Error).message };
+          }
+        };
+        expect(outcome(parse), `${input} ${name}`).toEqual(outcome(yaml.parse));
+      }
+  });
+
   it("limits alias expansion with maxAliasCount", () => {
     const laughs = ["a: &a [x, x]"];
     for (let i = 1; i < 8; i++) {
@@ -208,6 +266,18 @@ describe("parse", () => {
     agree(`a: &a [*a, 1]\n${repeat(60, (i) => `b${i}: *a`)}`);
     agree("a: &x 1\nb: *x\nc: *x\n", { maxAliasCount: 2 });
     agree("a: &x 1\nb: *x\nc: *x\n", { maxAliasCount: 3 });
+    // An anchor's weight counts what's in its node after the alias too, and
+    // in its nested anchored collections, whether or not they're done.
+    agree("&a [&b [0],*a,*b]", { maxAliasCount: 3 });
+    agree(`&a [&b [0],*a,${Array(50).fill("*b").join(",")}]`);
+    agree("&a [&b [*a,0]]", { maxAliasCount: 1 });
+    agree(`&a [&b [*a,0],${Array(101).fill("*a").join(",")}]`);
+    agree("&a1 [&a3 [null,*a1,*a3],0]", { maxAliasCount: 3 });
+    agree("&a0 [*a0,&a0 {k0: *a0}]", { maxAliasCount: 2 });
+    agree("&a0 {k0: &a3 [*a3,*a0]}", { maxAliasCount: 2 });
+    const cyclic = parse("&a [&b [0],*a,*b]", { maxAliasCount: 3 }) as unknown[];
+    expect(cyclic[1]).toBe(cyclic);
+    expect(cyclic[2]).toBe(cyclic[0]);
     // yaml reports what it finds reading the document first.
     agree(`a: &x 1\n${repeat(100, (i) => `b${i}: *x`)}\na: 2\n`);
     agree(`a: &x 1\n${repeat(100, (i) => `b${i}: *x`)}\n---\nb: 1\n`);

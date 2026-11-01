@@ -32,9 +32,10 @@ export interface Engine {
   implicit(this: void, text: string | null, node?: boolean): unknown;
   /**
    * A tagged node to its value. `value` is the text, array or object, or null
-   * for an empty node, whose kind is then "fallback". Throw with `fail`.
+   * for an empty node, whose kind is then "fallback". In `lenient` mode,
+   * `source` is the input from the tag on. Throw with `fail`.
    */
-  explicit(value: unknown, tag: string, kind: Kind | "fallback"): unknown;
+  explicit(value: unknown, tag: string, kind: Kind | "fallback", source?: string): unknown;
   /** The tag of the value `implicit` or `explicit` returned last; `<<` merges when it's MERGE_TAG. */
   tag: string;
   /** A key that isn't a string, to the string it's stored under. */
@@ -67,6 +68,11 @@ export interface Engine {
   /** Allow duplicate keys; the last one wins. */
   json?: boolean | undefined;
   /**
+   * In `spec` mode, whether `key`, stored in `map` as `name`, repeats a key
+   * already in it. Without it, a name already in `map` does.
+   */
+  duplicate?: ((map: object, key: unknown, name: string) => boolean) | undefined;
+  /**
    * In `spec` mode, reject a non-printable character anywhere, as the spec
    * does, and not only in plain and block scalars, as yaml does.
    */
@@ -81,6 +87,11 @@ export interface Engine {
    * 3 does, where js-yaml 4 ends the node's properties.
    */
   repeats?: boolean | undefined;
+  /**
+   * In `lenient` mode, end keys, tags and flow scalars where js-yaml does, by
+   * the lines they're on, where yamljs reads on.
+   */
+  lines?: boolean | undefined;
   /**
    * Follow the YAML spec, as the `yaml` package does, where js-yaml 5 doesn't.
    * Without it and without `lenient`, parsing matches js-yaml 5.
@@ -392,16 +403,16 @@ export function parse(input: string, use: Engine): unknown[] {
         directives = true;
         const end = lineEnd(pos);
         raw(pos, end);
-        const args = src
-          .slice(pos + 1, end)
-          // A comment ends the arguments: it splits off with the space before it.
-          .split(/[ \t]+(?:#.*)?/)
-          .filter((arg, i) => arg || !i);
+        const line = src.slice(pos + 1, end);
+        // A comment ends the arguments: it splits off with the space before it.
+        const args = line.split(/[ \t]+(?:#.*)?/).filter((arg, i) => arg || !i);
         const name = args.shift();
         pos++;
         if (!spec && !name) fail(E.DIRECTIVE_NAME);
         // js-yaml 4 reports directive problems from the start of the next line.
-        directiveEnd = lineStart = pos = end < len ? end + 1 : end;
+        lineStart = pos = end < len ? end + 1 : end;
+        // js-yaml 5 reads on to the next line's indentation after a comment.
+        directiveEnd = js5 && /[ \t]#/.test(line) ? -1 : pos;
         if (name === "YAML") {
           if (version) fail(E.YAML_REPEATED);
           if (args.length !== 1) fail(E.YAML_ARGS);
@@ -485,6 +496,8 @@ interface Props {
   // Where this line first repeats a kind of property the earlier lines have,
   // outside js-yaml 4's leniency.
   at?: number;
+  // In `lenient` mode, where the tag ends.
+  end?: number;
 }
 
 // With `split`, stops before a second anchor or tag. `node` holds the node's
@@ -511,7 +524,8 @@ function parseProps(flow = false, split = false, node?: Props, comma?: boolean):
       if (spec && /\s/.test(props.tag)) fail(E.TAG_SPACE);
       pos = end + 1;
     } else {
-      const name = readName();
+      // js-yaml 4 reads a tag up to white space, flow indicators and all.
+      const name = readName(lenient && ch === BANG && engine.lines);
       if (ch === AMP) {
         if (!name) fail(E.ANCHOR_EMPTY);
         props.anchor = pendingAnchor = name;
@@ -521,10 +535,12 @@ function parseProps(flow = false, split = false, node?: Props, comma?: boolean):
         const handle = `!${name.slice(0, bang + 1)}`;
         const suffix = name.slice(bang + 1);
         if (!TAG_HANDLE.test(handle)) fail(E.HANDLE_CHARS);
+        if (lenient && engine.lines && /[,[\]{}]/.test(name)) fail(E.TAG_FLOW);
         const prefix = handles.get(handle);
         if (!prefix) fail(E.HANDLE_UNDECLARED, handle);
         if (name && !TAG_SUFFIX.test(suffix)) fail(E.SUFFIX_CHARS);
         props.tag = name ? prefix + decode(suffix, E.TAG_ENCODING) : "!";
+        if (lenient) props.end = pos;
       }
     }
     const next = src.charCodeAt(pos);
@@ -570,7 +586,12 @@ function finish(value: unknown, props?: Props, untagged?: boolean): unknown {
     if (value !== null && typeof value !== "string") fail(E.NON_SPECIFIC, kindOf(value));
     value = implicit(value as string | null, true);
   } else if (tag && tag !== "!")
-    value = engine.explicit(value, tag, value === null ? "fallback" : kindOf(value));
+    value = engine.explicit(
+      value,
+      tag,
+      value === null ? "fallback" : kindOf(value),
+      lenient ? src.slice(props!.end, pos) : undefined,
+    );
   else if (value === null) value = !lenient && tag === "!" ? "" : implicit(null, true);
   lastTag = engine.tag;
   if (props?.anchor) anchor(props.anchor, value, false);
@@ -702,13 +723,20 @@ function parseBlockNode(
   const multiline = (!lenient && lineStart !== line) || crossed;
   skipSpace();
   ch = src.charCodeAt(pos);
-  if (ch === COLON && (separated() || !wasPlain)) {
+  // In js-yaml, a node that ends on a later line is no key but a value, and
+  // in js-yaml 3, one without content either.
+  if (
+    ch === COLON &&
+    (separated() || !wasPlain) &&
+    !(lenient && engine.lines && (lineStart !== line || multiline || (emptyKey && engine.repeats)))
+  ) {
     if (!separated()) fail(E.VALUE_SPACE);
     checkKey(line + col);
     if (tabbed) return tabbedCollection(indent, col);
     // js-yaml lets a key with properties start a nested mapping mid-line,
-    // and js-yaml 4 a key on one line.
-    if (inline && (spec || !own || indent < 0 || (lenient && multiline))) fail(E.MAP_INDENT);
+    // and js-yaml 4 a key on one line, but not js-yaml 3.
+    if (inline && (spec || !own || indent < 0 || (lenient && (multiline || engine.repeats))))
+      fail(E.MAP_INDENT);
     if (multiline) fail(E.MULTILINE_KEY);
     const resolved = isAlias ? key : asKey(finish(key, own, wasPlain));
     pendingAnchor = node?.anchor;
@@ -744,11 +772,12 @@ function tabbedCollection(indent: number, col: number): null {
   return finish(null) as null;
 }
 
-// Properties and aliases end their names at the same separators.
-function readName(): string {
+// Properties and aliases end their names at the same separators, or with
+// `blank`, at white space only.
+function readName(blank?: boolean): string {
   const start = pos;
   let ch = src.charCodeAt(pos);
-  while (!isBlank(ch) && !isFlowIndicator(ch)) ch = src.charCodeAt(++pos);
+  while (!isBlank(ch) && (blank || !isFlowIndicator(ch))) ch = src.charCodeAt(++pos);
   raw(start, pos);
   return src.slice(start, pos);
 }
@@ -796,7 +825,7 @@ function setKey(
     return map;
   }
   const name = typeof key === "string" && !(js5 && engine.allKeys) ? key : engine.key(key);
-  if (Object.hasOwn(map, name)) {
+  if (spec && engine.duplicate ? engine.duplicate(map, key, name) : Object.hasOwn(map, name)) {
     const keys = overridable.get(map);
     if (!keys?.has(name)) {
       if (!engine.json) {
@@ -849,8 +878,14 @@ function parseBlockMap(col: number, key: unknown): Record<string, unknown> {
       key = parseValue(col, false, true);
       if (lenient) explicitAt = outer;
       if (spec) key = asKey(key);
-      // js-yaml measures indentation in spaces, so a tab may indent the `:`.
-      if (skipLines(!spec) === col && indicator(COLON)) {
+      // js-yaml measures indentation in spaces, so a tab may indent the `:`,
+      // and js-yaml 4 reads it mid-line after a key that ends on a later line
+      // indented like the mapping.
+      const next = skipLines(!spec);
+      if (
+        (next === col || (lenient && engine.lines && lineStart > at && leadingSpaces() === col)) &&
+        indicator(COLON)
+      ) {
         pos++;
         value = parseValue(col, false, true);
       } else {
@@ -932,13 +967,18 @@ function parseNextKey(allowTab: boolean): unknown {
 function parseBlockSeq(col: number): unknown[] {
   const seq: unknown[] = claim([]);
   for (;;) {
+    const line = lineStart;
     pos++;
     if (lenient && afterEmpty(col)) {
       seq.push(finish(null));
       continue;
     }
     seq.push(parseValue(col, true));
-    const next = skipLines();
+    let next = skipLines();
+    // js-yaml 4 measures the indentation of the line an entry ends on, not
+    // where the next node starts on it.
+    if (lenient && engine.lines && next > col && lineStart > line && !tabbed)
+      next = leadingSpaces();
     if (next !== col || !indicator(DASH) || isDocMarker()) {
       if (next > col) fail(E.SEQ_INDENT);
       break;
@@ -1004,10 +1044,14 @@ function parseBlockScalar(indent: number): string {
     }
     if (textIndent < 0) {
       if (lenient && indent < 0 && !spaces && !isBreak(src.charCodeAt(p))) fail(E.BLOCK_INDENT);
+      // js-yaml 4 ends the scalar at a line of tabs, and of a comment too.
       if (
         src.charCodeAt(p) === TAB &&
         spaces <= indent &&
-        !(lenient && /^[\t ]*(?:\n|$)/.test(src.slice(p, p + 80)))
+        !(
+          lenient &&
+          (engine.lines ? /^[\t ]*(?:#|\n|$)/ : /^[\t ]*(?:\n|$)/).test(src.slice(p, p + 80))
+        )
       )
         fail(E.TAB_INDENT);
       // Unlike yaml, js-yaml lets a document marker end even this.
@@ -1207,9 +1251,10 @@ function parsePlain(indent: number, flow: boolean, multiline: boolean): string |
       ch === HASH ||
       isDocMarker() ||
       // js-yaml 5 counts spaces only, as js-yaml 4 does for an explicit key,
-      // after which a tab may indent the next entry.
+      // after which a tab may indent the next entry. In flow, js-yaml 4 ends
+      // the scalar at a line indented no deeper than the block around.
       (flow
-        ? isFlowIndicator(ch)
+        ? isFlowIndicator(ch) || (lenient && engine.lines && leadingSpaces() <= indent)
         : (js5 || (lenient && indent === explicitAt) ? leadingSpaces() : pos - lineStart) <=
           indent) ||
       indicator(COLON, flow)
@@ -1279,6 +1324,7 @@ function parseFlowCollection(indent: number): unknown {
       ch = src.charCodeAt(pos);
     }
     const at = pos;
+    const line = lineStart;
     const empty = (explicit && (ch === COMMA || ch === close)) || indicator(COLON, true);
     if (empty) plain = true;
     else if (ch === COMMA) fail(E.EMPTY_ENTRY);
@@ -1288,9 +1334,11 @@ function parseFlowCollection(indent: number): unknown {
     const multiline = crossed;
     const broken = skipFlowSpace(indent);
     ch = src.charCodeAt(pos);
-    // An implicit key in a flow sequence must end on its own line.
-    if (ch === COLON && !isMap && !explicit) {
-      if (broken || multiline) fail(E.MISSED_COMMA);
+    // An implicit key in a flow sequence must end on its own line, and in
+    // js-yaml 4 any implicit key on the line it starts.
+    const lines = lenient && engine.lines;
+    if (ch === COLON && !explicit && (lines || !isMap)) {
+      if (lines ? lineStart !== line : broken || multiline) fail(E.MISSED_COMMA);
       checkKey(at);
     }
     let value: unknown;

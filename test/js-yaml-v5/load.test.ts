@@ -163,6 +163,33 @@ describe("load", () => {
     expect(load("a: 1\na: 2", { json: true })).toEqual({ a: 2 });
   });
 
+  it("rejects a tab before a comment under a block scalar, as js-yaml 5 does", () => {
+    const input = "foo: |\n\t #\nbar: 1\n";
+    expect(() => real.load(input)).toThrow(/tab characters/);
+    expect(() => load(input)).toThrow(/tab characters/);
+  });
+
+  it("measures the line after a directive with a comment, as js-yaml 5 does", () => {
+    const outcome = (fn: (input: string) => unknown, input: string) => {
+      try {
+        return { value: fn(input) };
+      } catch (e) {
+        return { message: (e as Error).message };
+      }
+    };
+    for (const eol of ["\n", "\r\n"])
+      for (const input of [
+        "%z #\n ---",
+        "%z\t#\n ---",
+        "%z\n ---",
+        "%z  \n ---",
+        "%YAML 1.2 # c\n ---\na",
+        "%z #\n---\na",
+        '%FOO  bar baz # Should be ign!x ored\n              ---\n# with a warning.\n---\n"foo"\n',
+      ].map((text) => text.replaceAll("\n", eol)))
+        expect(outcome(loadAll, input), input).toEqual(outcome(real.loadAll, input));
+  });
+
   it("returns every document from loadAll", () => {
     expect(loadAll("a\n---\nb")).toEqual(["a", "b"]);
     const docs: unknown[] = [];

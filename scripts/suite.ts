@@ -15,23 +15,8 @@ import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
 // own line above a less indented block scalar (M5C3), and reads properties at
 // column 0 under a key as that key's value (H7J7, invalid YAML).
 const DIFFER = ["H7J7", "M5C3"];
-// Cases js-yaml 4 rejects and tinyaml loads. All are valid YAML except C2SP
-// and VJP3/00, which tinyaml's own parser rejects but the js-yaml entry reads.
-const LENIENT = [
-  "4MUZ/00",
-  "4MUZ/01",
-  "4MUZ/02",
-  "5MUD",
-  "9KAX",
-  "9SA2",
-  "C2SP",
-  "K3WX",
-  "NJ66",
-  "UT92",
-  "VJP3/00",
-  "VJP3/01",
-  "WZ62",
-];
+// Cases js-yaml 4 rejects and tinyaml loads, valid YAML.
+const LENIENT = ["9KAX"];
 
 type Outcome = { ok: true; value: unknown } | { ok: false; error: string; crash: boolean };
 function run(fn: () => unknown, type: typeof YAMLException | typeof yaml.YAMLException): Outcome {

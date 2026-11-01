@@ -63,4 +63,5 @@ UNEXPECTED_TOKEN the stream contains non-printable characters
 BAD_INDENT unexpected end of the stream within a flow collection
 UNEXPECTED_TOKEN expected the node content, but found ','
 MISSING_CHAR missed comma between flow collection entries
-KEY_OVER_1024_CHARS implicit key longer than 1024 characters`.split("\n");
+KEY_OVER_1024_CHARS implicit key longer than 1024 characters
+`.split("\n");

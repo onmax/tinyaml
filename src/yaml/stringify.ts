@@ -486,14 +486,10 @@ function blockString(value: string, ctx: Context, force?: boolean): string {
       .replace(/\n+/g, "\n$&")
       .replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, "$1$2")
       .replace(/\n+/g, `$&${indent}`);
-    const body = fold(
-      `${start}${foldedValue}${end}`,
-      indent,
-      FOLD_BLOCK,
-      ctx,
-      blockQuote !== "folded",
-    );
-    if (body) return `>${header}\n${indent}${body}`;
+    const text = `${start}${foldedValue}${end}`;
+    const body = fold(text, indent, FOLD_BLOCK, ctx, blockQuote !== "folded");
+    // An empty body is one too, not the overflow.
+    if (body || !text) return `>${header}\n${indent}${body}`;
   }
   value = value.replace(/\n+/g, `$&${indent}`);
   return `|${header}\n${indent}${start}${value}${end}`;

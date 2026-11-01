@@ -8,7 +8,7 @@ import { missing, run } from "../fixtures.ts";
 
 describe.skipIf(missing(".cache/yaml-test-suite"))("yaml-test-suite", () => {
   it("parses every case std parses right to the same value", () => {
-    expect(run("scripts/std-suite.ts")).toMatch(/ 24 parse where std throws, 31 differ$/m);
+    expect(run("scripts/std-suite.ts")).toMatch(/ 11 parse where std throws, 31 differ$/m);
   });
 
   // The first 3,000 of the 5,000 inputs whose differences

@@ -91,6 +91,20 @@ describe("parse", () => {
     expect(() => parse("a: !foo bar", true)).toThrow(ParseException);
   });
 
+  it("passes a tagged flow collection to objectDecoder as its text", () => {
+    const decode = (tag: string, value: unknown) => ({ tag, value });
+    for (const input of [
+      "x: !foo [1, 2]",
+      "x: !foo {a: 1}",
+      "- !foo [1, [2, 3]]  # c",
+      "x: !foo [1,\n      2]",
+      "x: !foo &a [1]",
+      "x: !!str [1, 2]",
+      "x: !!bool [1]",
+    ])
+      expect(parse(input, false, decode), input).toEqual(yamljs.parse(input, false, decode));
+  });
+
   it("supports anchors, aliases and merge keys", () => {
     same(
       "base: &b {x: 1, y: 2}\nm:\n  <<: *b\n  y: 3",

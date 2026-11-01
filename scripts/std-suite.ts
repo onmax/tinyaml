@@ -45,32 +45,19 @@ const DIFFER = [
   "Y79Y/008",
   "Y79Y/009",
 ];
-// Cases std rejects and tinyaml/std reads. All are valid YAML except 4JVG,
-// C2SP, CXX2 and VJP3/00.
+// Cases std rejects and tinyaml/std reads. All are valid YAML except 4JVG
+// and CXX2.
 const LENIENT = [
   "26DV",
   "2SXE",
   "4JVG",
-  "4MUZ/00",
-  "4MUZ/01",
-  "4MUZ/02",
-  "5MUD",
   "6BFJ",
   "7BMT",
   "9KAX",
-  "9SA2",
-  "C2SP",
   "CXX2",
   "E76Z",
   "HMQ5",
-  "K3WX",
-  "NJ66",
-  "PW8X",
   "U3XV",
-  "UT92",
-  "VJP3/00",
-  "VJP3/01",
-  "WZ62",
   "ZH7C",
 ];
 
