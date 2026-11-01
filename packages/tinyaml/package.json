@@ -1,0 +1,101 @@
+{
+  "name": "tinyaml",
+  "version": "0.0.0",
+  "description": "Tiny, fast YAML parser and stringifier, with drop-in replacements for js-yaml and others",
+  "keywords": [
+    "dumper",
+    "frontmatter",
+    "js-yaml",
+    "parser",
+    "yaml"
+  ],
+  "homepage": "https://github.com/onmax/tiny/tree/main/packages/tinyaml#readme",
+  "bugs": "https://github.com/onmax/tiny/issues",
+  "license": "MIT",
+  "author": "onmax",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onmax/tiny.git",
+    "directory": "packages/tinyaml"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "./package.json"
+      ],
+      "js-yaml": [
+        "./dist/js-yaml.d.mts"
+      ],
+      "js-yaml-v5": [
+        "./dist/js-yaml-v5.d.mts"
+      ],
+      "yaml": [
+        "./dist/yaml.d.mts"
+      ],
+      "yamljs": [
+        "./dist/yamljs.d.mts"
+      ],
+      "std": [
+        "./dist/std.d.mts"
+      ],
+      "*": [
+        "./dist/index.d.mts"
+      ]
+    }
+  },
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./js-yaml": "./dist/js-yaml.mjs",
+    "./js-yaml-v5": "./dist/js-yaml-v5.mjs",
+    "./yaml": "./dist/yaml.mjs",
+    "./yamljs": "./dist/yamljs.mjs",
+    "./std": "./dist/std.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vp pack",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "typecheck": "tsrs --noEmit",
+    "test": "vp test",
+    "test:dist": "vp test run --config test/dist.config.ts",
+    "check": "vp check && pnpm typecheck",
+    "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
+    "prepare": "vp config",
+    "fixtures": "scripts/fixtures.sh",
+    "compare": "scripts/compare.sh",
+    "size": "node scripts/size.ts",
+    "bench": "node bench/index.ts"
+  },
+  "devDependencies": {
+    "@comark/html": "^0.8.1",
+    "@std/yaml": "jsr:^1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.6.6",
+    "@types/yamljs": "^0.2.34",
+    "comark": "^0.8.1",
+    "comark-charts": "^0.7.4",
+    "esbuild": "^0.28.2",
+    "js-yaml": "4.3.2",
+    "js-yaml5": "npm:js-yaml@5.5.0",
+    "publint": "^0.3.25",
+    "tsrs": "0.20.1-ts7.1.0-beta",
+    "typescript": "^7.0.2",
+    "typescript5": "npm:typescript@5.9.3",
+    "vite-plus": "^1.4.0",
+    "yaml": "^2.9.1",
+    "yamljs": "^0.3.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

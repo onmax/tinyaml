@@ -1,0 +1,63 @@
+{
+  "name": "tinyini",
+  "version": "0.0.0",
+  "description": "Tiny, fast INI parser and stringifier, a drop-in replacement for ini 7.0.0",
+  "keywords": [
+    "config",
+    "gitconfig",
+    "ini",
+    "npmrc",
+    "parser",
+    "stringify"
+  ],
+  "homepage": "https://github.com/onmax/tiny/tree/main/packages/tinyini#readme",
+  "bugs": "https://github.com/onmax/tiny/issues",
+  "license": "MIT",
+  "author": "onmax",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onmax/tiny.git",
+    "directory": "packages/tinyini"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vp pack",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "typecheck": "tsrs --noEmit",
+    "test": "vp test",
+    "check": "vp check && pnpm typecheck",
+    "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
+    "prepare": "vp config",
+    "ini-tests": "node scripts/ini-tests.ts",
+    "fuzz": "node scripts/fuzz.ts",
+    "fuzz:stringify": "node scripts/fuzz-stringify.ts",
+    "size": "node scripts/size.ts",
+    "bench": "node bench/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "ini": "7.0.0",
+    "publint": "^0.3.25",
+    "tcompare": "5.0.7",
+    "tsrs": "0.20.1-ts7.1.0-beta",
+    "typescript": "^7.0.2",
+    "vite-plus": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
