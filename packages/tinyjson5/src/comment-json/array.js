@@ -1,6 +1,7 @@
 import {sort} from './timsort.js'
 
 import {
+  sloppy_delete,
   PROP_SYMBOL_PREFIXES,
 
   UNDEFINED,
@@ -69,7 +70,7 @@ const move_comments = (
 const remove_comments = (array, key) => {
   PROP_SYMBOL_PREFIXES.forEach(prefix => {
     const prop = symbol(prefix, key)
-    delete array[prop]
+    sloppy_delete(array, prop)
   })
 }
 

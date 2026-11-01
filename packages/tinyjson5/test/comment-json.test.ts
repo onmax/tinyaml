@@ -40,4 +40,13 @@ describe("comment-json", () => {
       require("comment-json").stringify(require("comment-json").parse(text), null, 2),
     );
   });
+
+  it("ignores writes and deletes it can't make on frozen objects, as comment-json's sloppy-mode code does", () => {
+    const theirs = require("comment-json");
+    for (const api of [ours, theirs]) {
+      expect(JSON.stringify(api.assign(Object.freeze({ a: 0 }), { a: 1 }))).toBe('{"a":0}');
+      const value = Object.freeze(api.parse('// c\n{"a": 1}'));
+      expect(() => api.removeComments(value, { where: "before-all" })).not.toThrow();
+    }
+  });
 });

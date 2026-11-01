@@ -64,4 +64,16 @@ describe("jju", () => {
     expect(ours.stringify({ abc: 1 }, options(a))).toBe(theirs.stringify({ abc: 1 }, options(b)));
     expect(a).toEqual(b);
   });
+
+  it("throws Node's AssertionError where a reviver breaks update's invariants, as jju does", () => {
+    const error = (api: typeof ours) => {
+      try {
+        api.update("[1]", {}, { reviver: (k: string, v: unknown) => (k === "" ? { "0": 1 } : v) });
+      } catch (e) {
+        const { name, message, code, actual, expected, operator } = e as any;
+        return [name, message, code, actual, expected, operator];
+      }
+    };
+    expect(error(ours)).toEqual(error(theirs));
+  });
 });

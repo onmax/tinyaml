@@ -1,3 +1,22 @@
+// tinyjson5: an assignment or delete as comment-json's sloppy-mode code
+// makes it, which fails silently where this module's strict mode would
+// throw, and still throws what a setter or proxy throws.
+const sloppy_set = (object, key, value) => {
+  if (object === null || object === undefined) {
+    object[key] = value
+  } else if (typeof object === 'object' || typeof object === 'function') {
+    Reflect.set(object, key, value)
+  }
+}
+
+const sloppy_delete = (object, key) => {
+  if (object === null || object === undefined) {
+    delete object[key]
+  } else if (typeof object === 'object' || typeof object === 'function') {
+    Reflect.deleteProperty(object, key)
+  }
+}
+
 const PREFIX_BEFORE = 'before'
 const PREFIX_AFTER_PROP = 'after-prop'
 const PREFIX_AFTER_COLON = 'after-colon'
@@ -126,7 +145,7 @@ const copy_comments_by_kind = (
   define(target, target_prop, source[source_prop])
 
   if (remove_source) {
-    delete source[source_prop]
+    sloppy_delete(source, source_prop)
   }
 }
 
@@ -153,7 +172,7 @@ const swap_comments = (array, from, to) => {
     }
 
     const comments = array[target_prop]
-    delete array[target_prop]
+    sloppy_delete(array, target_prop)
 
     copy_comments_by_kind(array, array, to, from, prefix, true)
     define(array, symbol(prefix, from), comments)
@@ -181,7 +200,7 @@ const assign = (target, source, keys) => {
       return
     }
 
-    target[key] = source[key]
+    sloppy_set(target, key, source[key])
     copy_comments(target, source, key, key)
   })
 
@@ -375,7 +394,7 @@ const common = {
     }
 
     const source_comments = source[from_prop]
-    delete source[from_prop]
+    sloppy_delete(source, from_prop)
 
     if (override || !Object.hasOwn(target, to_prop)) {
       // Override
@@ -426,11 +445,12 @@ const common = {
       return
     }
 
-    delete target[prop]
+    sloppy_delete(target, prop)
   }
 }
 
 export {
+  sloppy_delete,
   PROP_SYMBOL_PREFIXES,
   PREFIX_BEFORE,
   PREFIX_AFTER_PROP,
