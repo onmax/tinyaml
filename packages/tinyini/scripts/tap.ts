@@ -20,12 +20,22 @@ export interface Assertion {
 }
 
 /** The test files in one of the copied suites. */
-export const files = (root = "test/suites/ini"): string[] =>
+export const files = (root = "test/suites/ini-7.0.0"): string[] =>
   readdirSync(root)
     .filter((file) => file.endsWith(".js"))
     .sort();
 
-export function runTapFile(file: string, lib: unknown, root = "test/suites/ini"): Assertion[] {
+/**
+ * Runs one test file. win32.js sets process.platform and then requires ini,
+ * which before 4.1 reads the platform when it loads, so each require of ini
+ * gets `fresh()`, a newly loaded copy of the original, or tinyini's entry.
+ */
+export function runTapFile(
+  file: string,
+  lib: unknown,
+  root = "test/suites/ini-7.0.0",
+  fresh: () => unknown = () => lib,
+): Assertion[] {
   const results: Assertion[] = [];
   const path = resolve(root, file);
   const prefix = `test/${file} TAP`;
@@ -62,6 +72,13 @@ export function runTapFile(file: string, lib: unknown, root = "test/suites/ini")
         const result = tcompare.same(found, wanted);
         record(message, result.match, result.diff);
       },
+      // tap 14's names for `same` and `not`, which ini 1.x and 2.x use.
+      deepEqual(found: unknown, wanted: unknown, message = "should be equivalent") {
+        this.same(found, wanted, message);
+      },
+      notEqual(found: unknown, wanted: unknown, message = "should not be equal") {
+        this.not(found, wanted, message);
+      },
       matchSnapshot(found: unknown, message = "must match snapshot") {
         const m = `${fullname} > ${message}`;
         if (typeof found !== "string") found = tcompare.format(found, { sort: true });
@@ -77,13 +94,12 @@ export function runTapFile(file: string, lib: unknown, root = "test/suites/ini")
   Object.assign(tap, makeT(`${prefix}`));
 
   const modules: Record<string, unknown> = {
-    "../": lib,
-    "..": lib,
     tap,
     fs: require("node:fs"),
     path: require("node:path"),
   };
   const localRequire = (id: string) => {
+    if (id === ".." || id === "../" || id === "../ini.js") return fresh();
     if (!(id in modules)) throw new Error(`unexpected require('${id}') in ${file}`);
     return modules[id];
   };

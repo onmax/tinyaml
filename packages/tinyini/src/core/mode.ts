@@ -17,20 +17,28 @@
 export interface Mode {
   /** tinyini's own API. */
   root?: boolean;
+  /** ini 1.x to 4.0.0. */
+  legacy?: boolean;
+  /** ini 1.x. */
+  plain?: boolean;
 }
 
 /** tinyini's own API, which drops ini's legacy behaviour. */
 export let root: boolean | undefined = false;
+/** ini 1.x to 4.0.0: no options, the older line patterns and dot splitting. */
+export let legacy: boolean | undefined = false;
+/** ini 1.x: plain objects, and truthiness where later versions check own keys. */
+export let plain: boolean | undefined = false;
 
 /** Returns `fn`, made to run with the flags of `mode` and restore the caller's. */
 export function withMode<F extends (...args: any[]) => any>(mode: Mode, fn: F): F {
   return function (this: unknown, ...args: unknown[]) {
-    const outer = root;
-    root = mode.root;
+    const outer = [root, legacy, plain] as const;
+    ({ root, legacy, plain } = mode);
     try {
       return fn.apply(this, args);
     } finally {
-      root = outer;
+      [root, legacy, plain] = outer;
     }
   } as F;
 }

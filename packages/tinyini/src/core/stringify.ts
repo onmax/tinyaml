@@ -1,4 +1,5 @@
 import { safe } from "./escape.ts";
+import { legacy, plain } from "./mode.ts";
 import { set, splitSections } from "./parse.ts";
 
 export interface EncodeOptions {
@@ -33,21 +34,36 @@ function normalize(o: Options, assign: (o: unknown, key: string, value: unknown)
 
 /** Writes an object as INI text, as ini 7.0.0 does. */
 export function encode(obj: any, opt: EncodeOptions | string = {}): string {
+  // ini 1.x to 4.0 take only `section` and `whitespace`.
+  if (legacy) {
+    opt = typeof opt === "string" ? { section: opt, whitespace: false } : opt || {};
+    set(opt, "whitespace", (opt as Options).whitespace === true);
+    return write(obj, opt as Options);
+  }
   if (typeof opt === "string") opt = { section: opt };
   normalize(opt as Options, set);
   return write(obj, opt as Options);
 }
 
+/**
+ * The line ending ini 1.x to 4.0 use. They read process.platform once, when
+ * loaded; tinyini reads it on each call.
+ */
+const platformEol = () =>
+  typeof process !== "undefined" && process.platform === "win32" ? "\r\n" : "\n";
+
 function write(obj: any, o: Options): string {
-  const eol = o.platform === "win32" ? "\r\n" : "\n";
+  const eol = legacy ? platformEol() : o.platform === "win32" ? "\r\n" : "\n";
+  // ini 2.0.0 and 1.x end array items with "\n" on every platform.
+  const itemEol = legacy ? "\n" : eol;
   const separator = o.whitespace ? " = " : "=";
   const children = [];
-  const keys = o.sort ? Object.keys(obj).sort() : Object.keys(obj);
+  const keys = !legacy && o.sort ? Object.keys(obj).sort() : Object.keys(obj);
 
   // Pad to the longest written key among the values on this level, arrays
   // counted with `[]` whether or not they are written with it.
   let padToChars = 0;
-  if (o.align)
+  if (!legacy && o.align)
     for (const k of keys) {
       const val = obj[k];
       if (val === null || typeof val !== "object" || Array.isArray(val)) {
@@ -57,12 +73,14 @@ function write(obj: any, o: Options): string {
     }
 
   let out = "";
-  const arraySuffix = o.bracketedArray ? "[]" : "";
+  const arraySuffix = legacy || o.bracketedArray ? "[]" : "";
   for (const k of keys) {
     const val = obj[k];
     if (val && Array.isArray(val)) {
       const key = safe(`${k}${arraySuffix}`).padEnd(padToChars, " ") + separator;
-      for (const item of val) out += key + safe(item) + eol;
+      // ini 1.x uses forEach, which skips holes.
+      if (plain) val.forEach((item) => (out += key + safe(item) + itemEol));
+      else for (const item of val) out += key + safe(item) + itemEol;
     } else if (val && typeof val === "object") {
       children.push(k);
     } else {
@@ -71,14 +89,16 @@ function write(obj: any, o: Options): string {
   }
 
   if (o.section && out.length)
-    out = "[" + safe(o.section) + "]" + (o.newline ? eol + eol : eol) + out;
+    out = "[" + safe(o.section) + "]" + (!legacy && o.newline ? eol + eol : eol) + out;
 
   for (const k of children) {
     // Escape the dots in the key that are not escaped already.
     const section = (o.section ? o.section + "." : "") + splitSections(k).join("\\.");
-    // ini calls itself with { ...opt, section }, a fresh object it can write to.
-    const options: Options = { ...o, section };
-    normalize(options, assign);
+    // ini calls itself with { ...opt, section }, a fresh object it can write
+    // to; ini 1.x to 4.0 with { section, whitespace }.
+    let options: Options;
+    if (legacy) options = { section, whitespace: o.whitespace === true };
+    else normalize((options = { ...o, section }), assign);
     const child = write(obj[k], options);
     if (out.length && child.length) out += eol;
     out += child;

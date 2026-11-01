@@ -19,6 +19,10 @@ const entries: [string, string, string?][] = [
   ["tinyini", "index"],
   ["tinyini/ini", "ini", "ini 7.0.0"],
   ["  ini 7.0.0", "export { default } from 'ini'"],
+  ["tinyini/ini-v2", "ini-v2", "ini 2.0.0"],
+  ["  ini 2.0.0", "export { default } from 'ini-v2'"],
+  ["tinyini/ini-v1", "ini-v1", "ini 1.3.8"],
+  ["  ini 1.3.8", "export { default } from 'ini-v1'"],
 ];
 
 // Gzip bytes each entry may reach, about 30 over its size when last set:
@@ -27,6 +31,8 @@ const entries: [string, string, string?][] = [
 const BUDGET: Record<string, number> = {
   tinyini: 1700,
   "tinyini/ini": 1700,
+  "tinyini/ini-v2": 1460,
+  "tinyini/ini-v1": 1480,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
@@ -35,8 +41,13 @@ const BUDGET: Record<string, number> = {
 const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
   // The root's error for an object in an array.
   root: ["inside an array"],
-  // ini's options, normalized onto the caller's object.
+  // ini 4.1's options, normalized onto the caller's object.
   ini: ["bracketedArray"],
+  // ini 1.x to 4.0's placeholders for escaped dots, and ini 2.0.0's
+  // null-prototype objects.
+  v2: ["LITERAL", "Object.create(null)"],
+  // ini 1.x's placeholders, and its forEach that skips holes in arrays.
+  v1: ["LITERAL", ".forEach("],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as

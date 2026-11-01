@@ -7,6 +7,8 @@ import { defineConfig } from "vite-plus";
 export const MODES = {
   root: { index: "src/index.ts" },
   ini: { ini: "src/ini/index.ts" },
+  v2: { "ini-v2": "src/ini-v2/index.ts" },
+  v1: { "ini-v1": "src/ini-v1/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
@@ -29,6 +31,16 @@ export default defineConfig({
           if (!importer || !id.endsWith("mode.ts")) return null;
           const resolved = await this.resolve(id, importer, { skipSelf: true });
           return resolved?.id === MODE ? here(`src/core/mode/${mode}.ts`) : null;
+        },
+        // In a build the flags are constants, so an entry's functions are the
+        // core's as they are: `withMode(MODE, fn)` becomes `fn`, and MODE goes.
+        transform(code: string, id: string) {
+          if (!Object.values(entry).some((file) => id === here(file))) return null;
+          const out = code
+            .replace(/^const MODE = \{[^}]*\};$/m, "")
+            .replace(/withMode\(MODE, (\w+)\)/g, "$1");
+          if (out.includes("MODE")) throw new Error(`${id}: MODE is left after removing withMode`);
+          return out;
         },
       },
     ],

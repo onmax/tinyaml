@@ -11,7 +11,13 @@
 import { generator } from "./values.ts";
 import { attempt, describe, engine, ini, iniInputs, samples, seeded, show } from "./shared.ts";
 
-const { label, ours: tinyini, theirs } = await engine(process.argv[4]);
+const {
+  label,
+  ours: tinyini,
+  theirs,
+  documented = [],
+  guard = (_input, fn) => fn(),
+} = await engine(process.argv[4]);
 
 const iterations = Number(process.argv[2] ?? 20000);
 const next = seeded(Number(process.argv[3] ?? 1));
@@ -157,56 +163,49 @@ const copy = (o: unknown) =>
 let calls = 0;
 let throws = 0;
 const diffs = new Map<string, string>();
-const check = (label: string, input: string, a: () => unknown, b: () => unknown) => {
+// Inputs where tinyini differs from the original as the README says it does,
+// by name of the difference.
+const known = new Map<string, number>();
+/**
+ * Compares a call to the original with tinyini's. `call` makes the call on a
+ * given module, so a difference can be checked against each documented one.
+ */
+const check = (label: string, input: string, call: (lib: any) => unknown) => {
   calls++;
-  const expected = attempt(a);
-  const actual = attempt(b);
+  const expected = attempt(() => guard(input, () => call(theirs)));
+  const actual = attempt(() => call(tinyini));
   if (!expected.ok) throws++;
-  if (JSON.stringify(expected) !== JSON.stringify(actual))
-    diffs.set(
-      `${label} ${JSON.stringify(input)}`,
-      `theirs:  ${show(expected)}\n  tinyini: ${show(actual)}`,
-    );
+  if (JSON.stringify(expected) === JSON.stringify(actual)) return;
+  for (const { name, theirs: changed } of documented)
+    if (JSON.stringify(attempt(() => call(changed))) === JSON.stringify(actual)) {
+      known.set(name, (known.get(name) ?? 0) + 1);
+      return;
+    }
+  diffs.set(
+    `${label} ${JSON.stringify(input)}`,
+    `theirs:  ${show(expected)}\n  tinyini: ${show(actual)}`,
+  );
 };
 
 for (const [n, input] of inputs.entries()) {
-  for (const options of n % 10 ? decodeOptions : [...decodeOptions, ...oddOptions]) {
-    const mine = copy(options);
-    const original = copy(options);
-    const label = `decode ${describe(options)}`;
-    check(
-      label,
-      input,
-      () => [theirs.decode(input, original as never), original],
-      () => [tinyini.decode(input, mine as never), mine],
-    );
-  }
-  check(
-    "unsafe",
-    input,
-    () => theirs.unsafe(input),
-    () => tinyini.unsafe(input),
-  );
-  check(
-    "safe",
-    input,
-    () => theirs.safe(input),
-    () => tinyini.safe(input),
-  );
+  for (const options of n % 10 ? decodeOptions : [...decodeOptions, ...oddOptions])
+    // Each call gets a fresh copy of the options, and returns what it left there.
+    check(`decode ${describe(options)}`, input, (lib) => {
+      const own = copy(options);
+      return [lib.decode(input, own), own];
+    });
+  check("unsafe", input, (lib) => lib.unsafe(input));
+  check("safe", input, (lib) => lib.safe(input));
 }
 // unsafe and safe on values that are not strings.
 for (const value of [undefined, null, 0, 1, true, false, {}, [], [1], NaN, new String(" 'x' ")])
   for (const fn of ["safe", "unsafe"] as const)
-    check(
-      fn,
-      describe(value),
-      () => theirs[fn](value as never),
-      () => tinyini[fn](value as never),
-    );
+    check(fn, describe(value), (lib) => lib[fn](value));
 
 const limit = Number(process.env.SHOW ?? 10);
 for (const [input, diff] of [...diffs].sort((a, b) => a[0].length - b[0].length).slice(0, limit))
   console.log(`--- ${input.slice(0, 300)}\n  ${diff}`);
+for (const [name, n] of known) console.log(`${n} calls differ as documented: ${name}`);
 console.log(
   `${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated, ${new Set(inputs).size} distinct), ` +
     `${calls} calls (${throws} throw in ${label}): ${diffs.size} differences`,

@@ -9,7 +9,13 @@
 import { generator } from "./values.ts";
 import { attempt, describe, engine, seeded, show } from "./shared.ts";
 
-const { label, ours: tinyini, theirs: ini } = await engine(process.argv[4]);
+const {
+  label,
+  ours: tinyini,
+  theirs: ini,
+  documented = [],
+  guard = (_input, fn) => fn(),
+} = await engine(process.argv[4]);
 
 const count = Number(process.argv[2] ?? 1000);
 const generate = generator(seeded(Number(process.argv[3] ?? 1)));
@@ -44,9 +50,12 @@ const odd: (() => unknown)[] = [
 let calls = 0;
 let throws = 0;
 let roundTrips = 0;
+let encodeDiffs = 0;
 let roundTripDiffs = 0;
 let overflowed = false;
 const diffs = new Map<string, string>();
+// Round trips that differ only as the README says decode does, by name.
+const known = new Map<string, number>();
 for (let n = 0; n < count; n++) {
   const value = generate();
   const options: (() => unknown)[] = combinations.map((o) => () => ({ ...o }));
@@ -63,6 +72,7 @@ for (let n = 0; n < count; n++) {
     if (!expected.ok) throws++;
     overflowed = !expected.ok && expected.error.startsWith("RangeError");
     if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      encodeDiffs++;
       diffs.set(
         `${describe(value)} ${describe(make())}`,
         `ini:     ${show(expected)}\n  tinyini: ${show(actual)}`,
@@ -73,9 +83,15 @@ for (let n = 0; n < count; n++) {
     // The round trip, reading arrays the way they were written.
     const read = { bracketedArray: (theirs as { bracketedArray?: boolean }).bracketedArray };
     roundTrips++;
-    const a = attempt(() => ini.decode(ini.encode(value, make() as never), { ...read }));
-    const b = attempt(() => tinyini.decode(tinyini.encode(value, make() as never), { ...read }));
-    if (JSON.stringify(a) !== JSON.stringify(b)) {
+    const text = tinyini.encode(value, make() as never) as string;
+    const a = attempt(() => guard(text, () => ini.decode(text, { ...read })));
+    const b = attempt(() => tinyini.decode(text, { ...read }));
+    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    const doc = documented.find(
+      (d) => JSON.stringify(attempt(() => d.theirs.decode(text, { ...read }))) === JSON.stringify(b),
+    );
+    if (doc) known.set(doc.name, (known.get(doc.name) ?? 0) + 1);
+    else {
       roundTripDiffs++;
       diffs.set(`round trip ${describe(value)}`, `ini:     ${show(a)}\n  tinyini: ${show(b)}`);
     }
@@ -85,7 +101,8 @@ for (let n = 0; n < count; n++) {
 const limit = Number(process.env.SHOW ?? 10);
 for (const [input, diff] of [...diffs].slice(0, limit))
   console.log(`--- ${input.slice(0, 300)}\n  ${diff}`);
+for (const [name, n] of known) console.log(`${n} round trips differ as documented: ${name}`);
 console.log(
-  `${count} values, ${calls} encode calls (${throws} throw in ${label}): ${diffs.size - roundTripDiffs} differ from ${label}; ` +
+  `${count} values, ${calls} encode calls (${throws} throw in ${label}): ${encodeDiffs} differ from ${label}; ` +
     `${roundTrips} round trips, ${roundTripDiffs} differ`,
 );

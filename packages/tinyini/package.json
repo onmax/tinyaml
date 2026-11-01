@@ -32,6 +32,12 @@
       "ini": [
         "./dist/ini.d.mts"
       ],
+      "ini-v2": [
+        "./dist/ini-v2.d.mts"
+      ],
+      "ini-v1": [
+        "./dist/ini-v1.d.mts"
+      ],
       "*": [
         "./dist/index.d.mts"
       ]
@@ -40,6 +46,8 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./ini": "./dist/ini.mjs",
+    "./ini-v2": "./dist/ini-v2.mjs",
+    "./ini-v1": "./dist/ini-v1.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -67,6 +75,8 @@
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
     "ini": "7.0.0",
+    "ini-v1": "npm:ini@1.3.8",
+    "ini-v2": "npm:ini@2.0.0",
     "publint": "^0.3.25",
     "tcompare": "5.0.7",
     "tsrs": "0.20.1-ts7.1.0-beta",

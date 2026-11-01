@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import * as tinyini from "../src/ini/index.ts";
 import { ini } from "../scripts/shared.ts";
 
-const foo = readFileSync("test/suites/ini/fixtures/foo.ini", "utf8");
+const foo = readFileSync("test/suites/ini-7.0.0/fixtures/foo.ini", "utf8");
 const gitconfig = readFileSync("test/samples/gitconfig", "utf8");
 let large = "; generated for the benchmark\nroot = true\n\n";
 for (let i = 0; large.length < 100 * 1024; i++) {

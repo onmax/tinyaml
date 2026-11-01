@@ -13,18 +13,114 @@ export interface Engine {
   label: string;
   /** The original module. */
   theirs: any;
+  /** The original, loaded again. */
+  fresh: () => any;
   /** The tinyini entry. */
   ours: any;
-  /** The directory of the original's own tests, copied unchanged. */
-  tests: string;
+  /** The directories of the original's own tests, copied unchanged. */
+  tests: string[];
+  /**
+   * Behaviour tinyini doesn't copy on purpose: each a description, and the
+   * original with only that changed, which tinyini must then match.
+   */
+  documented?: { name: string; theirs: any }[];
+  /** Runs a call to the original, undoing what it writes to built-ins. */
+  guard?: <T>(input: string, fn: () => T) => T;
 }
+
+/** Loads a copy of a CommonJS module's file with `replace` applied to its source. */
+const patched = (id: string, from: string, to: string): unknown => {
+  const file = require.resolve(id);
+  const source = readFileSync(file, "utf8");
+  if (!source.includes(from)) throw new Error(`${from} is not in ${file}`);
+  const module = { exports: {} as unknown };
+  // eslint-disable-next-line typescript/no-implied-eval
+  new Function("module", "exports", "require", source.replace(from, to))(
+    module,
+    module.exports,
+    require,
+  );
+  return module.exports;
+};
+
+// The objects ini 1.x writes to when a section is named after one of them,
+// such as [constructor] or [toString]: Object and the functions on
+// Object.prototype.
+const builtIns = [
+  Object,
+  ...Object.getOwnPropertyNames(Object.prototype)
+    .map((key) => Object.getOwnPropertyDescriptor(Object.prototype, key)!.value)
+    .filter((value) => typeof value === "function"),
+] as object[];
+const inheritedName = new RegExp(
+  `\\[[^\\]\\n\\r]*(${Object.getOwnPropertyNames(Object.prototype).join("|")}|\\\\u)`,
+);
+
+/**
+ * Runs fn, then puts back every property of the built-ins it changed, so that
+ * the next call starts from a clean slate. Inputs with no section that could
+ * be named after an inherited property skip the check.
+ */
+function guardBuiltIns<T>(input: string, fn: () => T): T {
+  if (!inheritedName.test(input)) return fn();
+  const saved = builtIns.map((o) => Object.getOwnPropertyDescriptors(o));
+  try {
+    return fn();
+  } finally {
+    builtIns.forEach((o, i) => {
+      const before = saved[i]!;
+      for (const key of Reflect.ownKeys(o))
+        if (!(key in before)) Reflect.deleteProperty(o, key);
+      for (const key of Reflect.ownKeys(before)) {
+        const d = before[key as string]!;
+        const now = Object.getOwnPropertyDescriptor(o, key);
+        if (!now || now.value !== d.value || now.get !== d.get || now.set !== d.set)
+          Object.defineProperty(o, key, d);
+      }
+    });
+  }
+}
+
+
+
+/** Loads a CommonJS module anew. */
+const load = (id: string): unknown => {
+  delete require.cache[require.resolve(id)];
+  return require(id);
+};
 
 const engines: Record<string, () => Promise<Engine>> = {
   ini: async () => ({
     label: "ini 7.0.0",
     theirs: ini,
+    fresh: () => load("ini"),
     ours: await import("../src/ini/index.ts"),
-    tests: "test/suites/ini",
+    tests: ["test/suites/ini-7.0.0"],
+  }),
+  "ini-v2": async () => ({
+    label: "ini 2.0.0",
+    theirs: require("ini-v2"),
+    fresh: () => load("ini-v2"),
+    ours: await import("../src/ini-v2/index.ts"),
+    tests: ["test/suites/ini-2.0.0", "test/suites/ini-4.0.0"],
+  }),
+  "ini-v1": async () => ({
+    label: "ini 1.3.8",
+    theirs: require("ini-v1"),
+    fresh: () => load("ini-v1"),
+    guard: guardBuiltIns,
+    documented: [
+      {
+        name: "a section named after an inherited property, such as [constructor], starts a new object",
+        theirs: patched(
+          "ini-v1",
+          "p = out[section] = out[section] || {}",
+          "p = out[section] = (Object.prototype.hasOwnProperty.call(out, section) ? out[section] : 0) || {}",
+        ),
+      },
+    ],
+    ours: await import("../src/ini-v1/index.ts"),
+    tests: ["test/suites/ini-1.3.8"],
   }),
 };
 
@@ -103,10 +199,10 @@ export const show = (r: Outcome): string => (r.ok ? r.value : `throws ${r.error}
 
 /** ini's fixtures and the strings its tests parse. */
 export function iniInputs(): string[] {
-  const fixtures = readdirSync("test/suites/ini/fixtures").map((f) =>
-    readFileSync(join("test/suites/ini/fixtures", f), "utf8"),
+  const fixtures = readdirSync("test/suites/ini-7.0.0/fixtures").map((f) =>
+    readFileSync(join("test/suites/ini-7.0.0/fixtures", f), "utf8"),
   );
-  const proto = /var data = `([^`]*)`/.exec(readFileSync("test/suites/ini/proto.js", "utf8"))![1]!;
+  const proto = /var data = `([^`]*)`/.exec(readFileSync("test/suites/ini-7.0.0/proto.js", "utf8"))![1]!;
   return [
     ...fixtures,
     proto,

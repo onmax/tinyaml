@@ -274,6 +274,12 @@ importers:
       ini:
         specifier: 7.0.0
         version: 7.0.0
+      ini-v1:
+        specifier: npm:ini@1.3.8
+        version: ini@1.3.8
+      ini-v2:
+        specifier: npm:ini@2.0.0
+        version: ini@2.0.0
       publint:
         specifier: ^0.3.25
         version: 0.3.25
@@ -6987,6 +6993,10 @@ packages:
 
   ini@1.3.8:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
+
+  ini@2.0.0:
+    resolution: {integrity: sha512-7PnF4oN3CvZF23ADhA5wRaYEQpJ8qygSkbtTXWBeXWXmEVRXK+1ITciHWwHhsjv1TmW0MgacIv6hEi5pX5NQdA==}
+    engines: {node: '>=10'}
 
   ini@4.1.1:
     resolution: {integrity: sha512-QQnnxNyfvmHFIsj7gkPcYymR8Jdw/o7mp5ZFihxn6h8Ci6fh3Dx4E1gPjpQEpIuPo9XVNY/ZUwh4BPMjGyL01g==}
@@ -16659,8 +16669,9 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ini@1.3.8:
-    optional: true
+  ini@1.3.8: {}
+
+  ini@2.0.0: {}
 
   ini@4.1.1: {}
 
