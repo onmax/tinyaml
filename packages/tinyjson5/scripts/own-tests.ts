@@ -42,6 +42,14 @@ const SUITES: Record<string, { files: string[]; targets: [string, string][] }> =
       ["tinyjson5/strip-json-comments-v5", "src/strip-json-comments-v5/index.ts"],
     ],
   },
+  // string-intern.test.ts tests caches inside jsonc-parser's formatter, not its API.
+  "jsonc-parser": {
+    files: ["json.test.ts", "format.test.ts", "edit.test.ts"],
+    targets: [
+      ["jsonc-parser 3.3.1", "scripts/jsonc-parser.ts"],
+      ["tinyjson5/jsonc-parser", "src/jsonc-parser/index.ts"],
+    ],
+  },
 };
 
 const name = process.argv[2]!;

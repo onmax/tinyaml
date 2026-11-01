@@ -232,6 +232,8 @@ function babelForOf(list: any, fn: (item: unknown) => void): void {
     try {
       if (!normal && iterator.return) iterator.return();
     } finally {
+      // Babel's own rethrow, which replaces an error from `return`.
+      // eslint-disable-next-line no-unsafe-finally
       if (failed) throw error;
     }
   }

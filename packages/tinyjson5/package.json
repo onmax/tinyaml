@@ -43,6 +43,9 @@
       "strip-json-comments-v5": [
         "./dist/strip-json-comments-v5.d.mts"
       ],
+      "jsonc-parser": [
+        "./dist/jsonc-parser.d.mts"
+      ],
       "*": [
         "./dist/index.d.mts"
       ]
@@ -55,6 +58,7 @@
     "./strip-json-comments": "./dist/strip-json-comments.mjs",
     "./strip-json-comments-v2": "./dist/strip-json-comments-v2.mjs",
     "./strip-json-comments-v5": "./dist/strip-json-comments-v5.mjs",
+    "./jsonc-parser": "./dist/jsonc-parser.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -79,6 +83,7 @@
     "fuzz": "node scripts/fuzz.ts",
     "fuzz:stringify": "node scripts/fuzz-stringify.ts",
     "fuzz:strip": "node scripts/fuzz-strip.ts",
+    "fuzz:jsonc": "node scripts/fuzz-jsonc.ts",
     "unicode": "node scripts/unicode.ts",
     "size": "node scripts/size.ts",
     "bench": "node bench/index.ts"

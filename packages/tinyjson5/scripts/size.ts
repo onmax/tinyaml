@@ -42,6 +42,7 @@ const entries: [string, string, string, string][] = [
     "strip-json-comments 5",
     "strip-json-comments-v5",
   ],
+  ["tinyjson5/jsonc-parser", "jsonc-parser", "jsonc-parser 3.3.1", "jsonc-parser"],
 ];
 
 // Gzip bytes each entry may reach, about 100 over its size when last set:
@@ -54,6 +55,7 @@ const BUDGET: Record<string, number> = {
   "tinyjson5/strip-json-comments": 570,
   "tinyjson5/strip-json-comments-v2": 560,
   "tinyjson5/strip-json-comments-v5": 680,
+  "tinyjson5/jsonc-parser": 6030,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
@@ -72,6 +74,8 @@ const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
   "strip-json-comments-v2": [/charCodeAt\([\w$]+-2\)/],
   // strip-json-comments 5's blanking, which keeps only ASCII whitespace.
   "strip-json-comments-v5": ["[^ \\t\\r\\n]"],
+  // jsonc-parser's own scanner and messages.
+  "jsonc-parser": ["<unknown ParseErrorCode>"],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as

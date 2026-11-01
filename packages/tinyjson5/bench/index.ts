@@ -49,12 +49,25 @@ const jsoncInputs = {
   large: JSON.stringify(lock, null, 2).replaceAll(",\n", ", // a comment\n"),
 };
 
-type Codec = { parse: (text: string) => unknown; stringify?: (value: unknown) => unknown };
+type Codec = {
+  parse: (text: string) => unknown;
+  stringify?: (value: unknown) => unknown;
+  // More operations on the text, by name.
+  more?: Record<string, (text: string) => unknown>;
+};
 const json5Codec = (lib: any): Codec => ({
   parse: (text) => lib.parse(text),
   stringify: (value) => lib.stringify(value, null, 2),
 });
 const strip = (fn: (text: string) => string): Codec => ({ parse: fn });
+const jsonc = (lib: typeof import("jsonc-parser")): Codec => ({
+  parse: (text) => lib.parse(text),
+  more: {
+    parseTree: (text) => lib.parseTree(text),
+    visit: (text) => lib.visit(text, { onLiteralValue() {} }),
+    format: (text) => lib.format(text, undefined, { tabSize: 4, insertSpaces: true }),
+  },
+});
 const ours = async (path: string) => (await import(path)).default;
 const pairs: [string, Codec, Codec, Record<string, string>][] = [
   ["json5 2.2.3", json5Codec(json5), json5Codec(await ours("../src/json5/index.ts")), json5Inputs],
@@ -80,6 +93,12 @@ const pairs: [string, Codec, Codec, Record<string, string>][] = [
     "strip-json-comments 5",
     strip((await import("strip-json-comments-v5")).default),
     strip(await ours("../src/strip-json-comments-v5/index.ts")),
+    jsoncInputs,
+  ],
+  [
+    "jsonc-parser 3.3.1",
+    jsonc(require("jsonc-parser")),
+    jsonc((await import("../src/jsonc-parser/index.ts")) as never),
     jsoncInputs,
   ],
   // tinyjson5's own API, against the json5 users switch from.
@@ -134,6 +153,8 @@ for (const [library, theirs, tiny, inputs] of pairs) {
   for (const [name, text] of Object.entries(inputs)) {
     operations.push([`parse ${name}`, () => theirs.parse(text), () => tiny.parse(text)]);
     const value = theirs.parse(text);
+    for (const [more, fn] of Object.entries(theirs.more ?? {}))
+      operations.push([`${more} ${name}`, () => fn(text), () => tiny.more![more]!(text)]);
     if (theirs.stringify && tiny.stringify)
       operations.push([
         `stringify ${name}`,

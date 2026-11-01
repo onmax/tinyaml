@@ -45,3 +45,9 @@ describe("strip-json-comments", () => {
       expect(run("scripts/fuzz-strip.ts", "5000", "1", version)).toMatch(/: 0 differ$/m);
     });
 });
+
+describe("jsonc-parser", () => {
+  it("matches its whole API on mutated inputs", () => {
+    expect(run("scripts/fuzz-jsonc.ts", "300", "1")).toMatch(/: 0 differ$/m);
+  });
+});
