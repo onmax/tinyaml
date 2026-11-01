@@ -5,6 +5,7 @@ import type * as Mode from "../../src/core/mode.ts";
 import type * as CommentJson from "../../src/core/mode/comment-json.ts";
 import type * as Json5 from "../../src/core/mode/json5.ts";
 import type * as Json5V1 from "../../src/core/mode/json5-v1.ts";
+import type * as Jju from "../../src/core/mode/jju.ts";
 import type * as JsoncParser from "../../src/core/mode/jsonc-parser.ts";
 import type * as Lean from "../../src/core/mode/lean.ts";
 import type * as StripJsonComments from "../../src/core/mode/strip-json-comments.ts";
@@ -22,9 +23,10 @@ export const checks: [
   StandsIn<typeof CommentJson>,
   StandsIn<typeof Json5>,
   StandsIn<typeof Json5V1>,
+  StandsIn<typeof Jju>,
   StandsIn<typeof JsoncParser>,
   StandsIn<typeof Lean>,
   StandsIn<typeof StripJsonComments>,
   StandsIn<typeof StripJsonCommentsV2>,
   StandsIn<typeof StripJsonCommentsV5>,
-] = [true, true, true, true, true, true, true, true];
+] = [true, true, true, true, true, true, true, true, true];

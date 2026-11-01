@@ -10,8 +10,12 @@ const t = {
       message ?? `${String(actual)} is not ${String(expected)}`,
     ),
   deepEqual: assert.deepStrictEqual,
-  true: (value: unknown, message?: string) => assert.ok(value === true, message),
-  false: (value: unknown, message?: string) => assert.ok(value === false, message),
+  true: (value: unknown, message?: string) => {
+    if (value !== true) assert.fail(message ?? `${String(value)} is not true`);
+  },
+  false: (value: unknown, message?: string) => {
+    if (value !== false) assert.fail(message ?? `${String(value)} is not false`);
+  },
   pass: () => {},
   // ava's throws checks `message`, `name` and `instanceOf` when given, and returns the error.
   throws(

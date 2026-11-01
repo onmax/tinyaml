@@ -49,6 +49,9 @@
       "comment-json": [
         "./dist/comment-json.d.mts"
       ],
+      "jju": [
+        "./dist/jju.d.mts"
+      ],
       "*": [
         "./dist/index.d.mts"
       ]
@@ -63,6 +66,7 @@
     "./strip-json-comments-v5": "./dist/strip-json-comments-v5.mjs",
     "./jsonc-parser": "./dist/jsonc-parser.mjs",
     "./comment-json": "./dist/comment-json.mjs",
+    "./jju": "./dist/jju.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -89,6 +93,7 @@
     "fuzz:strip": "node scripts/fuzz-strip.ts",
     "fuzz:jsonc": "node scripts/fuzz-jsonc.ts",
     "fuzz:comment-json": "node scripts/fuzz-comment-json.ts",
+    "fuzz:jju": "node scripts/fuzz-jju.ts",
     "unicode": "node scripts/unicode.ts",
     "size": "node scripts/size.ts",
     "bench": "node bench/index.ts"
@@ -99,6 +104,7 @@
     "comment-json-v5": "npm:comment-json@5.0.0",
     "esbuild": "^0.28.2",
     "jju": "1.4.0",
+    "js-yaml-v3": "npm:js-yaml@3.14.1",
     "json5": "2.2.3",
     "json5-v1": "npm:json5@1.0.2",
     "jsonc-parser": "3.3.1",

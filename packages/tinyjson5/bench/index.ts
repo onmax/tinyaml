@@ -60,6 +60,10 @@ const json5Codec = (lib: any): Codec => ({
   stringify: (value) => lib.stringify(value, null, 2),
 });
 const strip = (fn: (text: string) => string): Codec => ({ parse: fn });
+const jjuCodec = (lib: any): Codec => ({
+  parse: (text) => lib.parse(text),
+  stringify: (value) => lib.stringify(value, { indent: 2 }),
+});
 // comment-json's parse keeps the comments, and its stringify writes them back.
 const jsonCodec = (lib: any): Codec => ({
   parse: (text) => lib.parse(text),
@@ -111,6 +115,12 @@ const pairs: [string, Codec, Codec, Record<string, string>][] = [
     jsonCodec(require("comment-json")),
     jsonCodec(await import("../src/comment-json/index.ts")),
     jsoncInputs,
+  ],
+  [
+    "jju 1.4.0",
+    jjuCodec(require("jju")),
+    jjuCodec(await import("../src/jju/index.ts")),
+    json5Inputs,
   ],
   // tinyjson5's own API, against the json5 users switch from.
   [

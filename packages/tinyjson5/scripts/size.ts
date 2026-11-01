@@ -20,7 +20,7 @@ import { build, ENTRIES } from "./dist.ts";
 // replaces. Each is measured whole, every export kept, and must come out no
 // bigger than its original. The root replaces nothing, so it's held to
 // json5 2.2.3, the library its users switch from.
-const entries: [string, string, string, string][] = [
+const entries: [string, string, string, string, ("node" | "neutral")?][] = [
   ["tinyjson5", "index", "json5 2.2.3", "json5"],
   ["tinyjson5/json5", "json5", "json5 2.2.3", "json5"],
   ["tinyjson5/json5-v1", "json5-v1", "json5 1.0.2", "json5-v1"],
@@ -44,6 +44,8 @@ const entries: [string, string, string, string][] = [
   ],
   ["tinyjson5/jsonc-parser", "jsonc-parser", "jsonc-parser 3.3.1", "jsonc-parser"],
   ["tinyjson5/comment-json", "comment-json", "comment-json 4.6.2", "comment-json"],
+  // jju needs Node's fs and assert, which stay out of its bundle.
+  ["tinyjson5/jju", "jju", "jju 1.4.0", "jju", "node"],
 ];
 
 // Gzip bytes each entry may reach, about 100 over its size when last set:
@@ -58,6 +60,7 @@ const BUDGET: Record<string, number> = {
   "tinyjson5/strip-json-comments-v5": 680,
   "tinyjson5/jsonc-parser": 6030,
   "tinyjson5/comment-json": 17770,
+  "tinyjson5/jju": 9740,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
@@ -80,6 +83,8 @@ const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
   "jsonc-parser": ["<unknown ParseErrorCode>"],
   // comment-json's message for a comment position it doesn't know.
   "comment-json": ["Unsupported comment position"],
+  // jju's check that its tokens don't overlap.
+  jju: ["internal error, token overlap"],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as
@@ -94,7 +99,11 @@ const problems: string[] = [];
 
 // Minified and gzipped bytes of a module, every export kept, or undefined
 // when it doesn't build. Each size is printed and recorded once.
-function measure(name: string, module: string): { min: number; gzip: number } | undefined {
+function measure(
+  name: string,
+  module: string,
+  platform: "node" | "neutral" = "neutral",
+): { min: number; gzip: number } | undefined {
   if (json[name]) return json[name];
   let code: Uint8Array;
   try {
@@ -108,7 +117,7 @@ function measure(name: string, module: string): { min: number; gzip: number } | 
       bundle: true,
       minify: true,
       format: "esm",
-      platform: "neutral",
+      platform,
       mainFields: ["module", "main"],
       logLevel: "silent",
       write: false,
@@ -127,9 +136,9 @@ function measure(name: string, module: string): { min: number; gzip: number } | 
 }
 const texts: Record<string, string> = {};
 
-for (const [name, entry, library, module] of entries) {
+for (const [name, entry, library, module, platform] of entries) {
   const size = measure(name, ENTRIES[entry]!);
-  const original = measure(library, module);
+  const original = measure(library, module, platform);
   if (!size) continue;
   if (original && size.gzip > original.gzip)
     problems.push(`${name} is ${size.gzip} B gzip, bigger than ${library}'s ${original.gzip} B`);

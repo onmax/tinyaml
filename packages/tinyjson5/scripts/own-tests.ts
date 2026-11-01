@@ -6,7 +6,12 @@
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-const SUITES: Record<string, { files: string[]; targets: [string, string][] }> = {
+// Each target is a label, the module its tests import as the library, and
+// optionally more of its modules they import, by specifier.
+const SUITES: Record<
+  string,
+  { files: string[]; targets: [string, string, Record<string, string>?][] }
+> = {
   "json5-main": {
     files: ["parse.test.js", "stringify.test.js", "errors.test.js"],
     targets: [
@@ -64,13 +69,34 @@ const SUITES: Record<string, { files: string[]; targets: [string, string][] }> =
       ["tinyjson5/comment-json", "src/comment-json/index.ts"],
     ],
   },
+  jju: {
+    files: [
+      "test_analyze.js",
+      "test_document.js",
+      "test_errors.js",
+      "test_modes.js",
+      "test_parse.js",
+      "test_portable.js",
+      "test_stringify.js",
+      "test_tokenize.js",
+      "test_updates.js",
+    ],
+    targets: [
+      [
+        "jju 1.4.0",
+        "node_modules/jju/index.js",
+        { "../lib/document": "node_modules/jju/lib/document.js" },
+      ],
+      ["tinyjson5/jju", "src/jju/index.ts", { "../lib/document": "src/jju/document.js" }],
+    ],
+  },
 };
 
 const name = process.argv[2]!;
 const suite = SUITES[name];
 if (!suite) throw new Error(`unknown suite ${name}; one of ${Object.keys(SUITES).join(", ")}`);
 let failed = 0;
-for (const [label, path] of suite.targets) {
+for (const [label, path, more = {}] of suite.targets) {
   for (const file of suite.files) {
     const run = spawnSync(
       process.execPath,
@@ -81,14 +107,24 @@ for (const [label, path] of suite.targets) {
         "--test-reporter=tap",
         `test/${name}/${file}`,
       ],
-      { encoding: "utf8", env: { ...process.env, REDIRECT_TARGET: pathToFileURL(path).href } },
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          REDIRECT_TARGET: pathToFileURL(path).href,
+          REDIRECT_MORE: JSON.stringify(
+            Object.fromEntries(Object.entries(more).map(([k, v]) => [k, pathToFileURL(v).href])),
+          ),
+        },
+      },
     );
     const count = (key: string) =>
       Number(run.stdout.match(new RegExp(`^# ${key} (\\d+)$`, "m"))?.[1]);
-    // A failing suite reports failureType 'subtestsFailed'; only its tests count.
+    // A failing suite reports failureType 'subtestsFailed'; only its tests
+    // count. [^\n], since a test's name or error can hold U+2028.
     const fails = [
       ...run.stdout.matchAll(
-        /^ *not ok \d+ - (.*)\n(?:(?! *not ok| *ok ).*\n)*? *failureType: '(\w+)'/gm,
+        /^ *not ok \d+ - ([^\n]*)\n(?:(?! *not ok| *ok )[^\n]*\n)*? *failureType: '(\w+)'/gm,
       ),
     ]
       .filter((m) => m[2] !== "subtestsFailed")

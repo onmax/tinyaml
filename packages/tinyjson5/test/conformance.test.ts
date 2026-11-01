@@ -57,3 +57,9 @@ describe("comment-json", () => {
     expect(run("scripts/fuzz-comment-json.ts", "300", "1")).toMatch(/: 0 differ$/m);
   });
 });
+
+describe("jju", () => {
+  it("matches parse, tokenize, analyze, stringify and update on mutated inputs", () => {
+    expect(run("scripts/fuzz-jju.ts", "300", "1")).toMatch(/: 0 differ$/m);
+  });
+});
