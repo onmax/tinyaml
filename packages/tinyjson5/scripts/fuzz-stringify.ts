@@ -1,23 +1,25 @@
-// Differential stringify fuzzing against json5 2.2.3. Each random value goes
-// through both with every combination of space, quote, and replacer, and the
+// Differential stringify fuzzing of one entry against the library it replaces
+// (scripts/engines.ts). Each random value goes through both with every combination of space, quote, and replacer, and the
 // output must be byte-identical, or both must throw the same error (cycles).
 // Then each acyclic value must survive a round trip: parse(stringify(x))
 // equals x as JSON5 sees it (toJSON applied, boxes opened, -0 as 0, values
 // JSON5 can't hold dropped from objects and written as null in arrays).
-// Usage: node scripts/fuzz-stringify.ts [values] [seed]
-import { createRequire } from "node:module";
-import { parse, stringify } from "../src/index.ts";
+// Usage: node scripts/fuzz-stringify.ts [values] [seed] [engine]
 import { attempt, same, seeded, type Outcome } from "./shared.ts";
-import { isIdContinue, isIdStart } from "../src/unicode.ts";
+import { isIdContinue, isIdStart } from "../src/core/unicode.ts";
+import { engineFromArgs, numbers } from "./engines.ts";
 import { checkCharacters, generator } from "./values.ts";
 
-const require = createRequire(import.meta.url);
-const json5 = require("json5") as { stringify: typeof stringify };
-const mismatched = checkCharacters(require("json5/lib/util.js"), { isIdStart, isIdContinue });
-if (mismatched.length)
-  throw new Error(`identifier status differs for ${JSON.stringify(mismatched)}`);
-const count = Number(process.argv[2] ?? 10000);
-const generate = generator(seeded(Number(process.argv[3] ?? 1)));
+const engine = await engineFromArgs();
+const json5 = engine.t;
+const { parse, stringify } = engine.o;
+if (engine.util) {
+  const mismatched = checkCharacters(await engine.util(), { isIdStart, isIdContinue });
+  if (mismatched.length)
+    throw new Error(`identifier status differs for ${JSON.stringify(mismatched)}`);
+}
+const [count = 10000, seed = 1] = numbers();
+const generate = generator(seeded(seed));
 
 const spaces = [undefined, 0, 2, 4, "\t", "abcdefghijklmnop"];
 const quotes = [undefined, "'", '"'];
@@ -81,7 +83,7 @@ function compare(
   if (examples.length < 10)
     examples.push(
       `--- replacer=${typeof replacer} space=${JSON.stringify(space)} quote=${JSON.stringify(quote)}\n` +
-        `  json5:     ${show(expected)}\n  tinyjson5: ${show(actual)}`,
+        `  ${engine.library}: ${show(expected)}\n  ${engine.entry}: ${show(actual)}`,
     );
 }
 
@@ -130,7 +132,7 @@ for (let n = 0; n < count; n++) {
   // Letters as indentation don't parse back, so that space is left out here.
   for (const space of spaces.slice(0, -1))
     for (const quote of quotes) {
-      const text = stringify(value, { space, quote });
+      const text = stringify(value, { space, quote })!;
       roundTrips++;
       const back = text === undefined ? { ok: true, value: undefined } : attempt(() => parse(text));
       if (!back.ok || !same(back.value, expected)) {
@@ -143,7 +145,7 @@ for (let n = 0; n < count; n++) {
 for (const example of examples) console.log(example);
 console.log(
   `${count} values (${linked} with shared references or cycles), ${calls} stringify calls ` +
-    `(${throws} throw in json5, all with ${[...errorKinds].join(" or ")}): ` +
-    `${differences} differ from json5 2.2.3; ` +
+    `(${throws} throw in ${engine.library}, all with ${[...errorKinds].join(" or ")}): ` +
+    `${differences} differ from ${engine.library}; ` +
     `${roundTrips} round trips, ${roundTripFailures} fail`,
 );

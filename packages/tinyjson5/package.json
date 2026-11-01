@@ -23,8 +23,22 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "./package.json"
+      ],
+      "json5": [
+        "./dist/json5.d.mts"
+      ],
+      "*": [
+        "./dist/index.d.mts"
+      ]
+    }
+  },
   "exports": {
     ".": "./dist/index.mjs",
+    "./json5": "./dist/json5.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -52,9 +66,17 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "comment-json": "4.6.2",
+    "comment-json-v5": "npm:comment-json@5.0.0",
     "esbuild": "^0.28.2",
+    "jju": "1.4.0",
     "json5": "2.2.3",
+    "json5-v1": "npm:json5@1.0.2",
+    "jsonc-parser": "3.3.1",
     "publint": "^0.3.25",
+    "strip-json-comments": "3.1.1",
+    "strip-json-comments-v2": "npm:strip-json-comments@2.0.1",
+    "strip-json-comments-v5": "npm:strip-json-comments@5.0.3",
     "tsrs": "0.20.1-ts7.1.0-beta",
     "typescript": "^7.0.2",
     "vite-plus": "^1.4.0"

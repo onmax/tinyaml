@@ -3,7 +3,7 @@
 // 4-space indent; `pnpm json5:fetch` puts json5 2.2.3 in .cache.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import * as tinyjson5 from "../src/index.ts";
+import * as tinyjson5 from "../src/json5/index.ts";
 
 const json5 = createRequire(import.meta.url)("json5") as typeof tinyjson5;
 

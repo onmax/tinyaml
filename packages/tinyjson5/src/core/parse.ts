@@ -1,6 +1,7 @@
-// A one-pass JSON5 parser over character codes. It accepts and rejects the
-// same inputs as json5 2.2.3, builds the same values, and reports errors at
-// the same line and column with the same message.
+// A one-pass JSON5 parser over character codes. In json5 mode it accepts and
+// rejects the same inputs as json5 2.2.3, builds the same values, and reports
+// errors at the same line and column with the same message.
+import { setMode, type Mode } from "./mode.ts";
 import { formatChar, isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Reviver = (this: any, key: string, value: any) => any;
@@ -9,22 +10,24 @@ let src = "";
 let pos = 0;
 let len = 0;
 
-/**
- * Parses a JSON5 string, constructing the JavaScript value or object described
- * by the string.
- */
-export function parse<T = any>(text: string, reviver?: Reviver | null): T {
-  src = String(text);
-  pos = 0;
-  len = src.length;
-  let root: unknown;
+/** Parses `text` the way `mode` says. */
+export function parse(text: string, reviver: Reviver | null | undefined, mode: Mode): unknown {
+  const outerMode = setMode(mode);
   try {
-    root = parseText();
+    src = String(text);
+    pos = 0;
+    len = src.length;
+    let root: unknown;
+    try {
+      root = parseText();
+    } finally {
+      src = "";
+    }
+    if (typeof reviver === "function") return internalize({ "": root }, "", reviver);
+    return root;
   } finally {
-    src = "";
+    if (outerMode) setMode(outerMode);
   }
-  if (typeof reviver === "function") return internalize({ "": root }, "", reviver) as T;
-  return root as T;
 }
 
 function parseText(): unknown {

@@ -2,7 +2,7 @@
 // (to check the stand-ins) and against tinyjson5, and prints the counts.
 // Usage: node scripts/json5-tests.ts [-v]
 import { createRequire } from "node:module";
-import * as tinyjson5 from "../src/index.ts";
+import * as tinyjson5 from "../src/json5/index.ts";
 import { runTapFile } from "./tap.ts";
 
 const json5 = createRequire(import.meta.url)("json5") as typeof tinyjson5;

@@ -1,18 +1,22 @@
-// Differential parse fuzzing against json5 2.2.3: take the json5-tests corpus
-// json5's own test inputs, and generated documents, apply a few random edits with
-// JSON5-significant pieces, and check that both parsers return the same value
-// or both throw. For inputs both reject it also compares the error message,
-// lineNumber, and columnNumber, and it compares the console.warn calls.
-// Usage: node scripts/fuzz.ts [iterations] [seed]
+// Differential parse fuzzing of one entry against the library it replaces
+// (scripts/engines.ts): take the json5-tests corpus, json5's own test inputs,
+// and generated documents, apply a few random edits with JSON5-significant
+// pieces, and check that both parsers return the same value or both throw.
+// For inputs both reject it also compares the error message, lineNumber, and
+// columnNumber, and it compares the console.warn calls.
+// Usage: node scripts/fuzz.ts [iterations] [seed] [engine]
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { parse } from "../src/index.ts";
 import { generator } from "./values.ts";
+import { engineFromArgs, numbers } from "./engines.ts";
 import { attempt, corpus, same, seeded, testInputs, type Outcome } from "./shared.ts";
 
-const json5 = createRequire(import.meta.url)("json5") as typeof import("../src/index.ts");
-const iterations = Number(process.argv[2] ?? 20000);
-const next = seeded(Number(process.argv[3] ?? 1));
+// The seeds are json5 2.2.3's output whatever the engine, so every engine
+// sees the same inputs.
+const json5 = createRequire(import.meta.url)("json5") as typeof import("../src/json5/index.ts");
+const engine = await engineFromArgs();
+const [iterations = 20000, seed = 1] = numbers();
+const next = seeded(seed);
 const pick = <T>(list: T[]) => list[Math.floor(next() * list.length)]!;
 
 // Seeds: the corpus, json5's test inputs, and 200 documents json5 writes for
@@ -149,18 +153,25 @@ for (let i = 0; i < iterations; i++) {
 const show = (r: Outcome) =>
   r.ok ? `value ${String(JSON.stringify(r.value)).slice(0, 120)}` : r.error;
 for (const input of inputs) {
-  const expected = run(json5.parse, input);
-  const actual = run(parse, input);
+  const expected = run(engine.t.parse, input);
+  const actual = run(engine.o.parse, input);
   if (expected.warnings !== actual.warnings) warnDiffs++;
   if (
     expected.ok !== actual.ok ||
     (expected.ok && actual.ok && !same(expected.value, actual.value))
   ) {
-    valueDiffs.set(input, `json5:     ${show(expected)}\n  tinyjson5: ${show(actual)}`);
+    valueDiffs.set(
+      input,
+      `${engine.library}: ${show(expected)}\n  ${engine.entry}: ${show(actual)}`,
+    );
   } else if (!expected.ok && !actual.ok) {
     bothThrow++;
     if (expected.error === actual.error) sameError++;
-    else errorDiffs.set(input, `json5:     ${expected.error}\n  tinyjson5: ${actual.error}`);
+    else
+      errorDiffs.set(
+        input,
+        `${engine.library}: ${expected.error}\n  ${engine.entry}: ${actual.error}`,
+      );
   }
 }
 
@@ -173,7 +184,7 @@ for (const [label, diffs] of [
     console.log(`--- ${label}: ${JSON.stringify(input).slice(0, 200)}\n  ${diff}`);
 const rate = bothThrow ? ((100 * sameError) / bothThrow).toFixed(3) : "100";
 console.log(
-  `${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated): ` +
+  `${engine.entry} against ${engine.library}: ${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated): ` +
     `${valueDiffs.size} value or accept/reject differences, ` +
     `${sameError}/${bothThrow} errors identical (${rate}%), ${warnDiffs} warning differences`,
 );

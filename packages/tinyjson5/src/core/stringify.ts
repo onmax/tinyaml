@@ -1,4 +1,5 @@
-// JSON5 output, byte for byte what json5 2.2.3 writes.
+// JSON5 output. In json5 mode, byte for byte what json5 2.2.3 writes.
+import { setMode, type Mode } from "./mode.ts";
 import { isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Replacer = (this: any, key: string, value: any) => any;
@@ -29,19 +30,17 @@ const REPLACEMENTS: Record<string, string> = {
   "\u2029": "\\u2029",
 };
 
-/** Converts a JavaScript value to a JSON5 string. */
-export function stringify(
-  value: any,
-  replacer?: Replacer | null,
-  space?: string | number | null,
-): string;
-export function stringify(
-  value: any,
-  replacer: (string | number)[],
-  space?: string | number | null,
-): string;
-export function stringify(value: any, options: StringifyOptions): string;
-export function stringify(value: any, replacer?: any, space?: any): string {
+/** Writes `value` as JSON5 the way `mode` says. */
+export function stringify(value: any, replacer: any, space: any, mode: Mode): string | undefined {
+  const outerMode = setMode(mode);
+  try {
+    return write(value, replacer, space);
+  } finally {
+    if (outerMode) setMode(outerMode);
+  }
+}
+
+function write(value: any, replacer: any, space: any): string | undefined {
   const stack: object[] = [];
   let indent = "";
   let propertyList: string[] | undefined;
@@ -77,7 +76,7 @@ export function stringify(value: any, replacer?: any, space?: any): string {
     gap = space.slice(0, 10);
   }
 
-  return serializeProperty("", { "": value }) as string;
+  return serializeProperty("", { "": value });
 
   function serializeProperty(key: string | number, holder: any): string | undefined {
     let value = holder[key];

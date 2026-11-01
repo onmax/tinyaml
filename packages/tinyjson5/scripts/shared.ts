@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { parse, stringify, type Reviver } from "../src/index.ts";
+import { parse, stringify, type Reviver } from "../src/json5/index.ts";
 import { runTapFile } from "./tap.ts";
 
 export type Outcome = { ok: true; value: unknown } | { ok: false; error: string };
