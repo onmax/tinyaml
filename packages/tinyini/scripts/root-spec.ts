@@ -152,13 +152,12 @@ function scalarText(v: unknown): string {
   return quote ? JSON.stringify(v) : v;
 }
 
-/** Calls toJSON where JSON.stringify does: on objects, functions and BigInts. */
-const toJSON = (v: any): unknown =>
-  v !== null &&
-  (typeof v === "object" || typeof v === "function" || typeof v === "bigint") &&
-  typeof v.toJSON === "function"
-    ? v.toJSON()
-    : v;
+/** Calls toJSON where JSON.stringify does, on objects, functions and BigInts, with the same key. */
+const toJSON = (v: any, key: string): unknown => {
+  if (v === null || !["object", "function", "bigint"].includes(typeof v)) return v;
+  const method = v.toJSON;
+  return typeof method === "function" ? method.call(v, key) : v;
+};
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 
 function header(path: string[]): string {
@@ -175,11 +174,11 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     const lines: [string, string][] = [];
     const children: [string, Record<string, unknown>][] = [];
     for (const k of keys) {
-      const v = toJSON(o[k]);
+      const v = toJSON(o[k], k);
       if (skipped(v) || k === "__proto__") continue;
       if (Array.isArray(v))
-        for (const item of v) {
-          const x = toJSON(item);
+        for (const [i, item] of Array.from(v).entries()) {
+          const x = toJSON(item, String(i));
           if (x !== null && typeof x === "object")
             throw new TypeError("tinyini can't write an object inside an array");
           lines.push([keyText(k, true), scalarText(skipped(x) ? null : x)]);
@@ -199,5 +198,5 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     }
     return out;
   };
-  return write(toJSON(value) as Record<string, unknown>, []);
+  return write(toJSON(value, "") as Record<string, unknown>, []);
 }

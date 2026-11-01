@@ -113,10 +113,11 @@ for (const [label, lib] of engines) {
     }
     if (!error === !panics) passed++;
     else {
-      if (label.startsWith("tinyini")) failed++;
+      failed++;
       console.log(`  FAIL ${label} ${name}: ${error ? String(error as Error) : "didn't panic"}`);
     }
   }
   console.log(`${label.padEnd(22)} ${passed}/${cases.length} pass`);
 }
-console.log(`tinyini: ${failed} failing tests`);
+// The WASM modules must pass too, or the harness is wrong.
+console.log(`${failed} failing tests`);

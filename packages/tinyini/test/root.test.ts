@@ -133,6 +133,23 @@ describe("stringify", () => {
       }),
     ).toBe("d=1970-01-01T00:00:00.000Z\nlist[]=null\nlist[]=1\n\n[empty]\n\n[n.m]\n");
     expect(() => stringify({ a: [{}] })).toThrow(TypeError);
+    // With the key JSON.stringify gives it.
+    const key = { toJSON: (k: string) => `<${k}>` };
+    expect(stringify({ a: key, list: [key], f: Object.assign(() => 1, key) })).toBe(
+      "a=<a>\nlist[]=<0>\nf=<f>\n",
+    );
+    expect(JSON.stringify({ a: key, list: [key], f: Object.assign(() => 1, key) })).toBe(
+      '{"a":"<a>","list":["<0>"],"f":"<f>"}',
+    );
+    // A toJSON getter is read once, as JSON.stringify reads it.
+    let reads = 0;
+    const once = {
+      get toJSON() {
+        return reads++ ? undefined : () => "ok";
+      },
+    };
+    expect(stringify({ x: once })).toBe("x=ok\n");
+    expect(reads).toBe(1);
   });
 
   it("leaves the options object alone", () => {

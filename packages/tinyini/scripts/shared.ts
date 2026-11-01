@@ -56,23 +56,29 @@ const builtIns = [
     .filter((value) => typeof value === "function"),
 ] as object[];
 
+// Taken now, since what restoreBuiltIns runs can overwrite them: ini 1.3.8
+// reads `[constructor]` then `hasOwn=1` into Object.hasOwn.
+const { defineProperty, getOwnPropertyDescriptor, getOwnPropertyDescriptors, hasOwn } = Object;
+const { deleteProperty, ownKeys } = Reflect;
+
 /** Runs fn, then puts back every property of the built-ins it changed. */
 export function restoreBuiltIns<T>(fn: () => T): T {
-  const saved = builtIns.map((o) => Object.getOwnPropertyDescriptors(o));
+  const saved: PropertyDescriptorMap[] = [];
+  for (const o of builtIns) saved.push(getOwnPropertyDescriptors(o));
   try {
     return fn();
   } finally {
-    builtIns.forEach((o, i) => {
+    for (let i = 0; i < builtIns.length; i++) {
+      const o = builtIns[i]!;
       const before = saved[i]!;
-      for (const key of Reflect.ownKeys(o))
-        if (!Object.hasOwn(before, key)) Reflect.deleteProperty(o, key);
-      for (const key of Reflect.ownKeys(before)) {
+      for (const key of ownKeys(o)) if (!hasOwn(before, key)) deleteProperty(o, key);
+      for (const key of ownKeys(before)) {
         const d = before[key as string]!;
-        const now = Object.getOwnPropertyDescriptor(o, key);
+        const now = getOwnPropertyDescriptor(o, key);
         if (!now || now.value !== d.value || now.get !== d.get || now.set !== d.set)
-          Object.defineProperty(o, key, d);
+          defineProperty(o, key, d);
       }
-    });
+    }
   }
 }
 

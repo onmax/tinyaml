@@ -17,7 +17,7 @@ for (const name of process.argv[2] ? [process.argv[2]] : ENGINES) {
     for (const [dir, file] of tests.flatMap((dir) => files(dir).map((file) => [dir, file]))) {
       const results = runTapFile(file!, lib, dir, lib === theirs ? fresh : undefined);
       const bad = results.filter((r) => !r.ok);
-      if (lib !== theirs) failed += bad.length;
+      failed += bad.length;
       total += results.length;
       passed += results.length - bad.length;
       console.log(
@@ -28,4 +28,5 @@ for (const name of process.argv[2] ? [process.argv[2]] : ENGINES) {
     console.log(`${who.padEnd(16)} ${"all".padEnd(36)} ${passed}/${total} pass`);
   }
 }
-console.log(`tinyini: ${failed} failing assertions`);
+// The originals must pass too, or the harness is wrong.
+console.log(`${failed} failing assertions`);

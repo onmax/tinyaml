@@ -7,7 +7,7 @@
 // tinyini must describe the same as with ini.
 // Usage: node scripts/fuzz-stringify.ts [values] [seed] [engine]
 import { generator } from "./values.ts";
-import { attempt, describe, engine, seeded, show } from "./shared.ts";
+import { attempt, describe, engine, restoreBuiltIns, seeded, show } from "./shared.ts";
 
 const {
   label,
@@ -108,6 +108,85 @@ for (let n = 0; n < count; n++) {
         );
       }
     }
+  // Every read and write of the value, its children and the options, in
+  // order, so that a getter that changes the options or a later value sees
+  // the same state in both.
+  if (n % 10 === 0)
+    for (const make of [() => ({}), () => ({ align: true, sort: true }), () => "s"]) {
+      const tape = (lib: typeof ini) => {
+        const log: string[] = [];
+        const wrapped = new WeakMap<object, object>();
+        const watch = (target: object, name: string): object => {
+          if (wrapped.has(target)) return wrapped.get(target)!;
+          const proxy = new Proxy(target, {
+            get(t, key, receiver) {
+              log.push(`get ${name}.${String(key)}`);
+              const v = Reflect.get(t, key, receiver);
+              return v && typeof v === "object" ? watch(v, `${name}.${String(key)}`) : v;
+            },
+            set(t, key, v, receiver) {
+              log.push(`set ${name}.${String(key)}`);
+              return Reflect.set(t, key, v, receiver);
+            },
+            has: (t, key) => (log.push(`has ${name}.${String(key)}`), Reflect.has(t, key)),
+            ownKeys: (t) => (log.push(`keys ${name}`), Reflect.ownKeys(t)),
+          });
+          wrapped.set(target, proxy);
+          return proxy;
+        };
+        const o = make();
+        const result = attempt(() =>
+          lib.encode(
+            value && typeof value === "object" ? watch(value, "value") : value,
+            typeof o === "object" ? watch(o, "opt") : o,
+          ),
+        );
+        return { result, log };
+      };
+      calls++;
+      const expected = tape(ini);
+      const actual = tape(tinyini);
+      // Both run out of stack on a cycle, at depths of their own.
+      const overflow = !expected.result.ok && /stack size/.test(expected.result.error);
+      if (
+        JSON.stringify(expected.result) !== JSON.stringify(actual.result) ||
+        (!overflow && expected.log.join() !== actual.log.join())
+      ) {
+        encodeDiffs++;
+        const at = expected.log.findIndex((entry, i) => entry !== actual.log[i]);
+        diffs.set(
+          `reads ${describe(value)} ${describe(make())}`,
+          `ini:     ${show(expected.result)} ${expected.log.slice(at, at + 3).join()}\n  tinyini: ${show(actual.result)} ${actual.log.slice(at, at + 3).join()}`,
+        );
+      }
+    }
+  // No options, with every option name set on Object.prototype: defaults
+  // that inherit from it show.
+  if (n % 10 === 0) {
+    const polluted = (lib: typeof ini) =>
+      restoreBuiltIns(() => {
+        Object.assign(Object.prototype, {
+          align: true,
+          bracketedArray: false,
+          newline: true,
+          platform: "win32",
+          section: "s",
+          sort: true,
+          whitespace: true,
+        });
+        return attempt(() => lib.encode(value));
+      });
+    calls++;
+    const expected = polluted(ini);
+    const actual = polluted(tinyini);
+    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      encodeDiffs++;
+      diffs.set(
+        `Object.prototype options ${describe(value)}`,
+        `ini:     ${show(expected)}\n  tinyini: ${show(actual)}`,
+      );
+    }
+  }
   const options: (() => unknown)[] = combinations.map((o) => () => ({ ...o }));
   if (n % 10 === 0) options.push(...odd);
   for (const [i, make] of options.entries()) {

@@ -45,7 +45,7 @@ const require = createRequire(import.meta.url);
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
-  tinyini: 1330,
+  tinyini: 1370,
   "tinyini/ini": 1590,
   "tinyini/ini-v2": 1420,
   "tinyini/ini-v1": 1430,

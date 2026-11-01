@@ -59,7 +59,7 @@ describe("one-ini", () => {
     });
 
   it("passes one-ini's own tests, as the WASM module does", () => {
-    expect(run("scripts/one-ini-tests.ts")).toMatch(/^tinyini: 0 failing tests$/m);
+    expect(run("scripts/one-ini-tests.ts")).toMatch(/^0 failing tests$/m);
   });
 
   // Four CTest runs of 203 tests, each starting Node: over a minute.

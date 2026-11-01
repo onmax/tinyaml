@@ -33,14 +33,19 @@ function normalize(o: Options, assign: (o: unknown, key: string, value: unknown)
 }
 
 /** Writes an object as INI text, as ini 7.0.0 does. */
-export function encode(obj: any, opt: EncodeOptions | string = {}): string {
-  // ini 1.x to 4.0 take only `section` and `whitespace`.
+export function encode(obj: any, opt?: EncodeOptions | string): string {
+  // ini 1.x to 4.0 take only `section` and `whitespace`; ini 2 to 4.0 default
+  // to an object with no prototype.
   if (legacy) {
-    opt = typeof opt === "string" ? { section: opt, whitespace: false } : opt || {};
+    opt =
+      typeof opt === "string"
+        ? { section: opt, whitespace: false }
+        : opt || (plain ? {} : Object.create(null));
     set(opt, "whitespace", (opt as Options).whitespace === true);
     return write(obj, opt as Options);
   }
-  if (typeof opt === "string") opt = { section: opt };
+  if (opt === undefined) opt = {};
+  else if (typeof opt === "string") opt = { section: opt };
   normalize(opt as Options, set);
   return write(obj, opt as Options);
 }
@@ -96,11 +101,15 @@ function write(obj: any, o: Options): string {
     // Escape the dots in the key that are not escaped already.
     const section = (o.section ? o.section + "." : "") + splitSections(k).join("\\.");
     // ini calls itself with { ...opt, section }, a fresh object it can write
-    // to; ini 1.x to 4.0 with { section, whitespace }.
-    let options: Options;
-    if (legacy) options = { section, whitespace: o.whitespace === true };
-    else normalize((options = { ...o, section }), assign);
-    const child = write(obj[k], options);
+    // to; ini 1.x to 4.0 with { section, whitespace }. ini 2 to 4.0 read
+    // `whitespace` before the value, the others after it.
+    const early = legacy && !plain && o.whitespace === true;
+    const value = obj[k];
+    const options: Options = legacy
+      ? { section, whitespace: plain ? o.whitespace === true : early }
+      : { ...o, section };
+    if (!legacy) normalize(options, assign);
+    const child = write(value, options);
     if (out.length && child.length) out += eol;
     out += child;
   }

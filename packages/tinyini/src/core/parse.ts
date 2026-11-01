@@ -75,16 +75,13 @@ export function decode(str: string, opt: DecodeOptions = {}): Record<string, any
       }
     }
 
-    let valueRaw: unknown = true;
     const eq = line.indexOf("=");
-    if (eq >= 0) {
-      // `(.*)` in ini's line pattern stops at U+2028 and U+2029, so a line
-      // that has one after its `=` does not match and is skipped.
-      if (!eq || (separators && /[\u2028\u2029]/.test(line.slice(eq)))) continue;
-      valueRaw = unquote(line.slice(eq + 1));
-    }
+    // `(.*)` in ini's line pattern stops at U+2028 and U+2029, so a line
+    // that has one after its `=` does not match and is skipped.
+    if (eq >= 0 && (!eq || (separators && /[\u2028\u2029]/.test(line.slice(eq))))) continue;
     // A quoted key or value can decode to any JSON value, so these lines stay
-    // as ini wrote them, and throw where ini throws.
+    // as ini wrote them, and throw where ini throws, in ini's order: the key,
+    // the option, then the value.
     const keyRaw = unquote(eq < 0 ? line : line.slice(0, eq)) as string;
     let isArray;
     // ini reads the option again for every key, so a getter can change it.
@@ -96,6 +93,7 @@ export function decode(str: string, opt: DecodeOptions = {}): Record<string, any
     }
     const key = isArray && keyRaw.endsWith("[]") ? keyRaw.slice(0, -2) : keyRaw;
     if (key === "__proto__") continue;
+    const valueRaw = eq < 0 ? true : unquote(line.slice(eq + 1));
     const value =
       valueRaw === "true"
         ? true

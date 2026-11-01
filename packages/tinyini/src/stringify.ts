@@ -21,13 +21,13 @@ const KEY = /^$|^[\s[;#"]|\s$|[=\r\n]/;
 const VALUE = /^[\s"']|\s$|[\r\n;#\\]|^(?:true|false|null)$/;
 const NAME = /^[\s"]|\s$|[\r\n]/;
 
-// toJSON is called where JSON.stringify calls it: on objects, functions and
-// BigInts.
-const own = (v: any): unknown =>
-  (typeof v === "object" ? v : typeof v === "function" || typeof v === "bigint") &&
-  typeof v.toJSON === "function"
-    ? v.toJSON()
-    : v;
+// toJSON is called where JSON.stringify calls it, on objects, functions and
+// BigInts, with the same key, and read once.
+const own = (v: any, key: string): unknown => {
+  const f =
+    (typeof v === "object" ? v : typeof v === "function" || typeof v === "bigint") && v.toJSON;
+  return typeof f === "function" ? f.call(v, key) : v;
+};
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 const text = (s: string, special: RegExp) => (special.test(s) ? JSON.stringify(s) : s);
 const scalar = (v: unknown) => (typeof v === "string" ? text(v, VALUE) : String(v));
@@ -47,12 +47,12 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     const lines: string[] = [];
     const children: [string, any][] = [];
     for (const k of keys) {
-      const v = own(o[k]);
+      const v = own(o[k], k);
       // parse drops __proto__ keys, so they aren't written.
       if (skipped(v) || k === "__proto__") continue;
       if (Array.isArray(v))
-        for (let item of v) {
-          item = own(item);
+        for (let i = 0; i < v.length; i++) {
+          const item = own(v[i], "" + i);
           if (item && typeof item === "object")
             throw new TypeError("tinyini can't write an object inside an array");
           lines.push(text(k, KEY) + "[]", scalar(skipped(item) ? null : item));
@@ -75,5 +75,5 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     }
     return out;
   };
-  return write(own(value) as Record<string, unknown>, "");
+  return write(own(value, "") as Record<string, unknown>, "");
 }

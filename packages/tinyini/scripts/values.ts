@@ -77,7 +77,8 @@ export function generator(next: () => number) {
     if (r < 0.82) return () => 1;
     if (r < 0.84) return Symbol("s");
     if (r < 0.85) return 10n;
-    if (r < 0.86) return { toJSON: () => "json" };
+    // JSON.stringify passes the key, as tinyini's root does.
+    if (r < 0.86) return { toJSON: (key: string) => `json ${key}` };
     if (r < 0.87) return Object.assign(() => 1, { toJSON: () => "fn json" });
     if (r < 0.9) return { a: 1, b: [2, "c"] };
     return "";

@@ -7,17 +7,21 @@
 // spliced in, so that some aren't UTF-8. The results must describe the same,
 // prototypes and key order included, or throw the same error. Then odd
 // arguments, version() and TokenTypes.
-// Usage: node scripts/one-ini-fuzz.ts [inputs] [seed] [one-ini|one-ini-v0.1]
+// THEIRS=<path> compares with another build of @one-ini/wasm, such as 0.2.2,
+// with the version it reports read as the entry's.
+// Usage: [THEIRS=<path>] node scripts/one-ini-fuzz.ts [inputs] [seed] [one-ini|one-ini-v0.1]
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { attempt, describe, iniInputs, samples, seeded, show } from "./shared.ts";
 
 const require = createRequire(import.meta.url);
 const iterations = Number(process.argv[2] ?? 20000);
 const next = seeded(Number(process.argv[3] ?? 1));
 const name = process.argv[4] ?? "one-ini";
-const id = require.resolve(name === "one-ini" ? "@one-ini/wasm" : "one-ini-v0.1");
+const id = process.env.THEIRS
+  ? resolve(process.env.THEIRS)
+  : require.resolve(name === "one-ini" ? "@one-ini/wasm" : "one-ini-v0.1");
 // The WASM module leaks memory on every call, about 48 KiB for a 1 KiB file,
 // and once it reaches 4 GiB every call throws `RuntimeError: unreachable`.
 // A fresh instance every 5,000 inputs keeps it far from that.
@@ -89,7 +93,7 @@ const check = (label: string, call: (lib: any) => unknown) => {
 
   const b = attempt(() => call(ours));
   if (!a.ok) throws++;
-  if (JSON.stringify(a) !== JSON.stringify(b))
+  if (JSON.stringify(a).replaceAll(theirs.version(), ours.version()) !== JSON.stringify(b))
     diffs.set(label, `wasm:    ${show(a)}\n  tinyini: ${show(b)}`);
 };
 const array = (u: unknown) => (u instanceof Uint32Array ? `Uint32Array ${u.join()}` : u);

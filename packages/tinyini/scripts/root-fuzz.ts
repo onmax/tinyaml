@@ -109,24 +109,21 @@ for (let i = 0; i < seeds.length + iterations; i++) {
 }
 
 // What parse reads back from what stringify writes for `v`.
-const model = (v: any, sort: boolean, inArray = false): any => {
-  if (
-    v !== null &&
-    (typeof v === "object" || typeof v === "function" || typeof v === "bigint") &&
-    typeof v.toJSON === "function"
-  )
-    v = v.toJSON();
+const model = (v: any, sort: boolean, key: string, inArray = false): any => {
+  const method =
+    v !== null && ["object", "function", "bigint"].includes(typeof v) ? v.toJSON : undefined;
+  if (typeof method === "function") v = method.call(v, key);
   if (v === undefined || typeof v === "function" || typeof v === "symbol")
     return inArray ? null : undefined;
   if (v === null || typeof v === "boolean") return v;
   if (typeof v !== "object") return String(v);
-  if (Array.isArray(v)) return Array.from(v, (x) => model(x, sort, true));
+  if (Array.isArray(v)) return Array.from(v, (x, i) => model(x, sort, String(i), true));
   const out = Object.create(null);
   const keys = Object.keys(v);
   if (sort) keys.sort();
   const sections: [string, unknown][] = [];
   for (const k of keys) {
-    const m = model(v[k], sort);
+    const m = model(v[k], sort, k);
     if (m === undefined || k === "__proto__" || (Array.isArray(m) && !m.length)) continue;
     if (m && typeof m === "object" && !Array.isArray(m)) sections.push([k, m]);
     else out[k] = m;
@@ -158,7 +155,7 @@ for (let n = 0; n < count; n++) {
       if (!a.ok) continue;
       trips++;
       const back = attempt(() => parse(stringify(value, { ...options })));
-      const want = attempt(() => model(value, !!options.sort));
+      const want = attempt(() => model(value, !!options.sort, ""));
       if (JSON.stringify(back) !== JSON.stringify(want))
         report(`round trip ${describe(value)} ${JSON.stringify(options)}`, want, back);
     }

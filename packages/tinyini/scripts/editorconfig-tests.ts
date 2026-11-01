@@ -55,7 +55,8 @@ for (const { name, pkg, entry } of runs) {
     bin,
   ]);
   const only = ours.failed.filter((t) => !theirs.failed.includes(t));
-  worse += only.length + (ours.total === theirs.total ? 0 : 1);
+  // A run with no tests, or a different count, means the harness broke.
+  worse += only.length + (theirs.total && ours.total === theirs.total ? 0 : 1);
   console.log(
     `${name} with @one-ini/wasm: ${theirs.total - theirs.failed.length}/${theirs.total} pass`,
   );
