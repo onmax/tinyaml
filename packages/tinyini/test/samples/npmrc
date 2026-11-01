@@ -1,0 +1,22 @@
+; npm config
+registry=https://registry.npmjs.org/
+@myorg:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+//registry.npmjs.org/:_authToken=npm_XXXXXXXXXXXXXXXXXXXX
+always-auth=true
+save-exact=true
+engine-strict = true
+auto-install-peers=true
+strict-peer-dependencies=false
+shamefully-hoist=false
+public-hoist-pattern[]=*eslint*
+public-hoist-pattern[]=*prettier*
+node-linker=isolated
+fund=false
+audit=false
+loglevel=warn
+init-author-name=Ada Lovelace
+init-license="MIT"
+cafile=/etc/ssl/certs/ca.pem
+prefix = ~/.npm-global
+# trailing comment
