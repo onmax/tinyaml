@@ -2,9 +2,11 @@
   <img src="./.github/banner.svg" alt="tinyini" width="100%">
 </h1>
 
-<!-- automd:comark-badges name=tinyini -->
+<!-- automd:comark-badges name=tinyini size=size-and-speed -->
 
 [![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyini&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=1.6+KiB+gzip)](#size-and-speed)
+[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyini?activeTab=dependencies)
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
@@ -28,8 +30,6 @@ Already on ini? Change one import and keep your code:
 Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
 
 <!-- /automd -->
-
-I wrote it as a drop-in for ini 7.0.0, the version [confbox](https://github.com/unjs/confbox) 0.3.2 bundles.
 
 [Get started](#get-started) · [Coming from ini](#coming-from-ini) · [Compatibility](#compatibility-with-ini-700) · [Size and speed](#size-and-speed)
 

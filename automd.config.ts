@@ -35,10 +35,30 @@ const table = (rows: string[][], right: boolean[]) => {
 const kib = (bytes: number) => (bytes / 1024).toFixed(1);
 const times = ({ theirs, ours }: Timing) => `${(theirs / ours).toFixed(1)}×`;
 
+const readDropIns = (): DropIns => JSON.parse(readFileSync(".github/drop-ins.json", "utf8"));
+
+// The size of the package's own entry, which for tinyaml is its root API.
+const facts = (name: string, section: string) => {
+  const data = readDropIns();
+  const own = [data.root, ...data.dropIns].find((r) => r.entry === name)!;
+  const pkg = JSON.parse(readFileSync(`packages/${name}/package.json`, "utf8"));
+  const dependencies = String(Object.keys(pkg.dependencies ?? {}).length);
+  return [
+    badge("size", { label: "size", value: `${kib(own.gzip.ours)} KiB gzip` }, `#${section}`),
+    badge(
+      "dependencies",
+      { label: "dependencies", value: dependencies },
+      `https://www.npmjs.com/package/${name}?activeTab=dependencies`,
+    ),
+  ];
+};
+
 export default {
   input: ["README.md", "packages/*/README.md"],
   generators: {
-    // `name=tinyaml` for one package, `packages=a,b` for the root.
+    // `name=tinyaml` for one package, `packages=a,b` for the root. A package
+    // also gets its gzip size, from .github/drop-ins.json, and its dependency
+    // count, from its package.json; `size=` names the README section to link.
     "comark-badges": {
       name: "comark-badges",
       generate({ args }) {
@@ -49,6 +69,7 @@ export default {
                 { source: "npm-version", package: args.name, label: "release", icon: "npm" },
                 `https://github.com/${REPO}/releases`,
               ),
+              ...facts(args.name, args.size),
             ]
           : String(args.packages)
               .split(",")
@@ -76,7 +97,7 @@ export default {
     "drop-ins": {
       name: "drop-ins",
       generate({ args }) {
-        const data: DropIns = JSON.parse(readFileSync(".github/drop-ins.json", "utf8"));
+        const data = readDropIns();
         const rows = data.dropIns.filter((r) => !args.package || r.package === args.package);
         const lines = table(
           [

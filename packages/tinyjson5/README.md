@@ -2,9 +2,11 @@
   <img src="./.github/banner.svg" alt="tinyjson5" width="100%">
 </h1>
 
-<!-- automd:comark-badges name=tinyjson5 -->
+<!-- automd:comark-badges name=tinyjson5 size=size-and-speed -->
 
 [![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyjson5&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=3.0+KiB+gzip)](#size-and-speed)
+[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyjson5?activeTab=dependencies)
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
@@ -28,8 +30,6 @@ Already on json5? Change one import and keep your code:
 Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
 
 <!-- /automd -->
-
-I wrote it as a drop-in for json5 2.2.3, the version [confbox](https://github.com/unjs/confbox) bundles.
 
 [Get started](#get-started) · [Coming from json5](#coming-from-json5) · [Compatibility](#compatibility-with-json5-223) · [Size and speed](#size-and-speed)
 

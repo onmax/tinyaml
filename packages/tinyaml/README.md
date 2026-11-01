@@ -2,9 +2,11 @@
   <img src="./.github/banner.svg" alt="tinyaml" width="100%">
 </h1>
 
-<!-- automd:comark-badges name=tinyaml -->
+<!-- automd:comark-badges name=tinyaml size=size -->
 
 [![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=8.1+KiB+gzip)](#size)
+[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyaml?activeTab=dependencies)
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
@@ -36,8 +38,6 @@ Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.1 KiB
 Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
 
 <!-- /automd -->
-
-I wrote it for [Comark](https://comark.dev), which reads YAML for frontmatter and component props and was bundling all of js-yaml to do it.
 
 [Get started](#get-started) · [Switching](#switching-from-another-library) · [Size](#size) · [Correctness](#correctness) · [Speed](#speed) · [Comparison](#how-it-compares) · [API](#api) · [npm](https://www.npmjs.com/package/tinyaml)
 
