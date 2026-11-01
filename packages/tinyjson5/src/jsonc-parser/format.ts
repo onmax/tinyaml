@@ -100,22 +100,10 @@ export function format(
     if (
       !hasError &&
       (!range || (startOffset < rangeEnd && endOffset > rangeStart)) &&
-      !sameText(text, startOffset, endOffset)
+      documentText.substring(startOffset, endOffset) !== text
     ) {
       editOperations.push({ offset: startOffset, length: endOffset - startOffset, content: text });
     }
-  }
-
-  // tinyjson5: compared in place, without cutting the text out, where the
-  // offsets are whole and in the text; else as jsonc-parser compares it.
-  function sameText(text: string, startOffset: number, endOffset: number) {
-    return Number.isInteger(startOffset) &&
-      Number.isInteger(endOffset) &&
-      0 <= startOffset &&
-      startOffset <= endOffset &&
-      endOffset <= documentText.length
-      ? endOffset - startOffset === text?.length && documentText.startsWith(text, startOffset)
-      : documentText.substring(startOffset, endOffset) === text;
   }
 
   let firstToken = scanNext();

@@ -129,10 +129,24 @@ export interface ParseError {
 }
 
 // jsonc-parser's switch, which doesn't read the exported enum: its names, in order.
-const ERROR_NAMES =
-  "InvalidSymbol InvalidNumberFormat PropertyNameExpected ValueExpected ColonExpected CommaExpected CloseBraceExpected CloseBracketExpected EndOfFileExpected InvalidCommentToken UnexpectedEndOfComment UnexpectedEndOfString UnexpectedEndOfNumber InvalidUnicode InvalidEscapeCharacter InvalidCharacter".split(
-    " ",
-  );
+const ERROR_NAMES = [
+  "InvalidSymbol",
+  "InvalidNumberFormat",
+  "PropertyNameExpected",
+  "ValueExpected",
+  "ColonExpected",
+  "CommaExpected",
+  "CloseBraceExpected",
+  "CloseBracketExpected",
+  "EndOfFileExpected",
+  "InvalidCommentToken",
+  "UnexpectedEndOfComment",
+  "UnexpectedEndOfString",
+  "UnexpectedEndOfNumber",
+  "InvalidUnicode",
+  "InvalidEscapeCharacter",
+  "InvalidCharacter",
+];
 
 export function printParseErrorCode(
   code: ParseErrorCode,
@@ -155,10 +169,13 @@ export function printParseErrorCode(
   | "InvalidCharacter"
   | "<unknown ParseErrorCode>" {
   return (
-    Number.isInteger(code) && code >= 1 && code <= 16
-      ? ERROR_NAMES[code - 1]
-      : "<unknown ParseErrorCode>"
-  ) as never;
+    // The numbers its cases match, without Number.isInteger.
+    (
+      typeof code === "number" && code >= 1 && code <= 16 && code % 1 === 0
+        ? ERROR_NAMES[code - 1]
+        : "<unknown ParseErrorCode>"
+    ) as never
+  );
 }
 
 export type NodeType = "object" | "array" | "property" | "string" | "number" | "boolean" | "null";
