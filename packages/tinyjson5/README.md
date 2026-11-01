@@ -104,9 +104,9 @@ import { parse, modify, applyEdits } from "jsonc-parser";
 import { parse, modify, applyEdits } from "tinyjson5/jsonc-parser";
 ```
 
-Every subpath is checked a second way, with differential fuzzing: inputs made by editing the json5-tests corpus, each library's own test inputs and generated documents at random, and run through both with every option the subpath takes. The details below give the counts and list each known difference.
+Every subpath is checked a second way, with differential fuzzing: inputs made by editing the json5-tests corpus, each library's own test inputs and generated documents at random, and run through both, each with options picked from all the subpath takes. The details below give the counts and list each known difference.
 
-All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` hook for `.json5` files.
+All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` hook for `.json5` files. Node 22.12 and later load them with `require()` too, which returns the module's exports, so a default export, such as strip-json-comments' function, is under `.default`.
 
 <details>
 <summary>json5 2.2.3 and 1.0.2: what's different</summary>
@@ -116,7 +116,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 - json5 1.0.2 is compiled by Babel, and its `for...of` loops go through iterators. A replacer list is iterated as Babel does, but strings and key lists are not, so a patched `String.prototype[Symbol.iterator]`, or an `Array.prototype[Symbol.iterator]` whose `next` or `return` changes, is used differently.
 - A `parse` called from inside `console.warn` while json5 warns about U+2028 returns the inner result in json5, whose shared state it overwrites. tinyjson5 throws an end-of-input error there.
 - Stack depth: `stringify` and the reviver recurse in both, and run out of stack at slightly different depths.
-- 1,000,500 inputs each (500 seeds and a million edits of them) give the same value or the same error, message and position, as json5 2.2.3 (739,687 errors) and json5 1.0.2 (757,833 errors, 4,543 of them that `RangeError`), and the same warnings. 14,000 random values through every space, quote and replacer, 1,037,400 `stringify` calls each, are byte-identical, and every round trip reads back.
+- 1,000,500 inputs each (500 seeds and a million edits of them) give the same value or the same error, message and position, as json5 2.2.3 (739,687 errors) and json5 1.0.2 (757,833 errors, 4,543 of them that `RangeError`), and the same warnings. 14,000 random values through every space, quote and replacer, 1,037,400 `stringify` calls each, give byte-identical output, or the same `TypeError` where json5 throws (14,025 calls, for cycles and a `"__proto__"` key that reaches `Date.prototype.toJSON`), and every round trip reads back.
 
 </details>
 
@@ -145,8 +145,8 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 - `stringify` reads each object's comments once per call. Code that runs while the value is written and adds or changes comments, such as a getter, a `toJSON`, or the `toString` of a comment's value, isn't seen, where comment-json reads them again. An object with a getter for a comment is read as comment-json reads it, and a proxy sees other traps. Without a replacer only, and only with `Symbol.for` and the prototypes of objects, arrays and `CommentArray` as they were; otherwise comments are read as comment-json reads them.
 - `tokenize` builds esprima's tokens itself for JSON with comments, and hands any other input to esprima's own tokenizer, which comes along unchanged.
 - Both faster paths, the comment read and the tokenizer, run only while the built-ins they rely on are the engine's own, and otherwise do what comment-json and esprima do. They tell from each built-in's name and source, read from its descriptor without running a getter, and from what it does on a known input. A program that replaces `globalThis`, `Object`, `Function`, `Reflect`, `Object.getOwnPropertyDescriptor`, `Reflect.apply` or `Function.prototype.toString` before tinyjson5 loads can fool that check, which has to read and call them before it can check anything.
-- No `require("comment-json")`: ES modules only, and no deep imports.
-- 1,000,509 inputs (509 seeds and a million edits of them), 8,004,072 calls: `parse` with and without comments and with a reviver, compared with every comment symbol and token; `tokenize`; `stringify` with each space and replacer; `assign`, `moveComments` and `removeComments`. All give the same result or throw the same error, with esprima's and comment-json's error fields.
+- No CommonJS build and no deep imports. `require("tinyjson5/comment-json")` works on Node 22.12 and later.
+- 1,000,509 inputs (509 seeds and a million edits of them), 8,004,072 calls: `parse` with and without comments and with a reviver, compared with every comment symbol and token; `tokenize`; `stringify` with a space and a replacer picked at random; `assign`, `moveComments` and `removeComments`. All give the same result or throw the same error, with esprima's and comment-json's error fields.
 
 </details>
 
@@ -155,7 +155,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 
 - Not jju's `utils`: its `require` hook for `.json5` files, its `JSON.parse` patch and its middleware, which are Node-only.
 - Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's code and fields but a shorter message. On Node it's Node's own `AssertionError`, as in jju.
-- 1,000,648 inputs (648 seeds and a million edits of them), 6,003,888 calls: `parse` in each mode with random options, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
+- 1,000,648 inputs (648 seeds and a million edits of them), 6,003,888 calls: `parse` with a mode and options picked at random, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
 
 </details>
 

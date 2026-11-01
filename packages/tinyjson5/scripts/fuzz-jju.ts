@@ -1,7 +1,7 @@
 // Differential fuzzing of tinyjson5/jju against jju 1.4.0. Seeds are the
 // json5-tests corpus, jju's portable tests and update fixtures, and
 // generated documents; each input gets a few random edits. For each input it
-// compares: parse in each mode with random options (reserved and duplicate
+// compares: parse in a random mode with random options (reserved and duplicate
 // keys, null prototypes, legacy, a reviver), as a dump of the value with its
 // prototypes; tokenize; analyze; stringify of the value with random options;
 // update of the input with a changed value; and each error, with its row

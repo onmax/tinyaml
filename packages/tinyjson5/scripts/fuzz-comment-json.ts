@@ -4,7 +4,7 @@
 // random edits. For each input it compares: parse with and without
 // removing comments and with a reviver, as a dump of every value with its
 // prototype, keys and comment symbols (each comment's own keys in order);
-// tokenize; stringify of the result with each space and replacer, after
+// tokenize; stringify of the result with a random space and replacer, after
 // assign, moveComments and removeComments on a copy; and each error.
 // Usage: node scripts/fuzz-comment-json.ts [iterations] [seed]
 import { readdirSync, readFileSync } from "node:fs";
