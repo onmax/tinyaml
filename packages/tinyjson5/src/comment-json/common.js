@@ -1,19 +1,21 @@
 // tinyjson5: an assignment or delete as comment-json's sloppy-mode code
 // makes it, which fails silently where this module's strict mode would
 // throw, and still throws what a setter or proxy throws.
+// On a primitive, as there, a setter its prototype has runs with the
+// primitive as this, and anything else fails silently.
 const sloppy_set = (object, key, value) => {
   if (object === null || object === undefined) {
     object[key] = value
-  } else if (typeof object === 'object' || typeof object === 'function') {
-    Reflect.set(object, key, value)
+  } else {
+    Reflect.set(Object(object), key, value, object)
   }
 }
 
 const sloppy_delete = (object, key) => {
   if (object === null || object === undefined) {
     delete object[key]
-  } else if (typeof object === 'object' || typeof object === 'function') {
-    Reflect.deleteProperty(object, key)
+  } else {
+    Reflect.deleteProperty(Object(object), key)
   }
 }
 
