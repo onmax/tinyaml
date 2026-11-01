@@ -6,13 +6,22 @@
 // anything else it hands the whole text to esprima, which also throws its
 // errors.
 import * as esprima from './esprima.js'
+import {untouched} from './builtins.js'
 
-const PUNCTUATION = '{}[],:-'
+// { } [ ] , : -
+const punctuation = c => c === 123 || c === 125 || c === 91 || c === 93 || c === 44 || c === 58 || c === 45
 
 const point = (line, column) => ({line, column})
 
 export const tokenize = code => {
-  if (typeof code === 'string') {
+  // Only with the string and array methods it calls as they were: esprima
+  // calls them in another order and number.
+  if (
+    typeof code === 'string'
+    && untouched(String.prototype, 'charCodeAt')
+    && untouched(String.prototype, 'slice')
+    && untouched(Array.prototype, 'push')
+  ) {
     const tokens = fast(code)
     if (tokens) {
       return tokens
@@ -183,7 +192,7 @@ const fast = code => {
       }
 
       type = 'Numeric'
-    } else if (PUNCTUATION.includes(code[index])) {
+    } else if (punctuation(c)) {
       // esprima reads "--" and "-=" as one punctuator.
       if (c === 45) {
         const d = code.charCodeAt(index + 1)
@@ -195,9 +204,9 @@ const fast = code => {
       index ++
       type = 'Punctuator'
     } else {
-      const word = code.startsWith('true', index) || code.startsWith('null', index)
+      const word = at_word(code, index, 'true') || at_word(code, index, 'null')
         ? 4
-        : code.startsWith('false', index)
+        : at_word(code, index, 'false')
           ? 5
           : 0
       if (!word) {
@@ -216,7 +225,7 @@ const fast = code => {
       const d = code.charCodeAt(index)
       if (
         index < length
-        && !(PUNCTUATION.includes(code[index]) || d === 32 || d === 9 || d === 10 || d === 13 || d === 34 || d === 47)
+        && !(punctuation(d) || d === 32 || d === 9 || d === 10 || d === 13 || d === 34 || d === 47)
       ) {
         return null
       }
@@ -245,4 +254,15 @@ const digits = (code, index) => {
 
     index ++
   }
+}
+
+// Whether the word starts at index, by character code.
+const at_word = (code, index, word) => {
+  for (let i = 0; i < word.length; i ++) {
+    if (code.charCodeAt(index + i) !== word.charCodeAt(i)) {
+      return false
+    }
+  }
+
+  return true
 }
