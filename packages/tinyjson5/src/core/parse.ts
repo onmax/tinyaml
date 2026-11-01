@@ -471,26 +471,33 @@ function internalize(holder: any, name: string, reviver: Reviver): unknown {
       for (let i = 0; i < value.length; i++) {
         const key = String(i);
         const replacement = internalize(value, key, reviver);
-        // Deleting leaves a hole, as json5 does. json5 runs in sloppy mode, where
-        // deleting a non-configurable property fails silently; Reflect does too.
-        if (replacement === undefined) Reflect.deleteProperty(value, key);
+        // Deleting leaves a hole, as json5 does.
+        if (replacement === undefined) remove(value, key);
         else define(value, key, replacement);
       }
     } else if (lean) {
       for (const key of Object.keys(value)) {
         const replacement = internalize(value, key, reviver);
-        if (replacement === undefined) Reflect.deleteProperty(value, key);
+        if (replacement === undefined) remove(value, key);
         else define(value, key, replacement);
       }
     } else {
       for (const key in value) {
         const replacement = internalize(value, key, reviver);
-        if (replacement === undefined) Reflect.deleteProperty(value, key);
+        if (replacement === undefined) remove(value, key);
         else define(value, key, replacement);
       }
     }
   }
   return reviver.call(holder, name, value);
+}
+
+// json5 2.2.3 runs in sloppy mode, where deleting a non-configurable property
+// fails silently, as Reflect does. json5 1.0.2 is compiled to strict mode,
+// where it throws, as `delete` does in this module.
+function remove(object: any, key: string): void {
+  if (v1) delete object[key];
+  else Reflect.deleteProperty(object, key);
 }
 
 // json5 2.2.3 throws when the reviver made the property non-configurable;

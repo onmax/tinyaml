@@ -49,6 +49,20 @@ describe.each(pairs)("against %s", (_, ours, theirs) => {
     const value = { a: 1, b: 2, c: 3 };
     expect(ours.stringify(value, make() as never)).toBe(theirs.stringify(value, make()));
   });
+
+  it("deletes what the reviver drops as the original does, when it can't be deleted", () => {
+    for (const text of ["[0]", "{a: 0}"]) {
+      const lock = function (this: any, key: string, value: unknown) {
+        if (key === "") return value;
+        Object.defineProperty(this, key, { configurable: false });
+        return undefined;
+      };
+      expect(
+        outcome(() => ours.parse(text, lock)),
+        text,
+      ).toEqual(outcome(() => theirs.parse(text, lock)));
+    }
+  });
 });
 
 describe.skipIf(!main)("root options", () => {
