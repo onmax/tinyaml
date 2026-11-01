@@ -6,7 +6,7 @@
 // anything else it hands the whole text to esprima, which also throws its
 // errors.
 import * as esprima from './esprima.js'
-import {untouched} from './builtins.js'
+import {array_prototype, string_prototype, untouched} from './builtins.js'
 
 // { } [ ] , : -
 const punctuation = c => c === 123 || c === 125 || c === 91 || c === 93 || c === 44 || c === 58 || c === 45
@@ -18,9 +18,9 @@ export const tokenize = code => {
   // calls them in another order and number.
   if (
     typeof code === 'string'
-    && untouched(String.prototype, 'charCodeAt')
-    && untouched(String.prototype, 'slice')
-    && untouched(Array.prototype, 'push')
+    && untouched(string_prototype, 'charCodeAt')
+    && untouched(string_prototype, 'slice')
+    && untouched(array_prototype, 'push')
   ) {
     const tokens = fast(code)
     if (tokens) {

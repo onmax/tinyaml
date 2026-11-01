@@ -28,7 +28,20 @@ import {
   is_raw_json
 } from './common.js'
 import {CommentArray} from './array.js'
-import {builtin, descriptor_of, own, uncurry, untouched} from './builtins.js'
+import {
+  HostMap,
+  SymbolCtor,
+  array_prototype,
+  create,
+  descriptor_of,
+  key_for,
+  map_get,
+  map_set,
+  object_prototype,
+  own_symbols,
+  prototype_of,
+  untouched
+} from './builtins.js'
 
 // String constants
 const SPACE = ' '
@@ -36,11 +49,16 @@ const LF = '\n'
 const STR_NULL = 'null'
 
 // Symbol tags
-const BEFORE = prop => `${PREFIX_BEFORE}:${prop}`
-const AFTER_PROP = prop => `${PREFIX_AFTER_PROP}:${prop}`
-const AFTER_COLON = prop => `${PREFIX_AFTER_COLON}:${prop}`
-const AFTER_VALUE = prop => `${PREFIX_AFTER_VALUE}:${prop}`
-const AFTER = prop => `${PREFIX_AFTER}:${prop}`
+// tinyjson5: a prop's comments are looked up by `${prefix}:` and the prop,
+// which make their symbol's key only where they're looked up one by one.
+const BEFORE = `${PREFIX_BEFORE}:`
+const AFTER_PROP = `${PREFIX_AFTER_PROP}:`
+const AFTER_COLON = `${PREFIX_AFTER_COLON}:`
+const AFTER_VALUE = `${PREFIX_AFTER_VALUE}:`
+const AFTER = `${PREFIX_AFTER}:`
+const symbol_key = (tag, prop) => prop === UNDEFINED
+  ? tag
+  : `${tag}${prop}`
 
 const quote = JSON.stringify
 const comment_stringify = (value, line) => line
@@ -103,15 +121,7 @@ const count_trailing_line_breaks = (str, gap) => {
 // it looks for, so a value without comments reads nothing more.
 const PENDING = {}
 let hosts = null
-const PROTOTYPES = [Object.prototype, Array.prototype, CommentArray.prototype]
-const key_for = builtin(Symbol, 'keyFor')
-const own_symbols = builtin(Object, 'getOwnPropertySymbols')
-const prototype_of = builtin(Object, 'getPrototypeOf')
-const create = builtin(Object, 'create')
-// Map and its methods, bound once to the native call, so a lookup allocates nothing.
-const HostMap = own(globalThis, 'Map')
-const map_get = uncurry(builtin(Map.prototype, 'get'))
-const map_set = uncurry(builtin(Map.prototype, 'set'))
+const PROTOTYPES = [object_prototype, array_prototype, CommentArray.prototype]
 
 const registered = object => {
   const symbols = own_symbols(object)
@@ -128,10 +138,10 @@ const registered = object => {
 // they are by default, without a comment of their own to inherit.
 const standard_prototypes = () =>
   map_get !== undefined
-  && untouched(Symbol, 'for')
-  && prototype_of(CommentArray.prototype) === Array.prototype
-  && prototype_of(Array.prototype) === Object.prototype
-  && prototype_of(Object.prototype) === null
+  && untouched(SymbolCtor, 'for')
+  && prototype_of(PROTOTYPES[2]) === PROTOTYPES[1]
+  && prototype_of(PROTOTYPES[1]) === PROTOTYPES[0]
+  && prototype_of(PROTOTYPES[0]) === null
   && !registered(PROTOTYPES[0])
   && !registered(PROTOTYPES[1])
   && !registered(PROTOTYPES[2])
@@ -156,13 +166,21 @@ const read_comments = host => {
       return null
     }
 
-    comments[key] = value.value
+    // By its key, or by `${prefix}:` and then the prop after it.
+    const colon = key.indexOf(COLON)
+    if (colon === - 1) {
+      comments[key] = value.value
+    } else {
+      const bucket = key.slice(0, colon + 1)
+      const by_prop = comments[bucket] || (comments[bucket] = create(null))
+      by_prop[key.slice(colon + 1)] = value.value
+    }
   }
 
   return comments
 }
 
-const comments_of = (host, symbol_tag) => {
+const comments_of = (host, tag, prop) => {
   if (hosts === PENDING) {
     hosts = standard_prototypes()
       ? new HostMap()
@@ -170,7 +188,7 @@ const comments_of = (host, symbol_tag) => {
   }
 
   if (!hosts) {
-    return host[Symbol.for(symbol_tag)]
+    return host[Symbol.for(symbol_key(tag, prop))]
   }
 
   let comments = map_get(hosts, host)
@@ -178,13 +196,20 @@ const comments_of = (host, symbol_tag) => {
     map_set(hosts, host, comments = read_comments(host))
   }
 
-  return comments
-    ? comments[symbol_tag]
-    : host[Symbol.for(symbol_tag)]
+  if (!comments) {
+    return host[Symbol.for(symbol_key(tag, prop))]
+  }
+
+  if (prop === UNDEFINED) {
+    return comments[tag]
+  }
+
+  const by_prop = comments[tag]
+  return by_prop && by_prop[prop]
 }
 
-const process_comments = (host, symbol_tag, deeper_gap, display_block) => {
-  const comments = comments_of(host, symbol_tag)
+const process_comments = (host, tag, prop, deeper_gap, display_block) => {
+  const comments = comments_of(host, tag, prop)
   if (!comments || !comments.length) {
     return EMPTY
   }
@@ -271,7 +296,7 @@ const join = (one, two, gap) =>
       : EMPTY
 
 const join_content = (inside, value, gap) => {
-  const comment = process_comments(value, PREFIX_BEFORE, gap + indent, true)
+  const comment = process_comments(value, PREFIX_BEFORE, UNDEFINED, gap + indent, true)
 
   return join(comment, inside, gap)
 }
@@ -315,7 +340,7 @@ const array_stringify = (value, gap) => {
 
     const before = join(
       after_comma,
-      process_comments(value, BEFORE(i), deeper_gap),
+      process_comments(value, BEFORE, i, deeper_gap),
       deeper_gap
     )
 
@@ -324,14 +349,14 @@ const array_stringify = (value, gap) => {
     // JSON.stringify([undefined])  => [null]
     inside += stringify(i, value, deeper_gap) || STR_NULL
 
-    inside += process_comments(value, AFTER_VALUE(i), deeper_gap)
+    inside += process_comments(value, AFTER_VALUE, i, deeper_gap)
 
-    after_comma = process_comments(value, AFTER(i), deeper_gap)
+    after_comma = process_comments(value, AFTER, i, deeper_gap)
   }
 
   inside += join(
     after_comma,
-    process_comments(value, PREFIX_AFTER, deeper_gap),
+    process_comments(value, PREFIX_AFTER, UNDEFINED, deeper_gap),
     deeper_gap
   )
 
@@ -382,21 +407,21 @@ const object_stringify = (value, gap) => {
 
     const before = join(
       after_comma,
-      process_comments(value, BEFORE(key), deeper_gap),
+      process_comments(value, BEFORE, key, deeper_gap),
       deeper_gap
     )
 
     inside += before || (LF + deeper_gap)
 
     inside += quote(key)
-    + process_comments(value, AFTER_PROP(key), deeper_gap)
+    + process_comments(value, AFTER_PROP, key, deeper_gap)
     + COLON
-    + process_comments(value, AFTER_COLON(key), deeper_gap)
+    + process_comments(value, AFTER_COLON, key, deeper_gap)
     + SPACE
     + sv
-    + process_comments(value, AFTER_VALUE(key), deeper_gap)
+    + process_comments(value, AFTER_VALUE, key, deeper_gap)
 
-    after_comma = process_comments(value, AFTER(key), deeper_gap)
+    after_comma = process_comments(value, AFTER, key, deeper_gap)
   }
 
   keys.forEach(iteratee)
@@ -407,7 +432,7 @@ const object_stringify = (value, gap) => {
 
   inside += join(
     after_comma,
-    process_comments(value, PREFIX_AFTER, deeper_gap),
+    process_comments(value, PREFIX_AFTER, UNDEFINED, deeper_gap),
     deeper_gap
   )
 
@@ -554,9 +579,9 @@ export default (value, replacer_, space) => {
     clean()
 
     return is_object(value)
-      ? process_comments(value, PREFIX_BEFORE_ALL, EMPTY, true).trimLeft()
+      ? process_comments(value, PREFIX_BEFORE_ALL, UNDEFINED, EMPTY, true).trimLeft()
         + str
-        + process_comments(value, PREFIX_AFTER_ALL, EMPTY).trimRight()
+        + process_comments(value, PREFIX_AFTER_ALL, UNDEFINED, EMPTY).trimRight()
       : str
   } finally {
     hosts = null
