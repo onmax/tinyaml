@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import { createRequire } from "node:module";
 import JSON5, { parse } from "../src/index.ts";
 
 describe("parse", () => {
@@ -89,6 +90,18 @@ two',
     });
     expect(value).toEqual({ a: [10, 20], b: { c: 30 } });
     expect(seen).toEqual(["0", "1", "a", "c", "b", ""]);
+  });
+
+  it("keeps a property the reviver can't delete, as json5 does", () => {
+    const json5 = createRequire(import.meta.url)("json5") as { parse: typeof parse };
+    function seal(this: object, key: string, value: unknown) {
+      if (key === "") return value;
+      Object.seal(this);
+      return undefined;
+    }
+    for (const text of ["{a:1}", "[1]"]) {
+      expect(parse(text, seal)).toEqual(json5.parse(text, seal));
+    }
   });
 
   it("parses deep nesting without recursion", () => {

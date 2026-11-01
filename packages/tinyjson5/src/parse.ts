@@ -396,14 +396,15 @@ function internalize(holder: any, name: string, reviver: Reviver): unknown {
       for (let i = 0; i < value.length; i++) {
         const key = String(i);
         const replacement = internalize(value, key, reviver);
-        // Deleting leaves a hole, as json5 does.
-        if (replacement === undefined) delete (value as unknown as Record<string, unknown>)[key];
+        // Deleting leaves a hole, as json5 does. json5 runs in sloppy mode, where
+        // deleting a non-configurable property fails silently; Reflect does too.
+        if (replacement === undefined) Reflect.deleteProperty(value, key);
         else Object.defineProperty(value, key, own(replacement));
       }
     } else {
       for (const key in value) {
         const replacement = internalize(value, key, reviver);
-        if (replacement === undefined) delete value[key];
+        if (replacement === undefined) Reflect.deleteProperty(value, key);
         else Object.defineProperty(value, key, own(replacement));
       }
     }
