@@ -1,0 +1,52 @@
+[user]
+	name = Ada Lovelace
+	email = ada@example.com
+	signingkey = ~/.ssh/id_ed25519.pub
+[core]
+	editor = nvim
+	autocrlf = input
+	excludesfile = ~/.gitignore_global
+	pager = delta --features \"side-by-side line-numbers\"
+[init]
+	defaultBranch = main
+[alias]
+	st = status -sb
+	lg = log --graph --pretty=format:'%C(yellow)%h%Creset %s %C(dim)(%cr)%Creset' --abbrev-commit
+	amend = commit --amend --no-edit
+	last = "log -1 HEAD"
+	root = !git rev-parse --show-toplevel
+	# a commented alias
+	; another comment
+[remote "origin"]
+	url = git@github.com:example/repo.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+[branch "feature/v1.2"]
+	remote = origin
+	merge = refs/heads/feature/v1.2
+[url "git@github.com:"]
+	insteadOf = https://github.com/
+[includeIf "gitdir:~/work/"]
+	path = ~/.gitconfig-work
+[gpg]
+	format = ssh
+[commit]
+	gpgsign = true
+[pull]
+	rebase = false
+[push]
+	autoSetupRemote = true
+[diff "lockb"]
+	textconv = bun
+	binary = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[credential "https://dev.azure.com"]
+	useHttpPath = true
+[http]
+	sslVerify

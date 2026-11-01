@@ -1,0 +1,22 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	ignorecase = true
+	precomposeunicode = true
+[remote "origin"]
+	url = https://github.com/unjs/confbox.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+	fetch = +refs/pull/*/head:refs/remotes/origin/pr/*
+[remote "up\"stream"]
+	url = https://github.com/unjs/confbox.git
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+[submodule "vendor/lib.js"]
+	url = ../lib.js.git
+	active = true
+[lfs "https://github.com/unjs/confbox.git/info/lfs"]
+	access = basic
