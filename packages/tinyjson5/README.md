@@ -131,7 +131,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 
 - Its enums are declared as `declare enum`, not `declare const enum`: code reads `SyntaxKind.StringLiteral` from the exported object instead of inlining 10, which also works under `isolatedModules` and `verbatimModuleSyntax`.
 - `visit` passes one path-supplier function to all of a visit's callbacks, where jsonc-parser makes a new one for each. Each returns the path at the time it's called, as there.
-- Token values are cut from the text with `substring`, when asked for, where jsonc-parser builds trivia with `String.fromCharCode` and cuts the rest as it scans. A program that replaces `String.prototype.substring` or `String.fromCharCode` sees other calls; `String.prototype.charCodeAt` is called as jsonc-parser calls it.
+- Token values are cut from the text with `substring`, when asked for, where jsonc-parser builds trivia with `String.fromCharCode` and cuts the rest as it scans. A program that replaces `String.prototype.substring` or `String.fromCharCode`, also between a `scan()` and its `getTokenValue()`, sees other calls and values; `String.prototype.charCodeAt` is called as jsonc-parser calls it.
 - No deep imports such as `jsonc-parser/lib/esm/impl/format`. Its `string-intern` test, which tests caches inside its formatter, isn't run.
 - 1,000,922 mutated inputs, 23,021,226 calls over the whole API: the scanner in both trivia modes and after `setPosition`, `parse` and `parseTree` with each option set, `visit` with suppressed callbacks, `getLocation`, `findNodeAtOffset`, `findNodeAtLocation`, `getNodePath`, `getNodeValue`, `stripComments`, `format` with random ranges and options and `modify` with random paths, values and options, both through `applyEdits`. All give the same result or throw the same error.
 
@@ -179,7 +179,57 @@ jju needs Node's `fs` and `assert`, so it's measured for Node, without them. Eac
 
 ## Speed
 
-`pnpm bench` times each entry against its original, on the built `dist/`, with a 15-line tsconfig, json5's own `test.json5`, and json5 2.2.3's package-lock.json as 215 KB of JSON5 and of JSON with comments.
+Every entry is faster than its original at every operation, from 1.05× (jsonc-parser's `format` of the tsconfig) to 9.7×. `pnpm bench` times each entry against its original, on the built `dist/`, with a 15-line tsconfig, json5's own `test.json5`, and json5 2.2.3's package-lock.json as 220 KB of JSON5 and 229 KB of JSON with comments. Each time is the median of 7 runs, measured on AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0:
+
+<details>
+<summary>Every operation</summary>
+
+| Original | Operation | Original | tinyjson5 | Speedup |
+| --- | --- | ---: | ---: | ---: |
+| json5 2.2.3 | parse tsconfig | 28.3 µs | 2.9 µs | 9.7× |
+| json5 2.2.3 | stringify tsconfig | 7.3 µs | 1.9 µs | 3.8× |
+| json5 2.2.3 | parse test.json5 | 3.2 µs | 386 ns | 8.3× |
+| json5 2.2.3 | stringify test.json5 | 271 ns | 181 ns | 1.5× |
+| json5 2.2.3 | parse large | 14.73 ms | 1.96 ms | 7.5× |
+| json5 2.2.3 | stringify large | 4.07 ms | 732.5 µs | 5.6× |
+| json5 1.0.2 | parse tsconfig | 28.0 µs | 2.9 µs | 9.6× |
+| json5 1.0.2 | stringify tsconfig | 5.0 µs | 1.4 µs | 3.7× |
+| json5 1.0.2 | parse test.json5 | 2.3 µs | 247 ns | 9.2× |
+| json5 1.0.2 | stringify test.json5 | 268 ns | 188 ns | 1.4× |
+| json5 1.0.2 | parse large | 15.26 ms | 1.82 ms | 8.4× |
+| json5 1.0.2 | stringify large | 4.34 ms | 682.4 µs | 6.4× |
+| strip-json-comments 3 | parse tsconfig | 5.6 µs | 1.1 µs | 5.0× |
+| strip-json-comments 3 | parse large | 3.97 ms | 969.3 µs | 4.1× |
+| strip-json-comments 2 | parse tsconfig | 6.2 µs | 1.1 µs | 5.5× |
+| strip-json-comments 2 | parse large | 4.15 ms | 913.9 µs | 4.5× |
+| strip-json-comments 5 | parse tsconfig | 5.6 µs | 1.2 µs | 4.7× |
+| strip-json-comments 5 | parse large | 3.79 ms | 1.01 ms | 3.8× |
+| jsonc-parser 3.3.1 | parse tsconfig | 4.8 µs | 4.2 µs | 1.2× |
+| jsonc-parser 3.3.1 | parseTree tsconfig | 5.3 µs | 4.6 µs | 1.2× |
+| jsonc-parser 3.3.1 | visit tsconfig | 3.5 µs | 3.2 µs | 1.1× |
+| jsonc-parser 3.3.1 | format tsconfig | 3.2 µs | 3.1 µs | 1.0× |
+| jsonc-parser 3.3.1 | parse large | 2.27 ms | 1.81 ms | 1.3× |
+| jsonc-parser 3.3.1 | parseTree large | 2.10 ms | 1.73 ms | 1.2× |
+| jsonc-parser 3.3.1 | visit large | 1.81 ms | 1.59 ms | 1.1× |
+| jsonc-parser 3.3.1 | format large | 2.29 ms | 1.82 ms | 1.3× |
+| comment-json 4.6.2 | parse tsconfig | 38.0 µs | 25.5 µs | 1.5× |
+| comment-json 4.6.2 | stringify tsconfig | 13.2 µs | 9.1 µs | 1.4× |
+| comment-json 4.6.2 | parse large | 13.92 ms | 9.59 ms | 1.5× |
+| comment-json 4.6.2 | stringify large | 8.52 ms | 5.06 ms | 1.7× |
+| jju 1.4.0 | parse tsconfig | 7.4 µs | 6.2 µs | 1.2× |
+| jju 1.4.0 | stringify tsconfig | 6.5 µs | 4.1 µs | 1.6× |
+| jju 1.4.0 | parse test.json5 | 1.1 µs | 756 ns | 1.4× |
+| jju 1.4.0 | stringify test.json5 | 1.0 µs | 740 ns | 1.4× |
+| jju 1.4.0 | parse large | 3.21 ms | 2.66 ms | 1.2× |
+| jju 1.4.0 | stringify large | 2.97 ms | 1.96 ms | 1.5× |
+| json5 2.2.3, against the root | parse tsconfig | 26.4 µs | 3.0 µs | 8.8× |
+| json5 2.2.3, against the root | stringify tsconfig | 4.9 µs | 1.4 µs | 3.5× |
+| json5 2.2.3, against the root | parse test.json5 | 2.3 µs | 249 ns | 9.1× |
+| json5 2.2.3, against the root | stringify test.json5 | 278 ns | 195 ns | 1.4× |
+| json5 2.2.3, against the root | parse large | 13.98 ms | 1.72 ms | 8.1× |
+| json5 2.2.3, against the root | stringify large | 4.02 ms | 732.1 µs | 5.5× |
+
+</details>
 
 ## API
 
