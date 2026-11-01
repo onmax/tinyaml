@@ -5,4 +5,5 @@ export type { Mode };
 export const root = false;
 export const legacy = true;
 export const plain = true;
+export const emptyValues = false;
 export const withMode = <F>(_mode: Mode, fn: F): F => fn;

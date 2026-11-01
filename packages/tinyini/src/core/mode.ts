@@ -21,6 +21,8 @@ export interface Mode {
   legacy?: boolean;
   /** ini 1.x. */
   plain?: boolean;
+  /** @one-ini/wasm 0.2, which reads `key =` as a pair with an empty value. */
+  emptyValues?: boolean;
 }
 
 /** tinyini's own API, which drops ini's legacy behaviour. */
@@ -29,16 +31,18 @@ export let root: boolean | undefined = false;
 export let legacy: boolean | undefined = false;
 /** ini 1.x: plain objects, and truthiness where later versions check own keys. */
 export let plain: boolean | undefined = false;
+/** @one-ini/wasm 0.2: a value can be empty, where 0.1 stops parsing. */
+export let emptyValues: boolean | undefined = false;
 
 /** Returns `fn`, made to run with the flags of `mode` and restore the caller's. */
 export function withMode<F extends (...args: any[]) => any>(mode: Mode, fn: F): F {
   return function (this: unknown, ...args: unknown[]) {
-    const outer = [root, legacy, plain] as const;
-    ({ root, legacy, plain } = mode);
+    const outer = [root, legacy, plain, emptyValues] as const;
+    ({ root, legacy, plain, emptyValues } = mode);
     try {
       return fn.apply(this, args);
     } finally {
-      [root, legacy, plain] = outer;
+      [root, legacy, plain, emptyValues] = outer;
     }
   } as F;
 }

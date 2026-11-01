@@ -10,6 +10,8 @@
 // the mode's constants.
 // Usage: node scripts/size.ts [--json]
 import { buildSync } from "esbuild";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
 import { MODES } from "../vite.config.ts";
 import { build, ENTRIES } from "./dist.ts";
@@ -23,7 +25,20 @@ const entries: [string, string, string?][] = [
   ["  ini 2.0.0", "export { default } from 'ini-v2'"],
   ["tinyini/ini-v1", "ini-v1", "ini 1.3.8"],
   ["  ini 1.3.8", "export { default } from 'ini-v1'"],
+  ["tinyini/one-ini", "one-ini", "@one-ini/wasm 0.2.1"],
+  ["  @one-ini/wasm 0.2.1", "export * from '@one-ini/wasm'"],
+  ["tinyini/one-ini-v0.1", "one-ini-v0.1", "@one-ini/wasm 0.1.1"],
+  ["  @one-ini/wasm 0.1.1", "export * from 'one-ini-v0.1'"],
 ];
+
+// @one-ini/wasm loads its .wasm file at run time, which a bundle can't
+// inline, so its size is the bundled JavaScript plus the .wasm file, each
+// gzipped.
+const WASM: Record<string, string> = {
+  "@one-ini/wasm 0.2.1": "@one-ini/wasm/one_ini_bg.wasm",
+  "@one-ini/wasm 0.1.1": "one-ini-v0.1/one_ini_bg.wasm",
+};
+const require = createRequire(import.meta.url);
 
 // Gzip bytes each entry may reach, about 30 over its size when last set:
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
@@ -33,26 +48,29 @@ const BUDGET: Record<string, number> = {
   "tinyini/ini": 1700,
   "tinyini/ini-v2": 1460,
   "tinyini/ini-v1": 1480,
+  "tinyini/one-ini": 1400,
+  "tinyini/one-ini-v0.1": 1400,
 };
 
-// Code that only one mode has, as it reads once minified. Each must show up
-// in its own mode's entries, so a marker that goes stale fails too, and in no
-// other.
-const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
+// Code that some modes have, as it reads once minified, and the modes whose
+// entries must hold it. Every other entry must not, and an entry that lacks
+// its own mode's code fails too, so a marker that goes stale shows up.
+type Mode = keyof typeof MODES;
+const MARKERS: [string | RegExp, Mode[]][] = [
   // The root's error for an object in an array.
-  root: ["inside an array"],
+  ["inside an array", ["root"]],
   // ini 4.1's options, normalized onto the caller's object.
-  ini: ["bracketedArray"],
-  // ini 1.x to 4.0's placeholders for escaped dots, and ini 2.0.0's
-  // null-prototype objects.
-  v2: ["LITERAL", "Object.create(null)"],
-  // ini 1.x's placeholders, and its forEach that skips holes in arrays.
-  v1: ["LITERAL", ".forEach("],
-};
+  ["bracketedArray", ["ini"]],
+  // ini 1.x to 4.0's placeholders for escaped dots.
+  ["LITERAL", ["v2", "v1"]],
+  // ini 1.x's forEach, which skips holes in arrays.
+  [".forEach(", ["v1"]],
+  // The version each one-ini entry reports.
+  ['"0.2.1"', ["one"]],
+  ['"0.1.1"', ["one01"]],
+];
 const modeOf = (entry: string) =>
-  Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as
-    | keyof typeof MODES
-    | undefined;
+  Object.keys(MODES).find((mode) => entry in MODES[mode as Mode]) as Mode | undefined;
 
 build();
 
@@ -75,6 +93,8 @@ for (const [name, source, original] of entries) {
       format: "esm",
       platform: "neutral",
       mainFields: ["module", "main"],
+      // The WASM glue reads its .wasm file with fs.
+      external: ["fs", "path", "util"],
       logLevel: "silent",
       write: false,
     }).outputFiles[0]!.contents;
@@ -83,6 +103,12 @@ for (const [name, source, original] of entries) {
     continue;
   }
   const size = { min: code.length, gzip: gzipSync(code, { level: 9 }).length };
+  const wasm = WASM[name.trim()];
+  if (wasm) {
+    const bytes = readFileSync(require.resolve(wasm));
+    size.min += bytes.length;
+    size.gzip += gzipSync(bytes, { level: 9 }).length;
+  }
   json[name.trim()] = size;
   if (!process.argv.includes("--json"))
     console.log(
@@ -95,12 +121,13 @@ for (const [name, source, original] of entries) {
   const own = modeOf(source);
   if (!own) problems.push(`${name} is in no mode's build in vite.config.ts`);
   const text = new TextDecoder().decode(code);
-  for (const [mode, markers] of Object.entries(MARKERS))
-    for (const marker of markers) {
-      const found = typeof marker === "string" ? text.includes(marker) : marker.test(text);
-      if (found !== (mode === own))
-        problems.push(`${name} ${found ? "holds" : "lacks"} ${mode} code: ${String(marker)}`);
-    }
+  for (const [marker, modes] of MARKERS) {
+    const found = typeof marker === "string" ? text.includes(marker) : marker.test(text);
+    if (own && found !== modes.includes(own))
+      problems.push(
+        `${name} ${found ? "holds" : "lacks"} ${modes.join(" and ")} code: ${String(marker)}`,
+      );
+  }
 }
 for (const [name, original] of checks) {
   const [ours, theirs] = [json[name], json[original]];

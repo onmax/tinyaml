@@ -9,6 +9,8 @@ export const MODES = {
   ini: { ini: "src/ini/index.ts" },
   v2: { "ini-v2": "src/ini-v2/index.ts" },
   v1: { "ini-v1": "src/ini-v1/index.ts" },
+  one: { "one-ini": "src/one-ini/index.ts" },
+  one01: { "one-ini-v0.1": "src/one-ini-v0.1/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
@@ -57,5 +59,7 @@ export default defineConfig({
   lint: {
     ignorePatterns: ["**/dist/**", ".cache/**", "test/suites/**"],
     options: { typeAware: true, typeCheck: false },
+    // ini 1.x to 4.0 split section names around U+0001 and U+0002 placeholders.
+    rules: { "no-control-regex": "off" },
   },
 });
