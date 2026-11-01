@@ -12,7 +12,7 @@ null byte in input
 ${spec ? "" : "empty directive name"}
 repeated %YAML directive
 %YAML takes one argument
-${spec ? "" : "bad %YAML version"}
+bad %YAML version
 
 
 %TAG takes two arguments

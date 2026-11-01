@@ -2,16 +2,24 @@
 // tinyaml/js-yaml-v5, both with default options. js-yaml 5 is the reference,
 // not the suite's expected JSON: whatever it loads, tinyaml must load to the
 // same value, and whatever it rejects, tinyaml must reject with a
-// YAMLException. Accepting YAML js-yaml 5 rejects fails the run too. Error
-// messages and positions are compared on every case both reject; the cases
-// where they differ are listed below, exactly, and each side's error on them
-// is recorded in scripts/baselines/js-yaml-v5-suite.json (see baseline.ts):
-// one that changes fails the run too.
+// YAMLException. Accepting YAML js-yaml 5 rejects fails the run too. Errors
+// are compared on every case both reject, name, reason, mark and full
+// message; the cases where they differ are listed below, exactly, and both
+// errors on them are recorded in scripts/baselines/js-yaml-v5-suite.json
+// (see baseline.ts): one that changes fails the run too.
 // Usage: node scripts/js-yaml-v5-suite.ts [-v] [--update]
 import * as yaml from "js-yaml5";
 import { loadAll, YAMLException } from "../src/js-yaml-v5/index.ts";
-import { Baseline, describeError } from "./baseline.ts";
-import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
+import { Baseline, describe } from "./baseline.ts";
+import {
+  equal,
+  errorDifference,
+  expectList,
+  onPurpose,
+  suiteCases,
+  YAML_EXCEPTION_GROUPS,
+  yamlException,
+} from "./support.ts";
 
 // Both reject, with another message.
 const MESSAGES = [
@@ -33,19 +41,25 @@ const MESSAGES = [
   "Y79Y/008",
   "Y79Y/009",
 ];
-// The same message at another position.
+// The same message, at another position or with another mark or full message.
 const POSITIONS = ["2JQS", "5TYM", "CC74", "P76L", "Z9M4"];
 
 type Outcome =
   | { ok: true; value: unknown }
-  | { ok: false; error: string; at: string; crash: boolean };
+  | { ok: false; error: string; at: string; crash: boolean; fields: Record<string, unknown> };
 function run(fn: () => unknown, type: typeof YAMLException | typeof yaml.YAMLException): Outcome {
   try {
     return { ok: true, value: fn() };
   } catch (error) {
     const e = error as { reason?: string; mark?: { position: number } };
     const crash = !onPurpose(error, [type]);
-    return { ok: false, error: e.reason ?? String(error), at: String(e.mark?.position), crash };
+    return {
+      ok: false,
+      error: e.reason ?? String(error),
+      at: String(e.mark?.position),
+      crash,
+      fields: crash ? {} : yamlException(error),
+    };
   }
 }
 
@@ -69,19 +83,13 @@ for (const [i, { id, input }] of cases.entries()) {
     same++;
     if (!expected.ok && !actual.ok) {
       rejected++;
-      if (expected.error !== actual.error) messages.push(id);
-      else if (expected.at !== actual.at) positions.push(id);
-      else continue;
-      baseline.add(
-        i,
-        `${id} ${messages.at(-1) === id ? "message" : "position"}`,
-        input,
-        undefined,
-        {
-          "js-yaml 5": describeError(`${expected.error} @${expected.at}`),
-          tinyaml: describeError(`${actual.error} @${actual.at}`),
-        },
-      );
+      const differs = errorDifference(YAML_EXCEPTION_GROUPS, expected.fields, actual.fields);
+      if (!differs) continue;
+      (expected.error !== actual.error ? messages : positions).push(id);
+      baseline.add(i, `${id} ${differs.kind}`, input, undefined, {
+        "js-yaml 5": describe(differs.sides[0]),
+        tinyaml: describe(differs.sides[1]),
+      });
       if (verbose) console.log(`${id}: ${show(expected)} | ${show(actual)}`);
     }
     continue;
@@ -92,10 +100,10 @@ console.log(
   `${same}/${cases.length} cases match js-yaml 5, ${lenient.length} load where js-yaml 5 throws, ${diffs.length} differ`,
 );
 console.log(
-  `errors: ${rejected} rejected by both, ${rejected - messages.length} same message, ${rejected - messages.length - positions.length} same message and position`,
+  `errors: ${rejected} rejected by both, ${rejected - messages.length} same message, ${rejected - messages.length - positions.length} the same error`,
 );
 expectList("cases that differ from js-yaml 5", diffs, []);
 expectList("cases only tinyaml loads", lenient, []);
 expectList("errors with another message", messages, MESSAGES);
-expectList("errors at another position", positions, POSITIONS);
+expectList("errors with the same message, but another position or mark", positions, POSITIONS);
 baseline.finish();

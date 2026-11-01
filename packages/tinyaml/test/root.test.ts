@@ -132,12 +132,8 @@ describe("parse", () => {
     expect(parse('"x\\\ny"')).toBe("xy");
   });
 
-  it("rejects non-printable characters wherever they're written", () => {
+  it("rejects non-printable characters wherever they're written but in quoted scalars", () => {
     for (const text of [
-      '"\x7F"',
-      "'\uFFFE'",
-      '"\x85\x80"',
-      '"\uD800"',
       "#\x01\na: 1",
       "a: 1 # \x7F",
       "[&a\x01 1, *a\x01]",
@@ -151,7 +147,39 @@ describe("parse", () => {
     // Escapes write them, and printable ones pass.
     expect(parse('"\\x01\\x7F\\uFFFE"')).toBe("\x01\x7F\uFFFE");
     expect(parse("'\x85\u{1F600}' # \u00E9\uFEFF")).toBe("\x85\u{1F600}");
-    expect(() => parse('a: "\x7F"\nb: c')).toThrow(expect.objectContaining({ line: 1, column: 5 }));
+    expect(() => parse("a: 1 # \x7F\nb: c")).toThrow(
+      expect.objectContaining({ line: 1, column: 8 }),
+    );
+    // A quoted scalar may hold any character but a C0 control, as JSON's strings.
+    for (let code = 0x7f; code < 0xa0; code++)
+      for (const quote of ["'", '"']) {
+        const text = String.fromCharCode(code);
+        expect(parse(quote + text + quote), `${quote}${code}`).toBe(text);
+      }
+    expect(parse("- '\uFFFE\uFFFF'\n- \"\uD800\"")).toEqual(["\uFFFE\uFFFF", "\uD800"]);
+    for (const text of ['"\x01"', "'\x1F'", '"a\x7F\x08"'])
+      expect(() => parse(text), JSON.stringify(text)).toThrow(/control character/);
+  });
+
+  it("reads an empty node after a flow node's properties on a line of their own", () => {
+    for (const [text, value] of [
+      ["[!!str\n]", [""]],
+      ["[&a\n]", [null]],
+      ["{!!str\n}", { "": null }],
+      ["{a: !!str\n}", { a: "" }],
+      ["[!!str # c\n\n]", [""]],
+      ["[!!str\n,a]", ["", "a"]],
+      ["[&a\n, *a]", [null, null]],
+      ["{a: !!str\n, b: c}", { a: "", b: "c" }],
+      ["{!!str\n: a}", { "": "a" }],
+      ["a: [!!str\n]", { a: [""] }],
+      ["[&a\nb]", ["b"]],
+    ] as const)
+      expect(parse(text), JSON.stringify(text)).toEqual(value);
+    // An implicit key in a flow sequence ends on the line it starts.
+    for (const text of ["[!!str\n: a]", "[&a\n b: c]"])
+      expect(() => parse(text), JSON.stringify(text)).toThrow(/missing comma/);
+    expect(() => parse("a: [!!str\n,b]")).toThrow(/too little indentation/);
   });
 
   it("takes a tab after `:` or `-` before a flow collection", () => {
@@ -294,11 +322,32 @@ describe("parse", () => {
     expect(parse("%TAG !e! tag:e.com,2000:\n--- !e!a%21 x", { tags })).toBe(1);
   });
 
-  it("takes a %TAG prefix that's local or a URI with a scheme", () => {
-    for (const prefix of ["a_", "1a:", ":a", "a", "a:b{", "a:%2", "%21"])
+  it("takes a %TAG prefix of `!` or a tag character, then URI characters", () => {
+    for (const prefix of ["a:b{", "a:%2", "!%2", ",a", "[a", "]a", "{a", "a}", "a^", "a|", "!<"])
       expect(() => parse(`%TAG !e! ${prefix}\n--- !e!b x`), prefix).toThrow(/bad %TAG prefix/);
-    for (const prefix of ["!", "!a-", "a:", "tag:e.com,2000:", "a:[b]", "!%21"])
+    // A global prefix should start with a URI scheme, but needn't.
+    for (const prefix of [
+      "!",
+      "!a-",
+      "!,[]",
+      "!%21",
+      "a:",
+      "tag:e.com,2000:",
+      "a:[b]",
+      "a_",
+      "h",
+      "1a:",
+      ":a",
+      "%21",
+      "_",
+    ])
       expect(parse(`%TAG !e! ${prefix}\n--- !e!b x`), prefix).toBe("x");
+    expect(parse("%TAG !e! h\n--- !e!ttps://example.com/x v")).toBe("v");
+    expect(parse("%TAG !e! a_\n--- !e!b v", { tags: { a_b: () => 1 } })).toBe(1);
+  });
+
+  it("words every error", () => {
+    expect(() => parse("%YAML x\n--- 1")).toThrow("bad %YAML version (2:1)");
   });
 
   it("counts every node but aliases toward maxDepth", () => {

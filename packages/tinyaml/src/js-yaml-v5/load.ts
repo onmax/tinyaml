@@ -128,6 +128,8 @@ function engine(input: string, options: LoadOptions) {
   const mappings = new WeakMap<object, MappingTagDefinition>();
   const replaced = new Map<object, unknown>();
   const aliasNames = new WeakMap<object, string>();
+  // What adds the rest to each node built before it ended.
+  const later = new Map<object, () => void>();
   let building = false;
   // The tag of the node being rejected, which js-yaml 5 points at.
   let tagged: string | undefined;
@@ -159,7 +161,13 @@ function engine(input: string, options: LoadOptions) {
   // Builds a node the parser made into the value `tag` makes of it. Its
   // children are converted first, as js-yaml 5 builds bottom-up.
   function build(tag: Collection, name: string, raw: object): unknown {
-    if (!tag.carrierIsResult) {
+    const finalized = !tag.carrierIsResult;
+    const unsupported = () =>
+      reject(
+        `recursive alias "${aliasNames.get(raw)}" is not supported for tag ${name} because it uses finalize()`,
+        name,
+      );
+    if (finalized) {
       const seen = new Set<unknown>();
       const recursive = (value: unknown): boolean => {
         if (value === raw) return true;
@@ -167,26 +175,25 @@ function engine(input: string, options: LoadOptions) {
         seen.add(value);
         return Object.values(value).some(recursive);
       };
-      if (Object.values(raw).some(recursive))
-        reject(
-          `recursive alias "${aliasNames.get(raw)}" is not supported for tag ${name} because it uses finalize()`,
-          name,
-        );
+      if (Object.values(raw).some(recursive)) unsupported();
     }
     const carrier = tag.create(name);
     // A recursive alias inside the node points at the raw node.
-    if (tag.carrierIsResult) replaced.set(raw, carrier);
-    if (tag.nodeKind === "sequence")
-      (raw as unknown[]).forEach((item, index) => {
-        const error = tag.addItem(carrier, convert(item), index);
-        if (error) reject(error);
-      });
-    else {
-      // Keys a merge added, which a later pair may override once.
-      const overridable = new Set<unknown>();
-      for (const name of Object.keys(raw)) {
-        const key = convert(decode(name));
+    if (!finalized) replaced.set(raw, carrier);
+    // Keys a merge added, which a later pair may override once.
+    const overridable = new Set<unknown>();
+    let done = 0;
+    const fill = () => {
+      const names = Object.keys(raw);
+      for (; done < names.length; done++) {
+        const name = names[done]!;
         let value = convert((raw as Record<string, unknown>)[name]);
+        if (tag.nodeKind === "sequence") {
+          const error = tag.addItem(carrier, value, done);
+          if (error) reject(error);
+          continue;
+        }
+        const key = convert(decode(name));
         if (merged.has(name)) {
           if (tag.has(carrier, key)) continue;
           value = (mappings.get(value as object) ?? defaultMap!).get(value, key);
@@ -197,9 +204,14 @@ function engine(input: string, options: LoadOptions) {
         if (merged.has(name)) overridable.add(key);
         else overridable.delete(key);
       }
-    }
+    };
+    fill();
+    // An alias can reach a node before it ends. js-yaml 5 fills its carrier
+    // as it parses, and rejects the alias if the tag finalizes it.
+    if (parsing && aliasNames.has(raw))
+      later.set(raw, finalized ? () => Object.keys(raw).length > done && unsupported() : fill);
     let result: unknown = carrier;
-    if (!tag.carrierIsResult)
+    if (finalized)
       try {
         result = tag.finalize(carrier);
       } catch (error) {
@@ -225,12 +237,11 @@ function engine(input: string, options: LoadOptions) {
       }
       if (isPlainObject(value)) {
         if (!defaultMap) reject(`unknown mapping tag !<${Y}map>`);
-        if (
-          isObjectMap(defaultMap) &&
-          !Object.keys(value).some((key) => key.startsWith(PLACEHOLDER))
-        )
-          built.add(value);
-        else return build(defaultMap, `${Y}map`, value);
+        if (typed || !isObjectMap(defaultMap)) return build(defaultMap, `${Y}map`, value);
+        built.add(value);
+        mappings.set(value, defaultMap);
+        if (parsing && aliasNames.has(value))
+          later.set(value, () => replaced.delete(value) && convert(value));
       } else return value;
     }
     replaced.set(value, value);
@@ -333,6 +344,7 @@ function engine(input: string, options: LoadOptions) {
     merge(source) {
       let sourceKeys: Iterable<unknown>;
       // js-yaml 5 has built the mapping by now, with keys its tag may change.
+      later.get(source as object)?.();
       if (typed && isPlainObject(source) && !isObjectMap(defaultMap)) source = convert(source);
       if (built.has(source as object)) {
         const tag = mappings.get(source as object);
@@ -362,6 +374,7 @@ function engine(input: string, options: LoadOptions) {
     convert,
     done() {
       parsing = false;
+      for (const fill of later.values()) fill();
     },
   };
   return self;
@@ -385,8 +398,8 @@ function probe(input: string, options: LoadOptions): Engine {
 }
 
 function loadDocuments(input: string, options?: LoadOptions): unknown[] {
-  // js-yaml 5 spreads the options over its defaults, so null works too.
-  options ??= {};
+  // js-yaml 5 spreads the options over its defaults once, so null works too.
+  options = { ...options };
   const source = String(input);
   const use = engine(source, options);
   let docs;

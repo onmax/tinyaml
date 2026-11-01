@@ -30,8 +30,8 @@ tinyaml ships drop-in replacements for js-yaml 4 and 5, yaml, yamljs and @std/ya
 | You use   | Switch to            |      Size, gzip |       Parses | Stringifies |
 | --------- | -------------------- | --------------: | -----------: | ----------: |
 | js-yaml 4 | `tinyaml/js-yaml`    | 14.4 → 11.7 KiB |  1.5× faster | 1.6× faster |
-| js-yaml 5 | `tinyaml/js-yaml-v5` | 17.1 → 15.9 KiB |  1.5× faster | 1.8× faster |
-| yaml      | `tinyaml/yaml`       | 29.9 → 16.7 KiB | 12.6× faster | 2.8× faster |
+| js-yaml 5 | `tinyaml/js-yaml-v5` | 17.1 → 16.0 KiB |  1.5× faster | 1.8× faster |
+| yaml      | `tinyaml/yaml`       | 29.9 → 16.8 KiB | 12.6× faster | 2.8× faster |
 | yamljs    | `tinyaml/yamljs`     |   8.8 → 8.0 KiB |  5.0× faster | 1.1× faster |
 | @std/yaml | `tinyaml/std`        | 11.3 → 10.7 KiB |  2.0× faster | 1.6× faster |
 

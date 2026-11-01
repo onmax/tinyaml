@@ -1,5 +1,6 @@
 // js-yaml 4's `load` and `loadAll` on the shared parser: values resolve
 // through a Schema's types, and errors carry js-yaml's mark and snippet.
+import { NULL_BYTE } from "../core/codes.ts";
 import { fail, original, parse, sanitize, type Engine, type Mark } from "../core/parse.ts";
 import { snippet, YAMLException } from "./error.ts";
 import { MESSAGES } from "./messages.ts";
@@ -29,9 +30,14 @@ function engine(input: string, options: LoadOptions): Engine {
   const schema = options.schema ?? DEFAULT_SCHEMA;
   const { compiledImplicit, compiledTypeMap } = schema;
   const builtinsOnly = builtin(compiledImplicit);
-  const exception = (reason: string, mark: Mark) => {
+  const exception = (reason: string, mark: Mark, code?: number) => {
     const buffer = sanitize(input);
     mark = { ...mark, buffer, position: original(buffer, mark) };
+    // js-yaml 4 looks for a null byte before it reads a line, so at line 0,
+    // and before it appends the terminator its buffer leaves off, so that
+    // buffer loses its last character instead.
+    if (code === NULL_BYTE)
+      mark = { ...mark, buffer: buffer.slice(0, -1), line: 0, column: mark.position };
     return new YAMLException(reason, {
       name: (options.filename || null)!,
       ...mark,

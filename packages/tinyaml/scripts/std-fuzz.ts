@@ -1,8 +1,9 @@
 // Mutation fuzzing against @std/yaml 1.3.0: take every yaml-test-suite input,
 // apply a few random edits with YAML-significant characters, and check that
 // whatever std parses, tinyaml/std parses to the same value, and that it
-// throws a YamlSyntaxError where std throws, with the same message, offset,
-// line, column and snippet, and passes the same warnings to `onWarning`.
+// throws a YamlSyntaxError where std throws, with the same name, message,
+// offset, line, column, snippet and full message, and passes the same
+// warnings to `onWarning`.
 // std's parser is js-yaml 3's, and tinyaml/std doesn't copy all
 // of its bugs, so some inputs differ: each is recorded, with its options and
 // both outcomes, in scripts/baselines/std-fuzz.json (see baseline.ts).
@@ -26,6 +27,7 @@ import {
   onPurpose,
   seedArg,
   suiteCases,
+  template,
   withBreaks,
 } from "./support.ts";
 
@@ -82,15 +84,20 @@ const pieces = [
 const schemas = ["default", "failsafe", "json", "core", "extended"] as const;
 
 const strip = (e?: string) => e?.replace(/ at line [^]*/, "");
-// What a YamlSyntaxError, thrown or passed to onWarning, says.
+// What a YamlSyntaxError, thrown or passed to onWarning, says, and the
+// template of its full message (see support.ts).
 function fields(error: unknown): Record<string, unknown> {
-  const { message, offset, line, column, snippet } = error as InstanceType<typeof YamlSyntaxError>;
-  return { message: strip(message), offset, line, column, snippet };
+  const { name, message, offset, line, column, snippet } = error as InstanceType<
+    typeof YamlSyntaxError
+  >;
+  const text = template(message, [strip(message), ` at line ${line}, column ${column}`, snippet]);
+  return { message: strip(message), offset, line, column, snippet, name, text };
 }
 const GROUPS = {
   message: ["message"],
   position: ["offset", "line", "column"],
   snippet: ["snippet"],
+  "full message": ["name", "text"],
 };
 
 type Outcome =

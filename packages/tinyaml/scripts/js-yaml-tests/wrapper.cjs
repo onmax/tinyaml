@@ -19,6 +19,8 @@ function attempt(fn, lib) {
       crash: !(error instanceof lib.YAMLException),
       reason: String(error?.reason ?? error?.message ?? error),
       mark: error?.mark ? `${error.mark.line}:${error.mark.column}` : "",
+      // The rest of what it says, which must agree too.
+      error: { name: error?.name, message: error?.message, mark: error?.mark },
     };
   }
 }
@@ -29,7 +31,7 @@ function show(result) {
         0,
         4000,
       )
-    : `ERROR ${result.reason} @${result.mark}`;
+    : `ERROR ${result.reason} @${result.mark} ${inspect(result.error, { depth: 4, breakLength: Infinity, maxStringLength: Infinity }).replaceAll(process.cwd(), ".")}`;
 }
 
 function compare(fn, input, options, run) {
@@ -47,7 +49,7 @@ function compare(fn, input, options, run) {
     else
       status =
         expected.reason === actual.reason
-          ? expected.mark === actual.mark
+          ? equal(expected.error, actual.error)
             ? "pass"
             : "pass-message"
           : "pass-error";

@@ -89,6 +89,15 @@ let anchored: Use[] = [];
 // it, and the mapping it merges into.
 type Later = [error: Error, at: number, aliases: number, map?: object];
 let later: Later[] = [];
+// How many documents yaml has seen start, where the second one starts, in
+// the parser's copy of the input, and how many warnings came before the
+// first one ended. Unlike
+// the shared parser, yaml counts an empty one for each `...` with no
+// document open. -Infinity where it reports no second document: when it's
+// to be silent, or once it has.
+let opened = 0;
+let second: Pos = { buffer: "", position: 0 };
+let kept = 0;
 const STR = `${Y}str`;
 // The engine's tag after a plain scalar that a tag would read only as a key.
 const KEY = "key";
@@ -117,6 +126,24 @@ function report(
   if (warning) warnings.push(error);
   return error;
 }
+
+// yaml's error for a second document, which points at its first
+// character, without the warnings from there on.
+function multiple(): YAMLError {
+  warnings.length = kept;
+  opened = -Infinity;
+  return report(
+    false,
+    "MULTIPLE_DOCS",
+    "Source contains multiple documents; please use YAML.parseAllDocuments()",
+    second,
+    second.position + 1,
+  );
+}
+
+// yaml reads a lone carriage return as text, where it may hide or extend a
+// document, so with one tinyaml reads on through every document.
+const LONE = /\r(?!\n)/;
 
 // `reason` is yaml's code and message, from the table.
 function toError(reason: string, mark: Mark, code: number): Error {
@@ -407,15 +434,16 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
   let bare = false;
   // The anchors of a plain scalar a tag may still read as a key.
   let keyAnchors: string[] = [];
+  // Where each `<<` that merges as a key ended, but was read as a value.
+  const merges: number[] = [];
   const [count, check, reads, drop] = aliasCounter(limit);
-  const [track, merge, scalars] = merger(
-    (value, copy) => {
-      const u = used.get(value);
-      if (!copy) use(u);
-      else if (u) used.set(copy, Object.assign(u, [copy, 1]));
-    },
-    () => later.push([new Error(MESSAGES[E.MERGE_SOURCE]), at(), reads(), merging]),
-  );
+  const unmergeable = () =>
+    later.push([new Error(MESSAGES[E.MERGE_SOURCE]), at(), reads(), merging]);
+  const [track, merge, scalars] = merger((value, copy) => {
+    const u = used.get(value);
+    if (!copy) use(u);
+    else if (u) used.set(copy, Object.assign(u, [copy, 1]));
+  }, unmergeable);
   // yaml reports a tag's error on the tag, or on a plain scalar without one.
   const resolve = (type: Tag, input: unknown, span?: Span): unknown => {
     const onError = (message: string) =>
@@ -440,6 +468,7 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
     if (node) value = (value as Scalar).toJSON();
     if (value === MERGE) {
       self.tag = MERGE_TAG;
+      if (span) merges.push(at());
       return "<<";
     }
     // yaml's own collection tags give nodes. Another value is a scalar, and
@@ -486,6 +515,7 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
   excess = check;
   anchored = uses;
   later = [];
+  opened = options.logLevel === "silent" ? -Infinity : 0;
   const self: Engine = {
     tag: "",
     messages: MESSAGES,
@@ -523,6 +553,14 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
       // A `<<` of an empty sequence merges nothing.
       if (Array.isArray(value) && !value.length) return;
       return merge(source, anchors, map, value);
+    },
+    // yaml reads on to the end of the second document, and then rejects
+    // the source.
+    document(position, ends) {
+      if (!ends) {
+        if (opened++ === 1) second = { buffer: where()!.buffer, position };
+      } else if (opened < 2) kept = warnings.length;
+      else if (opened < 3 && !LONE.test(source)) throw multiple();
     },
     duplicate(map, key, name, value) {
       // yaml tells scalar keys apart by their values, so 1 and "1", or null
@@ -579,10 +617,12 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
         pending = [key, text, warned, span];
         keyAnchors = [];
         self.tag = KEY;
+        merges.push(at());
       }
       return value;
     },
     atKey(key, anchors) {
+      if (self.tag === KEY || self.tag === MERGE_TAG) merges.pop();
       if (self.tag !== KEY) return key;
       const [type, text, warned, span] = pending!;
       self.tag = "";
@@ -605,6 +645,9 @@ function engine(options: ParseOptions, version: unknown, directive?: string): En
         const found =
           tags.find((t) => t.tag === name && t.collection === type) ??
           (kt?.collection === type ? kt : undefined);
+        // yaml merges a `<<` item of its !!pairs, which has nothing to merge.
+        if (found === known[3] && merges.at(-1)! > span![1] && (value as unknown[]).includes("<<"))
+          unmergeable();
         if (found) return resolve(found, toNode(value), span);
         if (kt) {
           here(
@@ -696,31 +739,24 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
   if ("reviver" in options) fn = options.reviver;
   const level = options.logLevel;
   // A custom tag may parse another document in the middle of this one.
-  const outer = [warnings, source, pretty, keyWarned, excess, anchored, later] as const;
+  const outer = [
+    warnings,
+    source,
+    pretty,
+    keyWarned,
+    excess,
+    anchored,
+    later,
+    opened,
+    second,
+    kept,
+  ] as const;
   try {
     source = src;
     pretty = prettyErrors !== false;
     warnings = [];
     keyWarned = false;
     const directive = /^(?:[ \t]*(?:#.*)?\r?\n|%.*\r?\n)*%YAML[ \t]+(\S+)/.exec(src)?.[1];
-    // Where yaml sees documents start. Unlike the shared parser, it counts an
-    // empty one for each `...` with no document open.
-    const starts: number[] = [];
-    let open = false;
-    let empty = 0;
-    // In a document, only a line that may be a marker matters.
-    const lines = [/^.*$/gm, /^\uFEFF?[-.].*$/gm];
-    for (let at = 0, line: RegExpExecArray | null; ; at = line.index + line[0].length + 1) {
-      const re: RegExp = lines[+open]!;
-      re.lastIndex = at;
-      if (!(line = re.exec(src))) break;
-      const text = line[0].replace(/^\uFEFF/, "");
-      if (/^\.\.\.(?:\s|$)/.test(text)) {
-        if (!open) empty = starts.push(line.index);
-        open = false;
-      } else if (/^---(?:\s|$)/.test(text) || (!open && /^(?![ \t]*#|%)\s*\S/.test(text)))
-        open = !!starts.push(line.index);
-    }
     let docs: unknown[];
     try {
       // A %YAML directive yaml supports sets the version. Another one leaves
@@ -735,28 +771,25 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
       try {
         docs = parseDocs(src, use);
       } catch (error) {
+        // yaml reports no error from the second document on, but where a
+        // `]` or `}` starts it, which it gives the first.
+        if (opened > 1 && !LONE.test(src)) {
+          if (/^(?:---)?(?:\s|[!&]\S*|#.*)*[\]}]/.test(second.buffer.slice(second.position)))
+            warnings.length = kept;
+          else throw multiple();
+        }
         // Nesting deep enough to overflow the stack.
         if (error instanceof RangeError) throw report(false, "RESOURCE_EXHAUSTION", error.message);
         throw error;
       }
-      // An empty document holds an empty node.
-      empty += docs.length;
-      if (!docs.length && empty) docs.push(use.implicit(null, true));
     } finally {
       // yaml warns in the order of the input, where the parser warns about a
       // collection's tag only once it has read the collection.
       warnings.sort((a, b) => a.pos[0] - b.pos[0]);
       for (const warning of warnings) emit(level, warning);
     }
-    if (empty > 1) {
-      const error = new YAMLParseError(
-        [starts[1] ?? 0, (starts[1] ?? 0) + 1],
-        "MULTIPLE_DOCS",
-        "Source contains multiple documents; please use YAML.parseAllDocuments()",
-      );
-      if (pretty) prettify(src, error);
-      throw error;
-    }
+    // After a lone carriage return the parser read every document.
+    if (opened > 1) throw multiple();
     // yaml converts the document in order, counting aliases as it goes.
     const first = later[0];
     if (first) {
@@ -770,7 +803,7 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
     if (typeof onAnchor === "function") for (const [res, count] of anchored) onAnchor(res, count);
     return fn ? revive(fn, { "": value }, "", value) : value;
   } finally {
-    [warnings, source, pretty, keyWarned, excess, anchored, later] = outer;
+    [warnings, source, pretty, keyWarned, excess, anchored, later, opened, second, kept] = outer;
   }
 }
 

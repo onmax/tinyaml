@@ -2,11 +2,11 @@
 // apply a few random edits with YAML-significant characters, and check that
 // whatever js-yaml 5 loads, tinyaml/js-yaml-v5 loads to the same value, and
 // whatever it rejects, tinyaml rejects with a YAMLException. When both
-// reject, the reason, mark (position, line and column), snippet and buffer
-// are compared too. Each input where they differ, another value, an error
-// from one side only (with whether yaml finds the input valid), or an error
-// that differs (the kind names the fields), is recorded with its options and
-// both outcomes in
+// reject, the name, reason, every mark field (position, line, column,
+// snippet, buffer) and the full message are compared too. Each input where
+// they differ, another value, an error from one side only (with whether yaml
+// finds the input valid), or an error that differs (the kind names the
+// fields), is recorded with its options and both outcomes in
 // scripts/baselines/js-yaml-v5-fuzz.json (see baseline.ts). An unrecorded
 // difference, a recorded one that's gone, or a crash fails the run.
 // Usage: node scripts/js-yaml-v5-fuzz.ts [iterations] [seed] [mode] [--update]
@@ -34,6 +34,8 @@ import {
   seedArg,
   suiteCases,
   withBreaks,
+  YAML_EXCEPTION_GROUPS,
+  yamlException,
 } from "./support.ts";
 
 const corpus = suiteCases().map(({ input }) => input);
@@ -127,19 +129,6 @@ function options(lib: typeof real | typeof tiny, choice: number[]): Record<strin
   return o;
 }
 
-// What a YAMLException says.
-function fields(error: unknown): Record<string, unknown> {
-  const { reason, mark } = error as Partial<tiny.YAMLException>;
-  const { position, line, column, snippet, buffer } = mark ?? {};
-  return { reason, position, line, column, snippet, buffer };
-}
-const GROUPS = {
-  message: ["reason"],
-  position: ["position", "line", "column"],
-  snippet: ["snippet"],
-  buffer: ["buffer"],
-};
-
 type Outcome =
   | { ok: true; value: unknown }
   | {
@@ -162,7 +151,7 @@ function attempt(fn: () => unknown, type: typeof tiny.YAMLException | typeof rea
       error: e.reason,
       message: e.message,
       at: e.mark?.position,
-      fields: fields(error),
+      fields: yamlException(error),
     } as Outcome;
   }
 }
@@ -237,7 +226,7 @@ for (let i = 0; i < iterations; i++) {
     if (expected.message === actual.message) fullMessages++;
     if (expected.error === actual.error) messages++;
     if (expected.error === actual.error && expected.at === actual.at) positions++;
-    const differs = errorDifference(GROUPS, expected.fields!, actual.fields!);
+    const differs = errorDifference(YAML_EXCEPTION_GROUPS, expected.fields!, actual.fields!);
     if (differs) {
       const [theirs, ours] = differs.sides.map((side) => describe(side));
       baseline.add(i, differs.kind, input, drawn, { "js-yaml 5": theirs!, tinyaml: ours! });

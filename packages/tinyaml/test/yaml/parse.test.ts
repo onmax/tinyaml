@@ -56,6 +56,85 @@ describe("parse", () => {
     expect(() => parse("...\nfoo")).toThrow(/multiple documents/);
   });
 
+  it("finds a second document where yaml does, and reports where it starts", () => {
+    // yaml's span runs on to where the second document's node ends, so only
+    // its start and the first line of its message count.
+    const outcome = (fn: Parse, input: string, options: object) => {
+      const seen = warnings();
+      try {
+        return { value: fn(input, options), warnings: seen() };
+      } catch (e) {
+        const { name, code, pos, linePos, message } = e as YAMLParseError;
+        const [start] = pos;
+        return {
+          name,
+          code,
+          start,
+          at: linePos?.[0],
+          message: message.split("\n")[0],
+          warnings: seen(),
+        };
+      } finally {
+        vi.restoreAllMocks();
+      }
+    };
+    for (const input of [
+      // Markers in scalars, comments, flow collections and block scalars.
+      "...  ",
+      "a ---\nb ...",
+      "# ---\na # ...\n",
+      "'a\n  ---'\n",
+      "[a,\n  ---]\n",
+      "|\n  ---\n  ...\n",
+      "%YAML 1.2\n---\na\n...\n",
+      // Where the second document's node ends.
+      "a\n--- b # c\n\n",
+      "a\n--- [x] # c\n\nz",
+      "a\n---\n- x\n # y\n# z\n # w\n",
+      "a\n---\nk: v\n  # c\n\n  # d\n",
+      "a\n--- |\n x\n # c\n\n",
+      "a\n---\nk: v\nj:   \n",
+      "a\n---  \n\n",
+      "a\n--- # c\n\n# d\n",
+      "a\n--- &x\n",
+      "a\r\n--- b\r\n",
+      "a\r\n---\r\n- x\r\n  # c\r\n",
+      "...  \r\n﻿a",
+      // The empty documents a `...` with none open counts.
+      "...\n...\n",
+      "a\n...\n...\n",
+      "a\n...\n... x",
+      "a\n...\n%YAML 1.2\n...\n",
+      // Errors and warnings from the second document on.
+      "a\n---\n[\n",
+      "a\n---\nb: c: d\n",
+      "a\n---\n*x\n",
+      "a\n---\n- x\n- y\nz\n",
+      "...\n%YAML 1.2\n?",
+      "a\n...\n%FOO\n---\n!x b\n",
+    ])
+      for (const options of [{}, { prettyErrors: false }])
+        expect(outcome(parse, input, options), JSON.stringify(input)).toEqual(
+          outcome(yaml.parse, input, options),
+        );
+    // A `]` or `}` that starts one is an error of the first, in other words.
+    for (const input of ["a\n...\n]\nb", "a\n--- \n}\n"]) {
+      const { code, start } = outcome(yaml.parse, input, {});
+      expect(outcome(parse, input, {}), JSON.stringify(input)).toMatchObject({ code, start });
+    }
+    // The empty node of a `...` that ends no document is resolved, which
+    // the json schema rejects.
+    for (const input of ["...\n", "...\n...\n", "...\na"])
+      expect(outcome(parse, input, { schema: "json" }), JSON.stringify(input)).toEqual(
+        outcome(yaml.parse, input, { schema: "json" }),
+      );
+    // Where it's to be silent, yaml returns the first.
+    for (const input of ["a\n---\nb", "...\n...\n", "...\nfoo", "a\n--- # c\n"])
+      expect(parse(input, { logLevel: "silent" })).toEqual(
+        yaml.parse(input, { logLevel: "silent" }),
+      );
+  });
+
   it("throws YAMLParseErrors with yaml's codes, positions and excerpts", () => {
     const error = (() => {
       try {
@@ -398,8 +477,8 @@ describe("parse", () => {
     expect(at("\uFEFFa: [1")).toEqual([6, 7]);
     // yaml points at the key's start and spans to the `:`, with \n too.
     expect(at("a\r\nb: [\r\n")).toEqual([4, 5]);
-    // At the `]`, past the byte order mark that starts the second document.
-    expect(at("a\r\n...\r\n\uFEFFb: ]\r\n")).toEqual([12, 13]);
+    // From past the byte order mark that starts the second document.
+    expect(at("a\r\n...\r\n\uFEFFb: c\r\n")).toEqual([9, 10]);
   });
 
   it("supports custom scalar tags", () => {
@@ -851,6 +930,32 @@ describe("parse", () => {
       expect(() => parse(text), text).toThrow(YAMLParseError);
     }
     expect(parse('a: "x\\\n y"')).toEqual(yaml.parse('a: "x\\\n y"'));
+  });
+
+  it("rejects a `<<` item of !!pairs with nothing to merge, as yaml does", () => {
+    const outcome = (fn: Parse, text: string, options: object) => {
+      try {
+        return fn(text, options);
+      } catch (e) {
+        return [Object.getPrototypeOf(e) === Error.prototype, (e as Error).message];
+      }
+    };
+    for (const options of [{}, { merge: true }, { version: "1.1" }])
+      for (const text of [
+        "!!pairs [!!merge <<]",
+        "!!pairs [<<]",
+        "!!pairs\n- <<\n- a\n",
+        "!!pairs [&x <<, b]",
+        '!!pairs ["<<"]',
+        "!!pairs [<<: {a: 1}]",
+        "- <<\n- !!pairs ['<<']",
+        "!!omap [<<]",
+      ])
+        expect(outcome(parse, text, options), text).toEqual(outcome(yaml.parse, text, options));
+    expect(outcome(parse, "!!pairs [<<]", { merge: true })).toEqual([
+      true,
+      "Merge sources must be maps or map aliases",
+    ]);
   });
 
   it("agrees with yaml on assorted documents", () => {

@@ -1,9 +1,9 @@
 // Mutation fuzzing against js-yaml 4: take every yaml-test-suite input, apply
 // a few random edits with YAML-significant characters, and check that
 // whatever js-yaml loads, tinyaml loads to the same value, and whatever it
-// rejects, tinyaml rejects with a YAMLException with the same reason, mark
-// and snippet; the warnings each passes to `onWarning` are compared too.
-// Each input where they differ, another value, an error only from tinyaml,
+// rejects, tinyaml rejects with a YAMLException with the same name, reason,
+// mark and full message; the warnings each passes to `onWarning` are
+// compared too. Each input where they differ, another value, an error only from tinyaml,
 // a value only from tinyaml (with whether yaml finds the input valid), an
 // error that differs (the kind names the fields), or other warnings, is
 // recorded with both outcomes in scripts/baselines/fuzz.json (see
@@ -29,6 +29,8 @@ import {
   seedArg,
   suiteCases,
   withBreaks,
+  YAML_EXCEPTION_GROUPS,
+  yamlException,
 } from "./support.ts";
 
 // H7J7 and M5C3 hit js-yaml bugs tinyaml doesn't copy; see suite.ts.
@@ -72,19 +74,6 @@ const pieces = [
   "%YAML 1.2\n",
 ];
 
-// What a YAMLException, thrown or passed to onWarning, says.
-function fields(error: unknown): Record<string, unknown> {
-  const { reason, mark } = error as Partial<YAMLException>;
-  const { position, line, column, snippet, buffer } = mark ?? {};
-  return { reason, position, line, column, snippet, buffer };
-}
-const GROUPS = {
-  message: ["reason"],
-  position: ["position", "line", "column"],
-  snippet: ["snippet"],
-  buffer: ["buffer"],
-};
-
 type Outcome =
   | { ok: true; value: unknown; warnings: unknown[] }
   | { ok: false; error: string; fields?: Record<string, unknown>; warnings: unknown[] };
@@ -94,12 +83,17 @@ function attempt(
   type: typeof YAMLException | typeof jsYaml.YAMLException,
 ): Outcome {
   const warnings: unknown[] = [];
-  const onWarning = (warning: unknown) => void warnings.push(fields(warning));
+  const onWarning = (warning: unknown) => void warnings.push(yamlException(warning));
   try {
     return { ok: true, value: load(input, null, { onWarning }), warnings };
   } catch (error) {
     if (!onPurpose(error, [type])) return { ok: false, error: `CRASH ${String(error)}`, warnings };
-    return { ok: false, error: (error as YAMLException).reason, fields: fields(error), warnings };
+    return {
+      ok: false,
+      error: (error as YAMLException).reason,
+      fields: yamlException(error),
+      warnings,
+    };
   }
 }
 
@@ -186,7 +180,7 @@ for (let i = 0; i < iterations; i++) {
   } else {
     const differs =
       !expected.ok && !actual.ok
-        ? errorDifference(GROUPS, expected.fields!, actual.fields!)
+        ? errorDifference(YAML_EXCEPTION_GROUPS, expected.fields!, actual.fields!)
         : undefined;
     if (!expected.ok) thrown++;
     if (differs) {

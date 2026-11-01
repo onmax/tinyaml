@@ -157,6 +157,62 @@ export function expectWritten(
 }
 
 /**
+ * An error's full message with each of `parts` in it, found in order,
+ * written as %0, %1 and so on. Where each part is a field compared on its
+ * own, a message that differs only through them has the same template, and
+ * one put together otherwise, cut short say, doesn't.
+ */
+export function template(message: string, parts: (string | number | null | undefined)[]): string {
+  let text = "";
+  let at = 0;
+  parts.forEach((part, i) => {
+    const found = part ? message.indexOf(String(part), at) : -1;
+    if (found < 0) return;
+    text += `${message.slice(at, found)}%${i}`;
+    at = found + String(part).length;
+  });
+  return text + message.slice(at);
+}
+
+/**
+ * What a js-yaml 4 or 5 YAMLException says, field by field: its name and
+ * reason, each field of its mark, the mark's keys in order, and `text`, the
+ * template of its full message with the reason, the filename and position,
+ * and the snippet in it.
+ */
+export function yamlException(error: unknown): Record<string, unknown> {
+  const { name, reason, message, mark } = error as {
+    name: string;
+    reason: string;
+    message: string;
+    mark?: Record<string, string | number | null>;
+  };
+  const { position, line, column, snippet, buffer, name: file } = mark ?? {};
+  const where = mark && `${file ? `in "${file}" ` : ""}(${+line! + 1}:${+column! + 1})`;
+  return {
+    name,
+    reason,
+    file,
+    position,
+    line,
+    column,
+    snippet,
+    buffer,
+    keys: mark && Object.keys(mark),
+    text: template(message, [reason, where, snippet]),
+  };
+}
+
+/** The groups errorDifference compares yamlException's fields in. */
+export const YAML_EXCEPTION_GROUPS = {
+  message: ["reason"],
+  position: ["position", "line", "column"],
+  snippet: ["snippet"],
+  buffer: ["buffer"],
+  "full message": ["name", "file", "keys", "text"],
+};
+
+/**
  * How two errors that both sides threw differ, as records of the fields
  * their library exposes: `groups` names sets of fields, such as
  * `{ message: ["reason"], position: ["position", "line", "column"] }`.
@@ -198,7 +254,9 @@ export function equal(a: unknown, b: unknown, { keyOrder = true, identity = true
   const stack: [unknown, unknown][] = [[a, b]];
   while (stack.length) {
     const [x, y] = stack.pop()!;
-    if (Object.is(x, y)) continue;
+    // The same object on both sides still pairs: found again, it must be
+    // with itself, and so must each object inside it.
+    if (Object.is(x, y) && !(identity && typeof x === "object" && x)) continue;
     if (typeof x !== "object" || typeof y !== "object" || x === null || y === null) return false;
     if (identity) {
       const [paired, pairedBack] = [there.get(x), back.get(y)];

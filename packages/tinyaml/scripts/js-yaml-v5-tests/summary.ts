@@ -88,7 +88,7 @@ if (mode === "direct") {
   for (const [key, n] of Object.entries(count).sort((a, b) => a[0].localeCompare(b[0])))
     console.log(`  ${key}: ${n}`);
   console.log(
-    "  (pass: same value or output, or same error message and position; pass-message: same message, other position; pass-error: both throw, other message; lenient: tinyaml loads where js-yaml 5 throws)",
+    "  (pass: same value or output, or the same error; pass-message: same reason, other message or mark; pass-error: both throw, other message; lenient: tinyaml loads where js-yaml 5 throws)",
   );
   if (verbose)
     for (const entry of unique.values())

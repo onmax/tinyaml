@@ -90,6 +90,13 @@ describe("equal", () => {
     b.push(b, [b, b]);
     expect(equal(a, b)).toBe(false);
     expect(equal(a, b, { identity: false })).toBe(true);
+    // An object both sides share, as a custom tag can return, pairs too.
+    const copy = { ...shared };
+    expect(equal([shared, shared], [shared, copy])).toBe(false);
+    expect(equal([shared, copy], [shared, shared])).toBe(false);
+    expect(equal([aliased, aliased], [aliased, { ...aliased }])).toBe(false);
+    expect(equal([shared, copy], [shared, copy])).toBe(true);
+    expect(equal([aliased, aliased], [aliased, aliased])).toBe(true);
   });
 });
 

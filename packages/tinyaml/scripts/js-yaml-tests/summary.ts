@@ -52,7 +52,7 @@ if (mode === "direct") {
     count[`${fn} ${status}`] = (count[`${fn} ${status}`] ?? 0) + 1;
   const by = (status: string) => entries.filter((entry) => entry.status === status);
   console.log(
-    `js-yaml 4 calls replayed through tinyaml: ${entries.length}, ${by("pass").length} the same, ${by("pass-message").length} the same error at another position, ${by("pass-error").length} another error message`,
+    `js-yaml 4 calls replayed through tinyaml: ${entries.length}, ${by("pass").length} the same, ${by("pass-message").length} the same reason with another message or mark, ${by("pass-error").length} another error message`,
   );
   for (const [key, n] of Object.entries(count).sort((a, b) => a[0].localeCompare(b[0])))
     console.log(`  ${key}: ${n}`);

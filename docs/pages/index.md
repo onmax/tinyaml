@@ -29,8 +29,8 @@ Each is published on its own, so you install only what you use.
 | You use               | Switch to                          |      Size, gzip |       Parses | Stringifies |
 | --------------------- | ---------------------------------- | --------------: | -----------: | ----------: |
 | js-yaml 4             | `tinyaml/js-yaml`                  | 14.4 → 11.7 KiB |  1.5× faster | 1.6× faster |
-| js-yaml 5             | `tinyaml/js-yaml-v5`               | 17.1 → 15.9 KiB |  1.5× faster | 1.8× faster |
-| yaml                  | `tinyaml/yaml`                     | 29.9 → 16.7 KiB | 12.6× faster | 2.8× faster |
+| js-yaml 5             | `tinyaml/js-yaml-v5`               | 17.1 → 16.0 KiB |  1.5× faster | 1.8× faster |
+| yaml                  | `tinyaml/yaml`                     | 29.9 → 16.8 KiB | 12.6× faster | 2.8× faster |
 | yamljs                | `tinyaml/yamljs`                   |   8.8 → 8.0 KiB |  5.0× faster | 1.1× faster |
 | @std/yaml             | `tinyaml/std`                      | 11.3 → 10.7 KiB |  2.0× faster | 1.6× faster |
 | json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB |  7.7× faster | 5.3× faster |

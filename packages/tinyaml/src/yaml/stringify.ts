@@ -692,5 +692,7 @@ export function stringify(
     );
   const ctx = context(opt, tags, compat);
   const body = write(node, ctx);
-  return `${ctx.options.directives === true ? `---${/^[|>]/.test(body) ? " " : "\n"}` : ""}${body}\n`;
+  // yaml reads the first character even of a scalar an option left undefined.
+  const gap = "|>".includes(body[0]!) ? " " : "\n";
+  return `${ctx.options.directives === true ? `---${gap}` : ""}${body}\n`;
 }

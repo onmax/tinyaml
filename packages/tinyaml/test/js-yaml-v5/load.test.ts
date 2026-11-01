@@ -303,6 +303,46 @@ describe("load", () => {
     expect(load(input, { schema: YAML11_SCHEMA, json: true })).toEqual(expected);
   });
 
+  it("merges and aliases a mapping that hasn't ended as js-yaml 5 does", () => {
+    class Items extends Array {}
+    const schemas = (lib: typeof real) => [
+      lib.CORE_SCHEMA.withTags(lib.mergeTag),
+      lib.CORE_SCHEMA.withTags(lib.realMapTag, lib.mergeTag),
+      lib.YAML11_SCHEMA,
+      lib.CORE_SCHEMA.withTags(
+        lib.mergeTag,
+        lib.defineSequenceTag(`tag:yaml.org,2002:seq`, {
+          create: () => new Items(),
+          addItem: (items, item) => void items.push(item),
+          identify: () => false,
+        }),
+      ),
+    ];
+    const ours = schemas(lib as never) as never[];
+    schemas(real).forEach((schema, i) => {
+      for (const input of [
+        "&a {x: 1, child: {<<: *a}, y: 2}",
+        "&a {x: 1, k: {m: [{<<: *a}]}, y: 2, d: *a}",
+        "&a {x: [1], c: !!map {y: *a}, z: [2]}",
+        "&a {x: 1, s: [!!seq [*a]], c: !!map {<<: *a}, d: {<<: [*a]}}",
+        "&s [&a {x: *s, c: {<<: *a}}, 1]",
+        "&a {x: 1, <<: *a, y: 2}",
+        "a: &a {x: 1}\ns: !!seq [*a]\nc: {<<: *a}",
+      ])
+        for (const json of [false, true])
+          expect(load(input, { schema: ours[i], json }), `${i} ${input}`).toStrictEqual(
+            real.load(input, { schema, json }),
+          );
+    });
+    const map = load("&a {x: 1, child: {<<: *a}, y: 2, d: *a}", { schema: ours[1] }) as Map<
+      string,
+      unknown
+    >;
+    expect([...map.keys()]).toEqual(["x", "child", "y", "d"]);
+    expect(map.get("child")).toEqual(new Map([["x", 1]]));
+    expect(map.get("d")).toBe(map);
+  });
+
   // An ordered list of pairs, which logs every call a carrier gets.
   const pairs = (define: typeof defineMappingTag, log: string[]) => {
     const ids = new Map<unknown, number>();

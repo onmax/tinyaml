@@ -47,7 +47,6 @@ const KNOWN = [
   "M2N8/00: different value",
   "M2N8/01: different value",
   "MUS6/01: other error code",
-  "QLJ7: other error code",
   "RHX7: other error code",
   "SF5V: only tinyaml throws",
   "SY6V: other error code",
@@ -66,17 +65,14 @@ const KNOWN = [
 ];
 // With the json schema, only these differ, all rejected by both.
 const JSON_KNOWN = [
-  "9KAX: other error code",
   "9KBC: other error code",
   "B63P: other error code",
   "CXX2: other error code",
   "G5U8: other error code",
-  "KSS4: other error code",
   "MUS6/01: other error code",
   "SF5V: other error code",
   "SY6V: other error code",
   "U99R: other error code",
-  "W4TN: other error code",
   "Y79Y/003: other error code",
   "YJV2: other error code",
   "ZXT5: other error code",

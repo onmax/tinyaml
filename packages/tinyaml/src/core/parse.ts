@@ -92,6 +92,12 @@ export interface Engine {
    */
   atKey?: ((key: unknown, anchors: Map<string, unknown>) => unknown) | undefined;
   /**
+   * Read only in `yaml` mode: called where each document starts, a `...`
+   * that ends none included, which yaml counts as an empty one, and with
+   * `ends` where a document's node ends.
+   */
+  document?: ((at: number, ends?: boolean) => void) | undefined;
+  /**
    * Read only in `yaml` mode: called on each anchor, with the depth
    * and whether its node `starts`. A collection's comes as it starts and
    * again, a level up, as it ends; a scalar's once. Each alias comes too,
@@ -144,8 +150,6 @@ export interface Engine {
    * Throw with `fail`.
    */
   verbatim?: ((tag: string) => void) | undefined;
-  /** In `spec` mode but not `yaml`, what a %TAG prefix must match, as written. */
-  prefix?: RegExp | undefined;
   /** Default 100. */
   maxDepth?: number | undefined;
   /** Cap on keys copied by merges in one call; -1 for none. Default 10000. */
@@ -190,6 +194,7 @@ export interface Engine {
 const NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uD800-\uDFFF\uFFFE\uFFFF]/u;
 const TAG_HANDLE = /^!(?:[\da-z-]*!)?$/i;
 const TAG_SUFFIX = /^(?:%[\da-fA-F]{2}|[\w\-#;/?:@&=+$.~*'()])+$/;
+// A %TAG prefix, local or global: productions [94] and [95].
 const TAG_PREFIX =
   /^(?:!|%[\da-fA-F]{2}|[\w\-#;/?:@&=+$.~*'()])(?:%[\da-fA-F]{2}|[\w\-#;/?:@&=+$,.!~*'()[\]])*$/;
 // What js-yaml 4 and std, and js-yaml 5, accept in a verbatim tag.
@@ -533,8 +538,7 @@ export function parse(input: string, use: Engine): unknown[] {
           if (args.length !== 2) fail(E.TAG_ARGS);
           if (!TAG_HANDLE.test(handle!)) fail(E.TAG_HANDLE);
           if (declared.has(handle!)) fail(E.TAG_REDECLARED, handle);
-          if (spec ? !yaml && !engine.prefix!.test(prefix!) : !TAG_PREFIX.test(prefix!))
-            fail(E.TAG_PREFIX);
+          if (!yaml && !TAG_PREFIX.test(prefix!)) fail(E.TAG_PREFIX);
           declared.add(handle!);
           handles.set(handle!, decode(prefix!, E.PREFIX_ENCODING));
         } else warn(E.DIRECTIVE_UNKNOWN, name);
@@ -559,13 +563,19 @@ export function parse(input: string, use: Engine): unknown[] {
           : !(js5 ? indented(directiveEnd) : col)) &&
         (lenient || isBlank(src.charCodeAt(pos + 3))) &&
         src.startsWith("---", pos);
+      if (yaml) engine.document?.(lineStart);
       if (explicit) pos += 3;
       else if (directives) fail(E.DIRECTIVES_END);
       else if (isDocMarker()) {
-        // In js-yaml 4, a `...` with no document before it ends an empty one.
+        // In js-yaml 4, a `...` with no document before it ends an empty one,
+        // and in yaml one with an empty node.
         if (lenient) {
           frame(pos, 2);
           docs.push(null);
+        }
+        if (yaml) {
+          docs.push(implicit(null, true));
+          engine.document?.(pos, true);
         }
         pos += 3;
         if (spec) expectLineEnd();
@@ -580,6 +590,7 @@ export function parse(input: string, use: Engine): unknown[] {
           lenient && explicit,
         ),
       );
+      if (yaml) engine.document?.(pos, true);
       col = skipLines();
       if (lenient && warns && breaks && /[\x85\u2028\u2029]/.test(src.slice(start, pos)))
         warn(E.NON_ASCII_BREAKS);
@@ -1413,10 +1424,7 @@ function parseQuoted(indent: number): string {
   const single = quote === QUOTE;
   const kind = single ? "single" : "double";
   let out = "";
-  const first = ++pos;
-  let start = first;
-  // Saw a character the printable check may reject.
-  let odd = false;
+  let start = ++pos;
   for (;;) {
     const ch = src.charCodeAt(pos);
     if (ch !== ch) fail(E.QUOTED_END, kind);
@@ -1429,6 +1437,7 @@ function parseQuoted(indent: number): string {
       out += src.slice(start, pos++);
       break;
     }
+    // A quoted scalar may hold any character but a C0 control, as JSON's strings.
     if (ch < SPACE && ch !== TAB && ch !== LF) {
       // js-yaml 4 checks a run of text when it ends, so it reports there.
       if (lenient) {
@@ -1436,7 +1445,7 @@ function parseQuoted(indent: number): string {
         pos = end < 0 ? len : pos + end;
       }
       fail(E.CONTROL_CHAR);
-    } else if (spec && ch > 126) odd = true;
+    }
     if (ch === LF) {
       out += src.slice(start, pos).replace(/[ \t]+$/, "");
       out += quotedBreaks(kind, indent);
@@ -1471,8 +1480,6 @@ function parseQuoted(indent: number): string {
     }
     pos++;
   }
-  // Escapes are printable, so this checks only what's written.
-  if (odd) raw(first, pos);
   plain = false;
   return out;
 }
@@ -1676,15 +1683,16 @@ function parseFlowCollection(indent: number): unknown {
 function parseFlowNode(indent: number): unknown {
   const props = parseProps(true);
   // Properties go on over lines. js-yaml 4 and 5 end them at a repeat, which
-  // leaves a missed comma, and read the node as multiline.
+  // leaves a missed comma, and read the node as multiline, as tinyaml's own
+  // parser does, which reads on as far as skipFlowSpace allows.
   while (props && skipFlowSpace(indent)) {
-    if (leadingSpaces() <= Math.max(indent, 0)) {
+    if (!(spec && !yaml) && leadingSpaces() <= Math.max(indent, 0)) {
       if (!js5) return fail(E.MISSED_COMMA);
       // js-yaml 5 reads an empty node, and leaves the rest to the collection.
       crossed = true;
       return finish(null, props);
     }
-    if (!spec) crossed = true;
+    if (!yaml) crossed = true;
     parseProps(true, false, props, js5 || (lenient && !repeats));
   }
   const ch = src.charCodeAt(pos);

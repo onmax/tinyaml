@@ -411,6 +411,22 @@ folded: >
     ]);
   });
 
+  // js-yaml 4 looks for one before it reads a line, and before it adds the
+  // terminator its buffer leaves off.
+  it("reports a null byte at line 0, with the buffer one character short", () => {
+    const error = (load: (input: string) => unknown, input: string) => {
+      try {
+        load(input);
+      } catch (e) {
+        const { message, mark } = e as YAMLException;
+        return { message, mark };
+      }
+    };
+    for (const input of ["foo\0bar", "foo\0bar\n", "a\nfoo\0bar\nbaz\n", "a\r\nb\0c\r\n", "\0"])
+      expect(error(load, input), JSON.stringify(input)).toEqual(error(jsYaml.load, input));
+    expect(error(load, "foo\0bar")!.mark).toMatchObject({ buffer: "foo\0bar", line: 0 });
+  });
+
   // The value, or the error's message and file name.
   const outcome = (fn: () => unknown) => {
     try {

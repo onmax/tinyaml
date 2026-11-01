@@ -194,4 +194,29 @@ describe("stringify", () => {
       for (const opts of options)
         expect(stringify(value, opts)).toBe(yaml.stringify(value, opts as yaml.ToStringOptions));
   });
+
+  it("reads an option set to undefined over its default, as yaml does", () => {
+    const outcome = (
+      fn: (value: unknown, options: object) => string,
+      value: unknown,
+      options: object,
+    ) => {
+      try {
+        return fn(value, options);
+      } catch (e) {
+        return [(e as Error).constructor, (e as Error).message];
+      }
+    };
+    for (const name of ["nullStr", "trueStr", "falseStr", "defaultStringType", "collectionStyle"])
+      for (const value of [null, true, false, "x", { a: null, b: [true, false] }])
+        for (const directives of [undefined, true]) {
+          const options = { [name]: undefined, directives };
+          expect(outcome(stringify as never, value, options), name).toEqual(
+            outcome(yaml.stringify, value, options),
+          );
+        }
+    expect(() => stringify(null, { nullStr: undefined })).toThrow(
+      new TypeError("Cannot read properties of undefined (reading '0')"),
+    );
+  });
 });
