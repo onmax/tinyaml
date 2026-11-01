@@ -52,6 +52,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      # tinyaml's own Vite Doctor run, with its YAML linter extension.
+      - name: Doctor
+        working-directory: packages/tinyaml
+        run: pnpm check:doctor
 
   # Vitest, on the latest Node 22, 24 and 26.
   test:

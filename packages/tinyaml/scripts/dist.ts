@@ -15,7 +15,7 @@ export const ENTRIES: Record<string, string> = Object.fromEntries(
 
 const SOURCES = new Map(
   Object.entries(ENTRIES).map(([name, file]) => [
-    root(name === "index" ? "src/index.ts" : `src/${name}/index.ts`),
+    root(existsSync(root(`src/${name}.ts`)) ? `src/${name}.ts` : `src/${name}/index.ts`),
     file,
   ]),
 );

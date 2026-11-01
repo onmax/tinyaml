@@ -1,12 +1,17 @@
 {
   "name": "tinyaml",
   "version": "0.0.0",
-  "description": "Tiny, fast YAML parser and stringifier, with drop-in replacements for js-yaml and others",
+  "description": "Tiny, fast YAML parser and stringifier, with drop-in replacements for js-yaml and others, a YAML linter, an ESLint plugin, and a Vite Doctor extension",
   "keywords": [
     "dumper",
+    "eslint",
+    "eslint-plugin",
+    "eslintplugin",
     "frontmatter",
     "js-yaml",
+    "lint",
     "parser",
+    "vite-doctor",
     "yaml"
   ],
   "homepage": "https://github.com/onmax/tiny/tree/main/packages/tinyaml#readme",
@@ -17,6 +22,9 @@
     "type": "git",
     "url": "git+https://github.com/onmax/tiny.git",
     "directory": "packages/tinyaml"
+  },
+  "bin": {
+    "tinyaml-lint": "./dist/cli.mjs"
   },
   "files": [
     "dist"
@@ -43,6 +51,15 @@
       "std": [
         "./dist/std.d.mts"
       ],
+      "doctor": [
+        "./dist/doctor.d.mts"
+      ],
+      "eslint": [
+        "./dist/eslint.d.mts"
+      ],
+      "linter": [
+        "./dist/linter.d.mts"
+      ],
       "*": [
         "./dist/index.d.mts"
       ]
@@ -55,6 +72,9 @@
     "./yaml": "./dist/yaml.mjs",
     "./yamljs": "./dist/yamljs.mjs",
     "./std": "./dist/std.mjs",
+    "./doctor": "./dist/doctor.mjs",
+    "./eslint": "./dist/eslint.mjs",
+    "./linter": "./dist/linter.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -74,7 +94,8 @@
     "fixtures": "scripts/fixtures.sh",
     "compare": "scripts/compare.sh",
     "size": "node scripts/size.ts",
-    "bench": "node bench/index.ts"
+    "bench": "node bench/index.ts",
+    "check:doctor": "vite-doctor . --config doctor.config.ts --no-cache --max-warnings 0 --format text"
   },
   "devDependencies": {
     "@comark/html": "^0.8.1",
@@ -85,15 +106,34 @@
     "comark": "^0.8.1",
     "comark-charts": "^0.7.4",
     "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
     "js-yaml": "4.3.2",
     "js-yaml5": "npm:js-yaml@5.5.0",
     "publint": "^0.3.25",
     "tsrs": "0.20.1-ts7.1.0-beta",
     "typescript": "^7.0.2",
     "typescript5": "npm:typescript@5.9.3",
+    "vite-doctor": "^0.1.1",
     "vite-plus": "^1.4.0",
     "yaml": "^2.9.1",
+    "yaml-eslint-parser": "^2.1.0",
     "yamljs": "^0.3.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.15.0",
+    "vite-doctor": ">=0.1.1",
+    "yaml-eslint-parser": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "vite-doctor": {
+      "optional": true
+    },
+    "yaml-eslint-parser": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22.12.0"
