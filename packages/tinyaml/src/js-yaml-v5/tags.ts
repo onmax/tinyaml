@@ -401,8 +401,13 @@ export const pairsTag = /* @__PURE__ */ defineSequenceTag(`${Y}pairs`, {
   identify: () => false,
 });
 
-// A plain object, wrapped in the Map form the dumper walks.
-const entries = (data: Record<string, unknown>) => new Map(Object.entries(data));
+// A plain object, wrapped in the Map form the dumper walks. Key by key, as
+// js-yaml 5 reads it: a key an earlier getter deleted still reads, as undefined.
+const entries = (data: Record<string, unknown>) => {
+  const map = new Map<unknown, unknown>();
+  for (const key of Object.keys(data)) map.set(key, data[key]);
+  return map;
+};
 
 // Defines a key as own data, so `__proto__` never reaches the prototype setter.
 function define(carrier: Record<string, unknown>, key: string, value: unknown): void {

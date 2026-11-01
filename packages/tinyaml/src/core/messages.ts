@@ -17,7 +17,7 @@ ${spec ? "" : "unsupported %YAML version"}
 %TAG takes two arguments
 bad %TAG handle
 repeated %TAG handle "%s"
-${spec ? "" : "bad %TAG prefix"}
+bad %TAG prefix
 
 expected "---" after directives
 expected a document marker or the end of input

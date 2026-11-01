@@ -88,6 +88,32 @@ describe("stringify", () => {
       same(value, options);
   });
 
+  it("reads its input in std's order and count", () => {
+    // std reads a flow mapping's values with Object.entries, which skips a key
+    // an earlier getter hid, and a block mapping's by name, which doesn't.
+    const reads = (run: typeof stringify, options: StringifyOptions) => {
+      const log: string[] = [];
+      const inner = {
+        get x() {
+          return (log.push("a.x"), 1);
+        },
+      };
+      const value = {
+        get a() {
+          log.push("a");
+          Object.defineProperty(value, "b", { enumerable: false });
+          return inner;
+        },
+        get b() {
+          return (log.push("b"), 2);
+        },
+      };
+      return [run(value, options), ...log];
+    };
+    for (const options of [{ useAnchors: false }, { useAnchors: false, flowLevel: 0 }, {}])
+      expect(reads(stringify, options)).toEqual(reads(std.stringify, options));
+  });
+
   it("throws or skips what std can't write", () => {
     same({ f() {} });
     same({ f() {}, u: undefined, s: Symbol("s"), ok: 1 }, { skipInvalid: true });

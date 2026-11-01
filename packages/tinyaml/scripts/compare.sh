@@ -10,7 +10,8 @@
 # Fuzz runs use N=5000 inputs with seed 1. The parse fuzzers record each
 # difference they expect in scripts/baselines/ (see scripts/baseline.ts), for
 # seed 1 and 5,000 inputs, and any smaller N checks a prefix of those; the
-# suite checks record each case they accept. With UPDATE=1 they rewrite
+# suite checks record each case they accept, and the replays of js-yaml's
+# and yaml's own tests each call or test that differs. With UPDATE=1 they rewrite
 # their records instead, after a deliberate change, or to record a larger N:
 # review `git diff scripts/baselines` before committing.
 # Usage: pnpm compare, DIST=1 pnpm compare, UPDATE=1 pnpm compare, or
@@ -58,15 +59,15 @@ check "correctness scores" node --no-warnings scripts/correctness.ts
 check "js-yaml 4 suite" node scripts/suite.ts $update
 check "js-yaml 4 load fuzz" node --no-warnings scripts/fuzz.ts "$n" 1 $update
 check "js-yaml 4 dump fuzz" node scripts/dump-fuzz.ts "$n" 1
-check "js-yaml 4 own tests" sh scripts/js-yaml-tests/run.sh
+check "js-yaml 4 own tests" sh scripts/js-yaml-tests/run.sh $update
 check "js-yaml 5 suite" node scripts/js-yaml-v5-suite.ts $update
 check "js-yaml 5 load fuzz" node --no-warnings scripts/js-yaml-v5-fuzz.ts "$n" 1 $update
 check "js-yaml 5 dump fuzz" node scripts/js-yaml-v5-dump-fuzz.ts "$n" 1
-check "js-yaml 5 own tests" sh scripts/js-yaml-v5-tests/run.sh
+check "js-yaml 5 own tests" sh scripts/js-yaml-v5-tests/run.sh $update
 check "yaml suite" node --no-warnings scripts/yaml-suite.ts $update
 check "yaml parse fuzz" node --no-warnings scripts/yaml-fuzz.ts "$n" 1 $update
 check "yaml stringify fuzz" node --no-warnings scripts/yaml-stringify-fuzz.ts "$n" 1
-check "yaml own tests" node scripts/yaml-upstream/run.ts
+check "yaml own tests" node scripts/yaml-upstream/run.ts $update
 check "yamljs suite" node scripts/yamljs-suite.ts $update
 check "yamljs parse fuzz" node scripts/yamljs-fuzz.ts "$n" 1 $update
 check "yamljs dump fuzz" node scripts/yamljs-dump-fuzz.ts "$n" 1
@@ -75,6 +76,7 @@ check "std suite" node scripts/std-suite.ts $update
 check "std parse fuzz" node scripts/std-fuzz.ts "$n" 1 $update
 check "std stringify fuzz" node scripts/std-stringify-fuzz.ts "$n" 1
 check "std own tests" node scripts/std-tests.ts
+check "dumpers' reads" node scripts/dump-reads.ts "$n" 1
 
 echo
 node scripts/size.ts

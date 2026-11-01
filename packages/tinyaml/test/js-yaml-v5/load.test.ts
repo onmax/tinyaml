@@ -1,5 +1,6 @@
 import * as real from "js-yaml5";
 import { describe, expect, it } from "vite-plus/test";
+import * as lib from "../../src/js-yaml-v5/index.ts";
 import {
   CORE_SCHEMA,
   defineMappingTag,
@@ -14,6 +15,7 @@ import {
   NOT_RESOLVED,
   realMapTag,
   Schema,
+  setTag,
   strTag,
   YAML11_SCHEMA,
   YAMLException,
@@ -162,6 +164,12 @@ describe("load", () => {
       "x:\n a:\n \tb",
       "a: 1\n\tb: 2",
       "a: !t\n\tb",
+      "a:\n  - b\n \t- c",
+      "a:\n  ? b\n \t: c",
+      "- - a\n \t- b",
+      "  - b\n \t- c",
+      'a: "x\\\ny"',
+      '- "x\\\n\ny"',
       "?\t,key:\n",
       "!<> x",
       "!<> [a]",
@@ -356,6 +364,71 @@ describe("load", () => {
       base: [["k", 1]],
       copy: { k: 1 },
     });
+  });
+
+  it("merges a mapping through the keys its tag built it with", () => {
+    const lower = (lib: typeof real) => ({
+      ...lib.realMapTag,
+      addPair: (m: Map<unknown, unknown>, k: unknown, v: unknown) => {
+        m.set(String(k).toLowerCase(), v);
+        return "";
+      },
+    });
+    for (const input of [
+      "{<<: {A: 1}}",
+      "a: &a {A: 1, B: 2}\nb: {<<: *a}",
+      "a: &a {A: 1}\nb: {<<: [*a, {C: 3}], c: 9}",
+      "{<<: [{A: 1}, {a: 2}]}",
+      "{x: 1, <<: {X: 2}}",
+    ]) {
+      const theirs = real.load(input, {
+        schema: real.CORE_SCHEMA.withTags(real.mergeTag, lower(real)),
+      });
+      const ours = load(input, { schema: CORE_SCHEMA.withTags(mergeTag, lower(real) as never) });
+      expect(ours, input).toEqual(theirs);
+    }
+    expect(
+      load("{<<: {A: 1}}", { schema: CORE_SCHEMA.withTags(mergeTag, lower(real) as never) }),
+    ).toEqual(new Map([["a", 1]]));
+  });
+
+  it("tells symbol and function keys apart by identity, as js-yaml 5 does", () => {
+    const keys = (lib: typeof real) => [
+      lib.defineScalarTag("!sym", { resolve: (s) => Symbol(s), identify: () => false }),
+      lib.defineScalarTag("!fn", { resolve: (s) => () => s, identify: () => false }),
+    ];
+    const outcome = (lib: typeof real, input: string, ...tags: unknown[]) => {
+      try {
+        const value = lib.load(input, {
+          schema: lib.CORE_SCHEMA.withTags(...(tags as never[]), ...keys(lib)),
+        });
+        return value instanceof Map || value instanceof Set
+          ? [...value].map((entry) => [entry].flat().map(String))
+          : value;
+      } catch (e) {
+        return (e as YAMLException).message;
+      }
+    };
+    for (const input of [
+      "{!sym x: 1, !sym x: 2}",
+      "{!fn x: 1, !fn x: 2}",
+      "{!sym x: 1, ? !sym x}",
+      "{[a]: 1, [a]: 2}",
+      "{{a: 1}: 1, {a: 1}: 2}",
+      "{? &s !sym x : 1, ? *s : 2}",
+      "a: &a {!sym x: 1}\nb: {<<: *a, !sym x: 2}",
+    ]) {
+      expect(outcome(lib as never, input, realMapTag, mergeTag), input).toEqual(
+        outcome(real, input, real.realMapTag, real.mergeTag),
+      );
+    }
+    expect(outcome(lib as never, "!!set {!sym x, !sym x}", setTag)).toEqual(
+      outcome(real, "!!set {!sym x, !sym x}", real.setTag),
+    );
+    expect(outcome(lib as never, "{!sym x: 1, !sym x: 2}", realMapTag)).toEqual([
+      ["Symbol(x)", "1"],
+      ["Symbol(x)", "2"],
+    ]);
   });
 
   it("gives a mapping tag a merge's pairs, overrides and repeats as js-yaml 5 does", () => {

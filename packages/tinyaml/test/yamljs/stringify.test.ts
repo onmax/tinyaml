@@ -59,6 +59,22 @@ describe("stringify", () => {
       expect(stringify(input, 3, 2)).toBe(yamljs.stringify(input, 3, 2));
   });
 
+  it("reads an array's length once, as yamljs does", () => {
+    // Its first item's getter pushes a second item, which yamljs never reads.
+    const array = () => {
+      const v: unknown[] = [];
+      Object.defineProperty(v, 0, {
+        enumerable: true,
+        get: () => (v.length === 1 && v.push("later"), "first"),
+      });
+      return v;
+    };
+    for (const inline of [undefined, 0])
+      expect(stringify(array(), inline)).toBe(yamljs.stringify(array(), inline));
+    expect(stringify(array())).toBe("- first\n");
+    expect(stringify(array(), 0)).toBe("[first]");
+  });
+
   it("has dump and the default export as aliases", () => {
     expect(dump).toBe(stringify);
     expect(YAML.stringify).toBe(stringify);

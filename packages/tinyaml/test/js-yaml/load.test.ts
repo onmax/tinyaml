@@ -350,8 +350,25 @@ folded: >
       "a: 'b':x\n",
       " !!sr a\n: x\n",
       "- [foo",
+      // A tab before a later entry, which leaves its spaces short.
+      "a:\n  - b\n \t- c",
+      "a:\n  ? b\n \t: c",
+      "- - a\n \t- b",
+      "  - b\n \t- c",
     ])
       expect(message(loadAll, input), JSON.stringify(input)).toBe(message(jsYaml.loadAll, input));
+  });
+
+  it("warns about too little indentation after an escaped line break, as js-yaml 4 does", () => {
+    const warnings = (load: (input: string, options: object) => unknown, input: string) => {
+      const found: unknown[] = [];
+      load(input, { onWarning: (e: YAMLException) => found.push([e.reason, e.mark.position]) });
+      return found;
+    };
+    const theirs = (input: string, options: object) => jsYaml.loadAll(input, null, options);
+    for (const input of ['a: "x\\\ny"\n', '- "x\\\n\ny\\\n"\n'])
+      expect(warnings(loadAll, input), input).toEqual(warnings(theirs, input));
+    expect(warnings(loadAll, 'a: "x\\\ny"\n')).toEqual([["deficient indentation", 7]]);
   });
 
   it("rejects a document marker in a quoted scalar after an escaped break", () => {

@@ -47,9 +47,10 @@ const INT = /^(?:[-+]?\d+|0o[0-7]+|0x[\da-fA-F]+)$/;
 const FLOAT =
   /^(?:[-+]?(?:\.\d+|\d+(?:\.\d*)?)(?:[eE][-+]?\d+)?|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/;
 
-// A local tag other than `!`, or a URI, which starts with a scheme and may
-// end right after it. Both are made of the spec's URI characters.
-const VERBATIM = /^(?:!(?=.)|[a-z][a-z\d+.-]*:)(?:%[\da-f]{2}|[\w#;/?:@&=+$,.!~*'()[\]-])*$/i;
+// A local tag or %TAG prefix, which starts with `!`, or a URI, which starts
+// with a scheme and may end right after it. Both are made of the spec's URI
+// characters.
+const TAG = /^(?:!|[a-z][a-z\d+.-]*:)(?:%[\da-f]{2}|[\w#;/?:@&=+$,.!~*'()[\]-])*$/i;
 
 // Number reads the rest, `0o` and `0x` included, and `.nan` as NaN.
 const float = (text: string) => +text.replace(/\.inf/i, "Infinity");
@@ -65,8 +66,9 @@ function engine(options: ParseOptions): Engine {
     maxDepth: options.maxDepth,
     overflow: true,
     verbatim(tag) {
-      if (!VERBATIM.test(tag)) fail(`bad verbatim tag !<${tag}>`);
+      if (tag === "!" || !TAG.test(tag)) fail(`bad verbatim tag !<${tag}>`);
     },
+    prefix: TAG,
     implicit(text) {
       if (text === null) return null;
       // Past `@`, only `~` and words of five letters at most can be typed.

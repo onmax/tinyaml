@@ -44,7 +44,8 @@ function inline(value: any, encoder?: ObjectEncoder | null): string {
       if (result != null) return result as string;
     }
     const out: string[] = [];
-    if (value instanceof Array) for (let i = 0; i < value.length; i++) out.push(inline(value[i]));
+    if (value instanceof Array)
+      for (let i = 0, n = value.length; i < n; i++) out.push(inline(value[i]));
     else {
       for (const key in value) out.push(`${inline(key)}: ${inline(value[key])}`);
       return `{${out.join(", ")}}`;
@@ -86,7 +87,7 @@ function block(
     const flat = level - 1 <= 0 || typeof value !== "object" || isEmpty(value);
     output += `${prefix + head}${flat ? " " : "\n"}${block(value, level - 1, flat ? 0 : indent + step, step, encoder)}${flat ? "\n" : ""}`;
   };
-  if (input instanceof Array) for (let i = 0; i < input.length; i++) item("-", input[i]);
+  if (input instanceof Array) for (let i = 0, n = input.length; i < n; i++) item("-", input[i]);
   else for (const key in input) item(`${inline(key, encoder)}:`, input[key]);
   return output;
 }

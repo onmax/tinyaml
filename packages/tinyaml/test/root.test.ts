@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parse, parseAll, stringify, YAMLError } from "../src/index.ts";
 
+// How much longer reading the text for 4n takes than for n, best of three
+// runs each, so a busy machine doesn't decide it: about 4 when the work is
+// linear, 16 when it's quadratic.
+function growth(text: (n: number) => string, read: (text: string) => unknown, n: number): number {
+  const best = (input: string) => {
+    let fastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      const start = performance.now();
+      read(input);
+      fastest = Math.min(fastest, performance.now() - start);
+    }
+    return fastest;
+  };
+  return best(text(4 * n)) / best(text(n));
+}
+
 describe("parse", () => {
   it("resolves YAML 1.2 core values", () => {
     expect(
@@ -97,17 +113,23 @@ describe("parse", () => {
   });
 
   it("drops document-start byte order marks in linear time", () => {
-    const text = "\uFEFF--- 1\n...\n".repeat(100_000);
-    const start = performance.now();
-    expect(parseAll(text)).toHaveLength(100_000);
-    // Each one used to copy the rest of the input: seconds, not milliseconds.
-    expect(performance.now() - start).toBeLessThan(1000);
+    const text = (n: number) => "\uFEFF--- 1\n...\n".repeat(n);
+    expect(parseAll(text(100_000))).toHaveLength(100_000);
+    // Each one used to copy the rest of the input.
+    expect(growth(text, parseAll, 25_000)).toBeLessThan(10);
   });
 
   it("rejects a document marker in a quoted scalar, even after an escaped break", () => {
     expect(() => parse('"a\\\n...\nb"')).toThrow(/document ends inside/);
     expect(() => parse('"a\\\n--- b"')).toThrow(/document ends inside/);
     expect(parse('"a\\\n  ...\n  b"')).toBe("a... b");
+  });
+
+  it("indents the line after an escaped line break past the block around", () => {
+    for (const text of ['a: "x\\\ny"', '- "x\\\ny"', 'a: "x\\\n\n y\\\n"'])
+      expect(() => parse(text), text).toThrow(/too little indentation/);
+    expect(parse('a: "x\\\n y"')).toEqual({ a: "xy" });
+    expect(parse('"x\\\ny"')).toBe("xy");
   });
 
   it("rejects non-printable characters wherever they're written", () => {
@@ -205,11 +227,10 @@ describe("parse", () => {
   it("takes a tab inside a flow collection's line as white space, in linear time", () => {
     expect(parse("a: [b,\tc]")).toEqual({ a: ["b", "c"] });
     expect(parse("- {a:\tb,\tc: d}")).toEqual([{ a: "b", c: "d" }]);
-    const text = `${" ".repeat(20_000)}[${"0,\t".repeat(10_000)}0]`;
-    const start = performance.now();
-    expect(parse(text)).toHaveLength(10_001);
+    const text = (n: number) => `${" ".repeat(2 * n)}[${"0,\t".repeat(n)}0]`;
+    expect(parse(text(10_000))).toHaveLength(10_001);
     // Each tab used to measure the line's indentation again.
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(growth(text, parse, 5_000)).toBeLessThan(10);
   });
 
   it("indents a block value on its own line with spaces only", () => {
@@ -228,6 +249,24 @@ describe("parse", () => {
       );
     expect(parse("a:\n \tb")).toEqual({ a: "b" });
     expect(parse("---\n\tb")).toBe("b");
+  });
+
+  it("rejects a tab that indents a later entry, as it does the first", () => {
+    for (const [text, line, column] of [
+      ["a:\n  - b\n \t- c", 3, 2],
+      ["a:\n  ? b\n \t: c", 3, 2],
+      ["- - a\n \t- b", 2, 2],
+      ["  - b\n \t- c", 2, 2],
+      ["  a:\n \t- b", 2, 2],
+    ] as const)
+      expect(() => parse(text), JSON.stringify(text)).toThrow(
+        expect.objectContaining({
+          message: expect.stringMatching(/^tab in indentation/),
+          line,
+          column,
+        }),
+      );
+    expect(parse("a:\n  - b\n  -\tc\nd:\n  ? e\n  :\tf")).toEqual({ a: ["b", "c"], d: { e: "f" } });
   });
 
   it("needs white space after a flow `:` unless the key is quoted or a collection", () => {
@@ -253,6 +292,13 @@ describe("parse", () => {
     // Shorthands still decode.
     const tags = { "tag:e.com,2000:a!": () => 1 };
     expect(parse("%TAG !e! tag:e.com,2000:\n--- !e!a%21 x", { tags })).toBe(1);
+  });
+
+  it("takes a %TAG prefix that's local or a URI with a scheme", () => {
+    for (const prefix of ["a_", "1a:", ":a", "a", "a:b{", "a:%2", "%21"])
+      expect(() => parse(`%TAG !e! ${prefix}\n--- !e!b x`), prefix).toThrow(/bad %TAG prefix/);
+    for (const prefix of ["!", "!a-", "a:", "tag:e.com,2000:", "a:[b]", "!%21"])
+      expect(parse(`%TAG !e! ${prefix}\n--- !e!b x`), prefix).toBe("x");
   });
 
   it("counts every node but aliases toward maxDepth", () => {
@@ -336,6 +382,30 @@ describe("stringify", () => {
     expect(stringify("1e999")).toBe("'1e999'\n");
     expect(stringify({ ["9".repeat(400)]: 1 })).toBe(`'${"9".repeat(400)}': 1\n`);
     expect(stringify({ "--- a": 1, "... b": 2 })).toBe("'--- a': 1\n'... b': 2\n");
+  });
+
+  it("quotes what js-yaml or YAML 1.1 would read as a number or a date, real or not", () => {
+    // Dates that don't exist, and numbers yaml's YAML 1.1 schema reads as NaN.
+    for (const text of [
+      "2001-02-30",
+      "2024-13-01",
+      "2001-12-14T25:00:00",
+      "2001-1-2",
+      "2001-12-14t1:2:3",
+      "2001-12-14 21:59:43.10 -5",
+      "1_0e5",
+      "0_9",
+      "+0o1_7",
+      "e5",
+      "+E-1",
+      ".",
+      "0x_",
+      "1:30",
+      "-.Inf",
+    ])
+      expect(stringify({ k: text }), text).toBe(`k: '${text}'\n`);
+    for (const text of ["e5x", "ex", "2001-12-14x", "1.2.3", "+", "0b2", "1:60"])
+      expect(stringify({ k: text }), text).toBe(`k: ${text}\n`);
   });
 
   it("writes indentation indicators from the parent's column", () => {

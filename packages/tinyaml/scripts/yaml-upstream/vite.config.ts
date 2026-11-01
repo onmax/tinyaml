@@ -27,6 +27,8 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: [here("./setup.ts")],
+    // Whole values in failure messages, which run.ts records.
+    chaiConfig: { truncateThreshold: 0 },
     include: [
       ".cache/yaml-src/tests/doc/stringify.ts",
       ".cache/yaml-src/tests/doc/parse.ts",

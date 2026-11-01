@@ -2,6 +2,7 @@
 // `direct` reads the TAP log of js-yaml 4's suite run against tinyaml;
 // `diff` reads the calls the wrapper recorded. `-v` lists what differs.
 import { readFileSync } from "node:fs";
+import { Baseline, shorten } from "../baseline.ts";
 import { expectCount, expectList, fail } from "../support.ts";
 
 // tinyaml has no `listener` option, which these two tests use.
@@ -9,10 +10,6 @@ const FAILING = [
   "Listener informed on a very simple scalar.",
   "Listener informed on a map with a list.",
 ];
-// Replayed calls where both throw, with the same message at another
-// position, or with another message. Every other call must match exactly.
-const POSITION_ONLY = 7;
-const OTHER_MESSAGE = 0;
 
 const [mode, file, flag] = process.argv.slice(2);
 const verbose = flag === "-v";
@@ -38,12 +35,18 @@ if (mode === "direct") {
   if (!(total("tests") > 0)) fail(`no test totals in ${file}`);
   expectList("failing tests", failed, FAILING);
 } else {
-  const entries: { fn: string; status: string; input: string; expected: string; actual: string }[] =
-    text
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+  const entries: {
+    fn: string;
+    status: string;
+    input: string;
+    options?: string;
+    expected: string;
+    actual?: string;
+  }[] = text
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
   const count: Record<string, number> = {};
   for (const { fn, status } of entries)
     count[`${fn} ${status}`] = (count[`${fn} ${status}`] ?? 0) + 1;
@@ -60,8 +63,20 @@ if (mode === "direct") {
           `\n--- ${entry.fn} ${entry.status}\n${entry.input}\n  js-yaml: ${entry.expected}\n  tinyaml: ${entry.actual}`,
         );
   expectCount("calls recorded", entries.length, 1, Infinity);
-  const different = entries.length - by("pass").length - by("pass-message").length;
-  expectCount("calls with another value or outcome", different - by("pass-error").length, 0);
-  expectCount("errors at another position", by("pass-message").length, POSITION_ONLY);
-  expectCount("errors with another message", by("pass-error").length, OTHER_MESSAGE);
+  // Each call that doesn't match exactly is a record in
+  // scripts/baselines/js-yaml-tests.json with its function, options and both
+  // outcomes, so any change to one fails, as does a call that differs anew.
+  // Calls run in no fixed order, so each is at 0, sorted by what it is.
+  const baseline = new Baseline("js-yaml-tests", "replay", entries.length);
+  const call = (entry: (typeof entries)[number]) => `${entry.fn}\0${entry.input}\0${entry.options}`;
+  for (const entry of entries.sort((a, b) => (call(a) < call(b) ? -1 : 1)))
+    if (entry.status !== "pass")
+      baseline.add(
+        0,
+        entry.status,
+        entry.input,
+        { fn: entry.fn, options: shorten(entry.options ?? "") },
+        { "js-yaml": shorten(entry.expected), tinyaml: shorten(entry.actual ?? "") },
+      );
+  baseline.finish();
 }

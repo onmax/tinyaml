@@ -7,11 +7,11 @@ Each subpath exports the functions, options and types of the library it replaces
 
 | Library         | Change the import to   | Size, gzip      | Its own tests on tinyaml |
 | --------------- | ---------------------- | --------------- | ------------------------ |
-| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.8 KiB | 301 of 304 pass          |
-| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 16.1 KiB | 1,023 of 1,646 pass      |
-| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 17.0 KiB | 195 of 220 pass          |
-| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.5 KiB   | 103 of 103 pass          |
-| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.9 KiB | 92 of 95 pass            |
+| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.9 KiB | 301 of 304 pass          |
+| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 16.2 KiB | 1,023 of 1,646 pass      |
+| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 17.1 KiB | 195 of 220 pass          |
+| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.6 KiB   | 103 of 103 pass          |
+| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 11.0 KiB | 92 of 95 pass            |
 
 ```ts
 // before
@@ -41,6 +41,7 @@ Every subpath runs the same parser code as the root. The details below list each
 - js-yaml 5's tests make 10,085 calls to `load`, `loadAll` and `dump`, 5,256 of them different in function, input or options. Replayed through tinyaml, 5,213 of those 5,256 give the same result. 20 throw the same error at a different position, and 22 throw with a different message. tinyaml throws in every case js-yaml 5 does.
 - The one call that loads to a different value is an empty key tagged `!!merge` with `mergeTag` in the schema, `? !!merge\n: []`. js-yaml 5 loads `{}`, and tinyaml loads `{ "<<": [] }`.
 - A custom mapping tag gets js-yaml 5's `has`, `addPair` and `get` calls for each node, in the same order, but tinyaml builds a node when it ends. So an outer node's `create` comes after the nodes inside it, a merge calls its source's `keys` before `create` for the node it merges into, and a repeated key throws before the node's earlier pairs are added.
+- When the schema has a mapping tag other than the object maps, a repeated symbol or function key in an untagged mapping throws with the start of the input as its position, since tinyaml builds that mapping after reading the whole stream.
 - On the yaml-test-suite, all 402 cases give the same result as js-yaml 5. Both reject 126, and 109 of those throw the same message.
 - 5,000 randomly edited suite inputs: none load to a different value, and 2 load where js-yaml 5 throws. 5,000 random values give matching outcomes, including matching errors: 3,584 dump to the same text and 1,416 throw the same error.
 
@@ -51,10 +52,11 @@ Every subpath runs the same parser code as the root. The details below list each
 - A lone carriage return is a line break, as the YAML spec has it. yaml reads it as text, so `- a\r- b` is `["a", "b"]` where yaml gives `["a\r- b"]`. Error positions count such input as one line, as yaml's do.
 - `stringify` doesn't take Document or Node values, writes no comments, and doesn't use `customTags` or the YAML 1.1 `!!set`, `!!omap` and `!!binary` tags.
 - A collection tag's `resolve` gets a stand-in for yaml's YAMLMap or YAMLSeq node. It has `items`, with Scalar, Pair and collection nodes in them, `get`, `has`, `toJSON` and `toString`, and nothing else of yaml's node API. An alias in it is a node of the alias's value, `toJSON` returns the collection as tinyaml parsed it, and `nodeClass` isn't used. Its scalars have no `tag`, so `!!set` takes a value tagged `!!null` as null, where yaml rejects it. When `resolve` returns a node from inside the collection, `onAnchor` still hears of the anchors elsewhere in it. When it returns something else, a later alias to an anchor in the collection reads the anchor's value, where yaml throws.
+- A `<<` that merges a `!!set` merges nothing. yaml splits each member into a key and a value, so `{<<: !!set {abc}}` gives `{ a: "b" }`, and throws a TypeError on a member it can't split, like a number.
 - With `compat`, `stringify` quotes what yaml quotes and `parse` warns where yaml warns about plain scalars, but `parse` doesn't warn about a flow collection whose closing bracket is at its parent's indentation.
 - The upstream run covers yaml's tests of `parse` and `stringify`, the `stringify`, `parse`, `errors`, `types` and `anchors` files in `tests/doc/`. Of the 25 that fail, 4 are `logLevel` tests that fail against yaml itself under Vitest, and 13 use the features above. 5 stringify with `indent: 1`, `indent: 4` or `indentSeq: false`, where the output differs. The last 3 are parse cases: a merge key missing its space, which throws another message, carriage returns inside double quotes, and a collection key in an alias expansion test with the limits turned off.
 - Across 7 option sets on the yaml-test-suite, 2,584 of 2,814 runs agree with yaml.
-- 5,000 randomly edited suite inputs: 1,943 give the same value and the same warnings. 21 more throw the same error with other warnings, since tinyaml stops at the first error and yaml warns about what follows it, unknown aliases included. 2,922 throw in both: 350 the same error, 827 another error code, and the rest the same code at another position or with another message, since tinyaml marks one character where yaml marks the whole token, and words most errors as js-yaml 4 does. 36 load to a different value, 20 of those with a collection key. 48 load only in tinyaml and 30 only in yaml. Lone carriage returns, which yaml reads as text, cause most of these: all 16 other values without a collection key, 39 of the 48 and 22 of the 30. 5,000 random values: 4,932 stringify to the same text, 68 throw the same error, none differ.
+- 5,000 randomly edited suite inputs: 1,943 give the same value and the same warnings. 21 more throw the same error with other warnings, since tinyaml stops at the first error and yaml warns about what follows it, unknown aliases included. 2,923 throw in both: 350 the same error, 827 another error code, and the rest the same code at another position or with another message, since tinyaml marks one character where yaml marks the whole token, and words most errors as js-yaml 4 does. 36 load to a different value, 20 of those with a collection key. 47 load only in tinyaml and 30 only in yaml. Lone carriage returns, which yaml reads as text, cause most of these: all 16 other values without a collection key, 39 of the 47 and 22 of the 30. 5,000 random values: 4,932 stringify to the same text, 68 throw the same error, none differ.
 
 ## yamljs: what's different
 
@@ -81,5 +83,5 @@ On the yaml-test-suite's 402 cases, 186 give the same result as yamljs, and 144 
 
 - `unstable_parse` and `unstable_stringify` aren't supported. They account for 2 of the 3 tests that don't pass. The third starts a Deno subprocess, which can't run under Node.
 - On the yaml-test-suite, 360 of 402 cases give the same result as std, 99 of them the same error message. 11 parse where std throws. The other 31 differ, and in all 31 std's own result is wrong by the suite's answers.
-- 5,000 randomly edited suite inputs: 117 parse to a different value, 146 throw only in tinyaml, and 48 parse where std throws, so values or acceptance differ in 311 of them, 6.2%. 2,866 throw in both, 2,541 of them with the same message and 2,570 with the same message apart from the position.
+- 5,000 randomly edited suite inputs: 117 parse to a different value, 146 throw only in tinyaml, and 48 parse where std throws, so values or acceptance differ in 311 of them, 6.2%. 2,866 throw in both, 2,542 of them with the same message and 2,570 with the same message apart from the position.
 - 5,000 random values give matching outcomes, including matching errors: 3,499 stringify to the same text and 1,501 throw the same error.

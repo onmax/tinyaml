@@ -11,16 +11,16 @@ Each entry as npm ships it in `dist/`, bundled with esbuild, minified ESM, then 
 
 | Entry                | Minified | Gzip     |
 | -------------------- | -------- | -------- |
-| `tinyaml`            | 18.1 KiB | 8.2 KiB  |
-| `tinyaml/js-yaml`    | 26.5 KiB | 11.8 KiB |
+| `tinyaml`            | 17.8 KiB | 8.1 KiB  |
+| `tinyaml/js-yaml`    | 26.7 KiB | 11.9 KiB |
 | js-yaml 4            | 42.8 KiB | 14.4 KiB |
-| `tinyaml/js-yaml-v5` | 39.2 KiB | 16.1 KiB |
+| `tinyaml/js-yaml-v5` | 39.4 KiB | 16.2 KiB |
 | js-yaml 5            | 56.4 KiB | 17.1 KiB |
-| `tinyaml/yaml`       | 39.9 KiB | 17.0 KiB |
+| `tinyaml/yaml`       | 40.3 KiB | 17.1 KiB |
 | yaml                 | 95.8 KiB | 29.9 KiB |
-| `tinyaml/yamljs`     | 19.1 KiB | 8.5 KiB  |
+| `tinyaml/yamljs`     | 19.1 KiB | 8.6 KiB  |
 | yamljs               | 28.4 KiB | 8.8 KiB  |
-| `tinyaml/std`        | 25.0 KiB | 10.9 KiB |
+| `tinyaml/std`        | 25.2 KiB | 11.0 KiB |
 | @std/yaml            | 35.4 KiB | 11.3 KiB |
 
 The tinyaml entries export everything in the subpath. js-yaml 4 and yamljs are bundled whole, js-yaml 5 with `load`, `loadAll`, `dump`, `Schema` and `YAMLException`, yaml with only `parse` and `stringify`, and @std/yaml with `parse`, `parseAll` and `stringify`.

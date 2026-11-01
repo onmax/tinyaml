@@ -201,7 +201,7 @@ export function dump(input: unknown, options?: DumpOptions | null): string {
     const next = block ? level + 1 : level;
     const pad = `\n${spaces(indent * level)}`;
     let result = "";
-    for (let i = 0; i < keys.length; i++) {
+    for (let i = 0, n = keys.length; i < n; i++) {
       const key = isSeq ? `${i}` : keys[i];
       let value = object[key];
       let pair = "";

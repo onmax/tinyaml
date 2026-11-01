@@ -32,7 +32,7 @@ function show(result) {
     : `ERROR ${result.reason} @${result.mark}`;
 }
 
-function compare(fn, input, run) {
+function compare(fn, input, options, run) {
   try {
     const expected = attempt(() => run(real), real);
     const actual = attempt(() => run(lite), lite);
@@ -56,7 +56,7 @@ function compare(fn, input, run) {
     if (out)
       appendFileSync(
         out,
-        `${JSON.stringify({ fn, status, input: subject.slice(0, 2000), expected: show(expected), actual: show(actual) })}\n`,
+        `${JSON.stringify({ fn, status, input: subject, options: inspect(options, { depth: 4, breakLength: Infinity }).replaceAll(process.cwd(), "."), expected: show(expected), actual: show(actual) })}\n`,
       );
   } catch (error) {
     if (out)
@@ -72,17 +72,17 @@ function compare(fn, input, run) {
 module.exports = {
   ...real,
   load(input, options) {
-    compare("load", input, (y) => y.load(input, options));
+    compare("load", input, options, (y) => y.load(input, options));
     return real.load(input, options);
   },
   loadAll(input, iterator, options) {
     const opts = typeof iterator === "function" ? options : (iterator ?? options);
-    compare("loadAll", input, (y) => y.loadAll(input, opts));
+    compare("loadAll", input, opts, (y) => y.loadAll(input, opts));
     return real.loadAll(input, iterator, options);
   },
   dump(value, options) {
     // The suite's replacers count their calls, so they can't run twice.
-    if (!options?.replacer) compare("dump", value, (y) => y.dump(value, options));
+    if (!options?.replacer) compare("dump", value, options, (y) => y.dump(value, options));
     return real.dump(value, options);
   },
 };

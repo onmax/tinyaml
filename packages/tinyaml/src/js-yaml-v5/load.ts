@@ -114,8 +114,9 @@ function engine(input: string, options: LoadOptions) {
     !isObjectMap(defaultMap) ||
     (input.includes("!") &&
       schema.tags.some((tag) => tag.nodeKind === "mapping" && !isObjectMap(tag)));
-  // Keys behind placeholder names.
+  // Keys behind placeholder names, and the names of symbol and function keys.
   const keys = new Map<string, unknown>();
+  const identities = new Map<unknown, string>();
   // With `json`, every pair has a name of its own, so a carrier sees each
   // repeat. So does each pair a merge copies: these are their names, and
   // each stands for the mapping it comes from, which the tag reads the value
@@ -290,11 +291,18 @@ function engine(input: string, options: LoadOptions) {
       if (typed) {
         walk = true;
         // Equal scalars share a name, so the parser finds repeats and merges.
+        // A symbol or function is equal only to itself. Collection keys have
+        // names of their own, and the tag finds their repeats.
         const scalar = key as string | number | boolean | null;
-        const name =
-          (typeof key === "object" && key !== null) || options.json
-            ? `${PLACEHOLDER}${keys.size}`
-            : `${PLACEHOLDER}${scalar === null ? "null" : typeof scalar}:${String(scalar)}`;
+        const own = typeof key === "symbol" || typeof key === "function";
+        let name = own && !options.json ? identities.get(key) : undefined;
+        if (!name) {
+          name =
+            own || (typeof key === "object" && key !== null) || options.json
+              ? `${PLACEHOLDER}${keys.size}`
+              : `${PLACEHOLDER}${scalar === null ? "null" : typeof scalar}:${String(scalar)}`;
+          if (own) identities.set(key, name);
+        }
         keys.set(name, key);
         return name;
       }
@@ -327,6 +335,8 @@ function engine(input: string, options: LoadOptions) {
     // parser rejects what isn't an object, and arrays.
     merge(source) {
       let sourceKeys: Iterable<unknown>;
+      // js-yaml 5 has built the mapping by now, with keys its tag may change.
+      if (typed && isPlainObject(source) && !isObjectMap(defaultMap)) source = convert(source);
       if (built.has(source as object)) {
         const tag = mappings.get(source as object);
         if (!tag) return;
@@ -337,12 +347,10 @@ function engine(input: string, options: LoadOptions) {
           );
       } else if (typed && isPlainObject(source)) {
         // The keys the default tag will build it with.
-        const names = Object.keys(source as object).map(decode);
-        if (isObjectMap(defaultMap)) {
-          const carrier = defaultMap.create("");
-          for (const key of names) defaultMap.addPair(carrier, key, null);
-          sourceKeys = defaultMap.keys(carrier);
-        } else sourceKeys = new Set(names);
+        const carrier = defaultMap!.create("");
+        for (const name of Object.keys(source as object))
+          defaultMap!.addPair(carrier, decode(name), null);
+        sourceKeys = defaultMap!.keys(carrier);
       } else return source;
       const pairs: Record<string, unknown> = {};
       for (const key of sourceKeys) {

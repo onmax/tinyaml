@@ -53,15 +53,15 @@ Each package matches its original on that library's own tests and on tens of tho
 
 | You use     | Switch to            |      Size, gzip |       Parses | Stringifies |
 | ----------- | -------------------- | --------------: | -----------: | ----------: |
-| js-yaml 4   | `tinyaml/js-yaml`    | 14.4 → 11.8 KiB |  1.5× faster | 1.6× faster |
-| js-yaml 5   | `tinyaml/js-yaml-v5` | 17.1 → 16.1 KiB |  1.5× faster | 1.8× faster |
-| yaml        | `tinyaml/yaml`       | 29.9 → 17.0 KiB | 12.6× faster | 2.8× faster |
-| yamljs      | `tinyaml/yamljs`     |   8.8 → 8.5 KiB |  5.0× faster | 1.1× faster |
-| @std/yaml   | `tinyaml/std`        | 11.3 → 10.9 KiB |  2.0× faster | 1.6× faster |
+| js-yaml 4   | `tinyaml/js-yaml`    | 14.4 → 11.9 KiB |  1.5× faster | 1.6× faster |
+| js-yaml 5   | `tinyaml/js-yaml-v5` | 17.1 → 16.2 KiB |  1.5× faster | 1.8× faster |
+| yaml        | `tinyaml/yaml`       | 29.9 → 17.1 KiB | 12.6× faster | 2.8× faster |
+| yamljs      | `tinyaml/yamljs`     |   8.8 → 8.6 KiB |  5.0× faster | 1.1× faster |
+| @std/yaml   | `tinyaml/std`        | 11.3 → 11.0 KiB |  2.0× faster | 1.6× faster |
 | json5 2.2.3 | `tinyjson5`          |   7.5 → 3.0 KiB |  8.1× faster | 4.8× faster |
 | ini 7.0.0   | `tinyini`            |   1.6 → 1.6 KiB |  2.0× faster | 2.9× faster |
 
-Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.2 KiB, 1.8× smaller than js-yaml 4 and 3.7× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
+Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.1 KiB, 1.8× smaller than js-yaml 4 and 3.7× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
 
 Size is the minified bundle, gzipped. Speed is the median time to parse and stringify each package's large benchmark file. Measured on Apple M4, Node 26.13.
 
