@@ -1,6 +1,6 @@
 {
   "name": "tinyaml",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Tiny, fast YAML parser and stringifier, with drop-in replacements for js-yaml and others",
   "keywords": [
     "dumper",
