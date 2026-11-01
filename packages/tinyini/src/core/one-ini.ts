@@ -266,7 +266,14 @@ function utf8Error(bytes: Uint8Array): string | undefined {
 export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
   // wasm-bindgen copies the argument into memory the same way, after a
   // malloc that takes the length as an i32 and traps on a negative one.
-  let bytes = new Uint8Array(malloc(contents.length * 1));
+  // set copies a typed array by its own length, whatever its `length`
+  // property says, and WASM's memory has room for it.
+  const n = malloc(contents.length * 1);
+  let bytes = new Uint8Array(
+    ArrayBuffer.isView(contents) && !(contents instanceof DataView)
+      ? Math.max(n, typedLength.call(contents))
+      : n,
+  );
   bytes.set(contents);
   // The glue reads the length again for the length it passes.
   const end = contents.length | 0;
@@ -314,6 +321,10 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
 }
 
 const encoder = new TextEncoder();
+const typedLength = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "length",
+)!.get!;
 
 /** The size wasm-bindgen's malloc gets: the length as an i32, which traps if negative. */
 function malloc(len: number): number {

@@ -49,7 +49,9 @@ export function decode(str: string, opt: DecodeOptions = {}): Record<string, any
   let p: Section = out;
   const duplicates: Record<string, any> = {};
   const lines = str.split(/[\r\n]+/g);
-  const separators = /[\u2028\u2029]/.test(str);
+  // Tested on the lines, since reading str again would convert a String
+  // object to a string a second time, where ini does it once.
+  const separators = lines.some((line) => /[\u2028\u2029]/.test(line));
   for (const line of lines) {
     const text = line.trimStart();
     const c = text.charCodeAt(0);

@@ -34,9 +34,23 @@ const id = process.env.THEIRS
 // The WASM module leaks memory on every call, about 48 KiB for a 1 KiB file,
 // and once it reaches 4 GiB every call throws `RuntimeError: unreachable`.
 // A fresh instance every 5,000 inputs keeps it far from that.
+// Another build named by THEIRS reports its own version, which is read as
+// the entry's: in version() and in the AST's version field, nowhere else.
 const load = () => {
   delete require.cache[id];
-  return require(id);
+  const lib = require(id);
+  if (!process.env.THEIRS) return lib;
+  const version = (name === "one-ini" ? "0.2.1" : "0.1.1") as string;
+  return {
+    ...lib,
+    original: lib.version(),
+    version: () => version,
+    parse_to_json(contents: unknown) {
+      const ast = lib.parse_to_json(contents);
+      if (ast && typeof ast === "object" && Object.hasOwn(ast, "version")) ast.version = version;
+      return ast;
+    },
+  };
 };
 let theirs = load();
 const ours = await import(`../src/${name}/index.ts`);
@@ -102,10 +116,8 @@ const check = (label: string, call: (lib: any) => unknown) => {
 
   const b = attempt(() => call(ours));
   if (!a.ok) throws++;
-  const seen = process.env.THEIRS
-    ? JSON.stringify(a).replaceAll(theirs.version(), ours.version())
-    : JSON.stringify(a);
-  if (seen !== JSON.stringify(b)) diffs.set(label, `wasm:    ${show(a)}\n  tinyini: ${show(b)}`);
+  if (JSON.stringify(a) !== JSON.stringify(b))
+    diffs.set(label, `wasm:    ${show(a)}\n  tinyini: ${show(b)}`);
 };
 const array = (u: unknown) => (u instanceof Uint32Array ? `Uint32Array ${u.join()}` : u);
 
@@ -189,7 +201,8 @@ for (const polluted of [["inherited"], "inherited"])
     );
 // The same names as setters that log each assignment, so that the AST is
 // built in the same order, one assignment at a time, as serde builds it.
-for (const input of ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
+// Skipped for another build, whose setter calls carry its own version.
+for (const input of process.env.THEIRS ? [] : ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
   check(`parse_to_json ${JSON.stringify(input)} with setters on Object.prototype`, (lib) =>
     restoreBuiltIns(() => {
       // A string, since a push would call the setters below.
@@ -249,6 +262,6 @@ const limit = Number(process.env.SHOW ?? 10);
 for (const [label, diff] of [...diffs].sort((a, b) => a[0].length - b[0].length).slice(0, limit))
   console.log(`--- ${label.slice(0, 300)}\n  ${diff}`);
 console.log(
-  `${seeds.length + iterations} inputs (${seeds.length} seeds), ${calls} calls (${throws} throw in @one-ini/wasm ${theirs.version()}): ${diffs.size} differences`,
+  `${seeds.length + iterations} inputs (${seeds.length} seeds), ${calls} calls (${throws} throw in @one-ini/wasm ${theirs.original ?? theirs.version()}): ${diffs.size} differences`,
 );
 process.exitCode = diffs.size ? 1 : 0;

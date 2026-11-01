@@ -2,7 +2,6 @@
 import type { Mode } from "../mode.ts";
 
 export type { Mode };
-export const root = false;
 export const legacy = false;
 export const plain = false;
 export const emptyValues = false;

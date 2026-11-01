@@ -128,7 +128,7 @@ const model = (v: any, sort: boolean, key: string, inArray = false): any => {
   if (typeof v !== "object") return String(v);
   if (Array.isArray(v)) {
     const items = [];
-    const n = Math.min(Math.max(Math.trunc(Number(v.length)) || 0, 0), Number.MAX_SAFE_INTEGER);
+    const n = Math.min(Math.max(Math.trunc(+v.length) || 0, 0), Number.MAX_SAFE_INTEGER);
     for (let i = 0; i < n; i++) items.push(model(v[i], sort, String(i), true));
     return items;
   }

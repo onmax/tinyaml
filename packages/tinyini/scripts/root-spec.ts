@@ -179,7 +179,8 @@ export function stringify(value: object, options: StringifyOptions = {}): string
       if (Array.isArray(v)) {
         // Each item read after the toJSON before it, up to the length read
         // first, made a whole number: JSON's LengthOfArrayLike.
-        const n = Math.min(Math.max(Math.trunc(Number(v.length)) || 0, 0), Number.MAX_SAFE_INTEGER);
+        // Unary plus, which throws on a BigInt as ToLength does, where Number() doesn't.
+        const n = Math.min(Math.max(Math.trunc(+v.length) || 0, 0), Number.MAX_SAFE_INTEGER);
         for (let i = 0; i < n; i++) {
           const x = toJSON(v[i], String(i));
           if (x !== null && typeof x === "object")

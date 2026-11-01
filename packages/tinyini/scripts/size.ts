@@ -10,7 +10,9 @@
 // the mode's constants.
 // Usage: node scripts/size.ts [--json]
 import { buildSync } from "esbuild";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { gzipSync } from "node:zlib";
 import { MODES } from "../vite.config.ts";
@@ -49,8 +51,8 @@ const BUDGET: Record<string, number> = {
   "tinyini/ini": 1590,
   "tinyini/ini-v2": 1420,
   "tinyini/ini-v1": 1430,
-  "tinyini/one-ini": 1700,
-  "tinyini/one-ini-v0.1": 1700,
+  "tinyini/one-ini": 1800,
+  "tinyini/one-ini-v0.1": 1800,
 };
 
 // Code that some modes have, as it reads once minified, and the modes whose
@@ -72,6 +74,24 @@ const MARKERS: [string | RegExp, Mode[]][] = [
   ['"0.2.1"', ["one"]],
   ['"0.1.1"', ["one01"]],
 ];
+// What each flag the core reads changes, run on the measured bundle itself,
+// so that an entry behaving as another mode on either side of a flag fails
+// even when no marker shows it: the modes a probe applies to, the modes it
+// must hold for, and the probe.
+const PROBES: [string, Mode[], Mode[], (lib: any) => boolean][] = [
+  // ini 1.x to 4.0 read a line of whitespace as the key "".
+  ["legacy", ["ini", "v2", "v1"], ["v2", "v1"], (lib) => "" in lib.decode(" ")],
+  // ini 1.x returns plain objects.
+  [
+    "plain",
+    ["ini", "v2", "v1"],
+    ["v1"],
+    (lib) => Object.getPrototypeOf(lib.decode("a=1")) === Object.prototype,
+  ],
+  // one-ini 0.2 reads `a=` as an empty value, where 0.1 stops parsing.
+  ["emptyValues", ["one", "one01"], ["one"], (lib) => !!lib.parse_to_json("a=").body],
+];
+
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as Mode]) as Mode | undefined;
 
@@ -144,6 +164,13 @@ for (const [name, source, original] of entries) {
   const own = modeOf(source);
   if (!own) problems.push(`${name} is in no mode's build in vite.config.ts`);
   const text = new TextDecoder().decode(code);
+  const file = resolve(`.cache/size/${source}.mjs`);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, code);
+  const lib = await import(`${pathToFileURL(file).href}?${Date.now()}`);
+  for (const [flag, applies, holds, probe] of PROBES)
+    if (own && applies.includes(own) && probe(lib) !== holds.includes(own))
+      problems.push(`${name} behaves as if ${flag} were ${!holds.includes(own)}`);
   for (const [marker, modes] of MARKERS) {
     const found = typeof marker === "string" ? text.includes(marker) : marker.test(text);
     if (own && found !== modes.includes(own))
