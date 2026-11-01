@@ -2,6 +2,7 @@
 // but for imports in place of require(), the exports at the end, and
 // assignments that fail silently, as in sloppy mode, marked "tinyjson5".
 import { tokenize } from './parse.js'
+import { sloppySet } from './sloppy.js'
 const module = { exports: {} }
 
 
@@ -89,14 +90,6 @@ module.exports.analyze = function analyzeJSON(input, options) {
   }
 
   return result
-}
-
-// tinyjson5: an assignment as jju's sloppy-mode code makes it, which fails
-// silently where this module's strict mode would throw, as on a read-only
-// property a prototype has.
-function sloppySet(object, key, value) {
-  if (object === null || object === undefined) object[key] = value
-  else Reflect.set(Object(object), key, value, object)
 }
 
 const exported_analyze = module.exports.analyze

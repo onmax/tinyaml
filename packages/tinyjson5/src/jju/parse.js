@@ -3,6 +3,7 @@
 // marked "tinyjson5": a faster way through strings, and assignments that fail
 // silently, as in sloppy mode.
 import * as Uni from './unicode.js'
+import { sloppySet } from './sloppy.js'
 const module = { exports: {} }
 
 
@@ -782,18 +783,6 @@ module.exports.tokenize = function tokenizeJSON(input, options) {
   return tokens
 }
 
-// tinyjson5: an assignment or delete as jju's sloppy-mode code makes it,
-// which fails silently where this module's strict mode would throw.
-// On a primitive, as there, a setter its prototype has runs with the
-// primitive as this, and anything else fails silently.
-function sloppySet(object, key, value) {
-  if (object === null || object === undefined) object[key] = value
-  else Reflect.set(Object(object), key, value, object)
-}
-function sloppyDelete(object, key) {
-  if (object === null || object === undefined) delete object[key]
-  else Reflect.deleteProperty(Object(object), key)
-}
 
 const exported_parse = module.exports.parse
 const exported_tokenize = module.exports.tokenize

@@ -6,6 +6,7 @@ import { analyze } from './analyze.js'
 import { assert } from './assert.js'
 import { tokenize } from './parse.js'
 import { stringify } from './stringify.js'
+import { sloppyDelete, sloppySet } from './sloppy.js'
 const module = { exports: {} }
 
 
@@ -488,18 +489,6 @@ module.exports.update = function updateJSON(source, new_value, options) {
   return Document(source, options).update(new_value).toString()
 }
 
-// tinyjson5: an assignment or delete as jju's sloppy-mode code makes it,
-// which fails silently where this module's strict mode would throw.
-// On a primitive, as there, a setter its prototype has runs with the
-// primitive as this, and anything else fails silently.
-function sloppySet(object, key, value) {
-  if (object === null || object === undefined) object[key] = value
-  else Reflect.set(Object(object), key, value, object)
-}
-function sloppyDelete(object, key) {
-  if (object === null || object === undefined) delete object[key]
-  else Reflect.deleteProperty(Object(object), key)
-}
 
 const exported_Document = module.exports.Document
 const exported_update = module.exports.update
