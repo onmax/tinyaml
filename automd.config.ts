@@ -13,6 +13,8 @@ export type Comparison = {
   parse: Timing;
   /** Absent for a library that only parses, such as strip-json-comments. */
   stringify?: Timing;
+  /** Where this row was measured, when not on the file's `machine`. */
+  machine?: string;
 };
 // `root` is tinyaml's own API against yaml; `roots` the other packages' own
 // APIs, each against the library its users switch from.
@@ -39,6 +41,17 @@ const kib = (bytes: number) => (bytes / 1024).toFixed(1);
 const times = ({ theirs, ours }: Timing) => `${(theirs / ours).toFixed(1)}×`;
 
 const readDropIns = (): DropIns => JSON.parse(readFileSync(".github/drop-ins.json", "utf8"));
+
+// The machines the rows were measured on: one, or each with its packages.
+const machines = (data: DropIns, rows: Comparison[]) => {
+  const packages = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const machine = r.machine ?? data.machine;
+    packages.set(machine, (packages.get(machine) ?? new Set()).add(r.package));
+  }
+  if (packages.size <= 1) return [...packages.keys()][0] ?? data.machine;
+  return [...packages].map(([machine, names]) => `${machine} (${[...names].join(", ")})`).join(" and ");
+};
 
 // The size of the package's own entry, which for tinyaml is its root API.
 const facts = (name: string, section: string) => {
@@ -139,7 +152,7 @@ export default {
         lines.push(
           "",
           `Size is the minified bundle, gzipped. Speed is the median time to parse and stringify ` +
-            `${args.package ? "the" : "each package's"} large benchmark file. Measured on ${data.machine}.`,
+            `${args.package ? "the" : "each package's"} large benchmark file. Measured on ${machines(data, rows)}.`,
         );
         return { contents: lines.join("\n") };
       },

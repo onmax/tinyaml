@@ -1,5 +1,6 @@
 // jsonc-parser 3.3.1's string-intern (MIT, Copyright (c) Microsoft Corporation):
 // the indents and line breaks its formatter looks up, unchanged.
+/* eslint-disable unicorn/no-new-array -- kept as jsonc-parser writes it */
 export const cachedSpaces = new Array(20).fill(0).map((_, index) => {
   return " ".repeat(index);
 });

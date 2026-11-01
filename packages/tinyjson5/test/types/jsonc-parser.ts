@@ -15,7 +15,7 @@ const scanner = createScanner('"a"');
 const scanned: SyntaxKind = scanner.scan();
 const error: ScanError = scanner.getTokenError();
 const none: ScanError.None = ScanError.None;
-const name: "InvalidSymbol" | "<unknown ParseErrorCode>" | string = printParseErrorCode(
+const name: ReturnType<typeof printParseErrorCode> = printParseErrorCode(
   ParseErrorCode.InvalidSymbol,
 );
 const code: ParseErrorCode.ValueExpected = ParseErrorCode.ValueExpected;

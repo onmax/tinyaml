@@ -89,19 +89,130 @@
     {
       "package": "tinyjson5",
       "library": "json5 2.2.3",
-      "entry": "tinyjson5",
+      "entry": "tinyjson5/json5",
       "gzip": {
-        "theirs": 7731,
-        "ours": 3089
+        "theirs": 7812,
+        "ours": 3257
       },
       "parse": {
-        "theirs": 7.37,
-        "ours": 0.91
+        "theirs": 15.48792074999983,
+        "ours": 1.9987026874999856
       },
       "stringify": {
-        "theirs": 2.22,
-        "ours": 0.4625
-      }
+        "theirs": 4.659287812499997,
+        "ours": 0.8740176718749808
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "json5 1.0.2",
+      "entry": "tinyjson5/json5-v1",
+      "gzip": {
+        "theirs": 8623,
+        "ours": 3374
+      },
+      "parse": {
+        "theirs": 15.297098499999265,
+        "ours": 1.8776925937499982
+      },
+      "stringify": {
+        "theirs": 4.510616000000027,
+        "ours": 0.7092208359374865
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "strip-json-comments 3",
+      "entry": "tinyjson5/strip-json-comments",
+      "gzip": {
+        "theirs": 770,
+        "ours": 537
+      },
+      "parse": {
+        "theirs": 3.8581448750001073,
+        "ours": 0.9364382031250216
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "strip-json-comments 2",
+      "entry": "tinyjson5/strip-json-comments-v2",
+      "gzip": {
+        "theirs": 672,
+        "ours": 530
+      },
+      "parse": {
+        "theirs": 4.441258749999861,
+        "ours": 0.9852250781249836
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "strip-json-comments 5",
+      "entry": "tinyjson5/strip-json-comments-v5",
+      "gzip": {
+        "theirs": 654,
+        "ours": 646
+      },
+      "parse": {
+        "theirs": 4.265937062499688,
+        "ours": 1.0081917968750531
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "jsonc-parser 3.3.1",
+      "entry": "tinyjson5/jsonc-parser",
+      "gzip": {
+        "theirs": 6788,
+        "ours": 6045
+      },
+      "parse": {
+        "theirs": 2.405307031250004,
+        "ours": 1.9323742500000662
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "comment-json 4.6.2",
+      "entry": "tinyjson5/comment-json",
+      "gzip": {
+        "theirs": 36531,
+        "ours": 17883
+      },
+      "parse": {
+        "theirs": 17.048514750000322,
+        "ours": 10.392416749999938
+      },
+      "stringify": {
+        "theirs": 9.525805749999563,
+        "ours": 7.815169750000678
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    },
+    {
+      "package": "tinyjson5",
+      "library": "jju 1.4.0",
+      "entry": "tinyjson5/jju",
+      "gzip": {
+        "theirs": 9988,
+        "ours": 9866
+      },
+      "parse": {
+        "theirs": 3.2553084999999555,
+        "ours": 2.664856249999957
+      },
+      "stringify": {
+        "theirs": 3.1540077812501295,
+        "ours": 2.1916777187498155
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
     },
     {
       "package": "tinyini",
@@ -137,5 +248,25 @@
       "theirs": 12.65,
       "ours": 1.01
     }
-  }
+  },
+  "roots": [
+    {
+      "package": "tinyjson5",
+      "library": "json5 2.2.3",
+      "entry": "tinyjson5",
+      "gzip": {
+        "theirs": 7812,
+        "ours": 3510
+      },
+      "parse": {
+        "theirs": 15.135260999999446,
+        "ours": 1.8766778750000412
+      },
+      "stringify": {
+        "theirs": 4.181681312499677,
+        "ours": 0.8088465781249852
+      },
+      "machine": "AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0"
+    }
+  ]
 }

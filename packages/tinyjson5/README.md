@@ -27,14 +27,14 @@ tinyjson5 ships drop-in replacements for json5 2 and 1, strip-json-comments 3, 2
 
 | You use               | Switch to                          |      Size, gzip |      Parses | Stringifies |
 | --------------------- | ---------------------------------- | --------------: | ----------: | ----------: |
-| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB | 6.5× faster | 4.8× faster |
-| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB | 7.3× faster | 6.6× faster |
-| strip-json-comments 3 | `tinyjson5/strip-json-comments`    |   0.8 → 0.5 KiB | 4.0× faster |           — |
+| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB | 7.7× faster | 5.3× faster |
+| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB | 8.1× faster | 6.4× faster |
+| strip-json-comments 3 | `tinyjson5/strip-json-comments`    |   0.8 → 0.5 KiB | 4.1× faster |           — |
 | strip-json-comments 2 | `tinyjson5/strip-json-comments-v2` |   0.7 → 0.5 KiB | 4.5× faster |           — |
-| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB | 4.1× faster |           — |
+| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB | 4.2× faster |           — |
 | jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.9 KiB | 1.2× faster |           — |
-| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 17.4 KiB | 1.5× faster | 1.3× faster |
-| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.6 KiB | 1.2× faster | 1.5× faster |
+| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 17.5 KiB | 1.6× faster | 1.2× faster |
+| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.6 KiB | 1.2× faster | 1.4× faster |
 
 The root `tinyjson5` API is 3.4 KiB against 7.6 KiB for json5 2.2.3. It parses 8.1× faster than json5 2.2.3 and stringifies 5.2× faster.
 
@@ -90,7 +90,7 @@ Each subpath exports the functions, options and types of the library it replaces
 | strip-json-comments 2.0.1 | `"tinyjson5/strip-json-comments-v2"` | 0.7 → 0.5 KiB   | 9 of 9                     |
 | strip-json-comments 5.0.3 | `"tinyjson5/strip-json-comments-v5"` | 654 → 646 B     | 13 of 13                   |
 | jsonc-parser 3.3.1        | `"tinyjson5/jsonc-parser"`           | 6.6 → 5.9 KiB   | 83 of 83                   |
-| comment-json 4.6.2        | `"tinyjson5/comment-json"`           | 35.7 → 17.3 KiB | 384 of 384                 |
+| comment-json 4.6.2        | `"tinyjson5/comment-json"`           | 35.7 → 17.5 KiB | 384 of 384                 |
 | jju 1.4.0                 | `"tinyjson5/jju"`                    | 9.8 → 9.6 KiB   | 420 of 422                 |
 
 jju fails the same 2 of its own tests itself under today's Node: they compare it with `eval`. json5 2.2.3's tests include json5's errors tests, and tinyjson5's root runs json5's main-branch tests too: 197 of 198 pass, and the one left needs an identifier character from Unicode 18, which Node 24 doesn't know yet.
@@ -170,14 +170,14 @@ Bundled with esbuild, minified ESM, every export kept, then gzip -9 (`pnpm size`
 | `tinyjson5/strip-json-comments-v2` |  0.9 KiB |  0.5 KiB | strip-json-comments 2.0.1 |   1.2 KiB |  0.7 KiB |
 | `tinyjson5/strip-json-comments-v5` |  1.1 KiB |  0.6 KiB | strip-json-comments 5.0.3 |   1.1 KiB |  0.6 KiB |
 | `tinyjson5/jsonc-parser`           | 17.0 KiB |  5.9 KiB | jsonc-parser 3.3.1        |  19.7 KiB |  6.6 KiB |
-| `tinyjson5/comment-json`           | 57.2 KiB | 17.3 KiB | comment-json 4.6.2        | 151.8 KiB | 35.7 KiB |
+| `tinyjson5/comment-json`           | 57.5 KiB | 17.5 KiB | comment-json 4.6.2        | 151.8 KiB | 35.7 KiB |
 | `tinyjson5/jju`                    | 28.0 KiB |  9.6 KiB | jju 1.4.0                 |  28.4 KiB |  9.8 KiB |
 
 jju needs Node's `fs` and `assert`, so it's measured for Node, without them. Each entry is built on its own, so it carries no code of another; the root carries json5 3's additions and the `jsonc` mode, which put it above `tinyjson5/json5`.
 
 ## Speed
 
-<!-- SPEED -->
+`pnpm bench` times each entry against its original, on the built `dist/`, with a 15-line tsconfig, json5's own `test.json5`, and json5 2.2.3's package-lock.json as 215 KB of JSON5 and of JSON with comments.
 
 ## API
 
