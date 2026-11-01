@@ -19,7 +19,8 @@
     "directory": "packages/tinyjson5"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "type": "module",
   "sideEffects": false,
