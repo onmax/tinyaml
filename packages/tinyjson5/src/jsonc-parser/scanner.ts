@@ -12,9 +12,6 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
   let value: string | undefined = "";
   let valueStart = 0;
   let valueEnd = 0;
-  // Where the next backslash is, from where it was last looked for, so a
-  // string without one is one indexOf and a look at its characters.
-  let backslashAt = -1;
   let tokenOffset = 0;
   let token = 16; /* Unknown */
   let lineNumber = 0;
@@ -42,7 +39,6 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
   function setPosition(newPosition: number) {
     pos = newPosition;
     value = "";
-    backslashAt = -1;
     tokenOffset = 0;
     token = 16;
     scanError = 0;
@@ -84,24 +80,6 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
   }
 
   function scanString(): string {
-    // At a whole position only: jsonc-parser steps a fractional or NaN one by 1.
-    const end = Number.isInteger(pos) ? text.indexOf('"', pos) : -1;
-    if (end >= 0) {
-      if (backslashAt < pos) {
-        backslashAt = text.indexOf("\\", pos);
-        if (backslashAt < 0) backslashAt = len;
-      }
-      if (end < backslashAt) {
-        // Without a control character, which a plain string can't hold.
-        let at = pos;
-        while (at < end && text.charCodeAt(at) >= 32) at++;
-        if (at === end) {
-          const result = text.substring(pos, end);
-          pos = end + 1;
-          return result;
-        }
-      }
-    }
     let result = "";
     let start = pos;
     for (;;) {
