@@ -38,3 +38,10 @@ for (const { name, library, ready, stringify } of ENGINES)
         );
       });
   });
+
+describe("strip-json-comments", () => {
+  for (const version of ["v2", "v3", "v5"])
+    it(`${version} matches on mutated inputs with every option`, () => {
+      expect(run("scripts/fuzz-strip.ts", "5000", "1", version)).toMatch(/: 0 differ$/m);
+    });
+});

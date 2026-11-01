@@ -34,6 +34,15 @@
       "json5-v1": [
         "./dist/json5-v1.d.mts"
       ],
+      "strip-json-comments": [
+        "./dist/strip-json-comments.d.mts"
+      ],
+      "strip-json-comments-v2": [
+        "./dist/strip-json-comments-v2.d.mts"
+      ],
+      "strip-json-comments-v5": [
+        "./dist/strip-json-comments-v5.d.mts"
+      ],
       "*": [
         "./dist/index.d.mts"
       ]
@@ -43,6 +52,9 @@
     ".": "./dist/index.mjs",
     "./json5": "./dist/json5.mjs",
     "./json5-v1": "./dist/json5-v1.mjs",
+    "./strip-json-comments": "./dist/strip-json-comments.mjs",
+    "./strip-json-comments-v2": "./dist/strip-json-comments-v2.mjs",
+    "./strip-json-comments-v5": "./dist/strip-json-comments-v5.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -66,6 +78,7 @@
     "json5-tests": "node scripts/json5-tests.ts",
     "fuzz": "node scripts/fuzz.ts",
     "fuzz:stringify": "node scripts/fuzz-stringify.ts",
+    "fuzz:strip": "node scripts/fuzz-strip.ts",
     "unicode": "node scripts/unicode.ts",
     "size": "node scripts/size.ts",
     "bench": "node bench/index.ts"

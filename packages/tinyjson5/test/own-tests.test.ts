@@ -27,7 +27,13 @@ describe("own test suites", () => {
     },
   );
 
-  it("json5 1.0.2: all", () => {
-    expect(failures("json5-v1")).toEqual([]);
-  });
+  for (const suite of [
+    "json5-v1",
+    "strip-json-comments",
+    "strip-json-comments-v2",
+    "strip-json-comments-v5",
+  ])
+    it(`${suite}: all`, () => {
+      expect(failures(suite)).toEqual([]);
+    });
 });

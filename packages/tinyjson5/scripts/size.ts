@@ -16,14 +16,20 @@ import { gzipSync } from "node:zlib";
 import { MODES } from "../vite.config.ts";
 import { build, ENTRIES } from "./dist.ts";
 
-// Each of our entries, then the library it replaces, indented. The root
-// replaces nothing, so it's measured against json5 2.2.3.
+// Each of our entries, by its name in dist/, then the npm module it
+// replaces, indented. Each is measured whole, every export kept.
 const entries: [string, string][] = [
   ["tinyjson5", "index"],
   ["tinyjson5/json5", "json5"],
-  ["  json5 2.2.3", "export { default } from 'json5'"],
+  ["  json5 2.2.3", "npm:json5"],
   ["tinyjson5/json5-v1", "json5-v1"],
-  ["  json5 1.0.2", "export { default } from 'json5-v1'"],
+  ["  json5 1.0.2", "npm:json5-v1"],
+  ["tinyjson5/strip-json-comments", "strip-json-comments"],
+  ["  strip-json-comments 3", "npm:strip-json-comments"],
+  ["tinyjson5/strip-json-comments-v2", "strip-json-comments-v2"],
+  ["  strip-json-comments 2", "npm:strip-json-comments-v2"],
+  ["tinyjson5/strip-json-comments-v5", "strip-json-comments-v5"],
+  ["  strip-json-comments 5", "npm:strip-json-comments-v5"],
 ];
 
 // Gzip bytes each entry may reach, about 100 over its size when last set:
@@ -33,6 +39,9 @@ const BUDGET: Record<string, number> = {
   tinyjson5: 3470,
   "tinyjson5/json5": 3260,
   "tinyjson5/json5-v1": 3300,
+  "tinyjson5/strip-json-comments": 800,
+  "tinyjson5/strip-json-comments-v2": 800,
+  "tinyjson5/strip-json-comments-v5": 800,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
@@ -45,6 +54,12 @@ const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
   json5: ["in strings is not valid ECMAScript"],
   // json5 1.0.2's loop on a hex number at the end of input.
   "json5-v1": ["Invalid string length"],
+  // strip-json-comments 3 is what the other two differ from.
+  "strip-json-comments": [],
+  // strip-json-comments 2's one-backslash escape test.
+  "strip-json-comments-v2": [/charCodeAt\([\w$]+-2\)/],
+  // strip-json-comments 5's blanking, which keeps only ASCII whitespace.
+  "strip-json-comments-v5": ["[^ \\t\\r\\n]"],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as
@@ -58,12 +73,13 @@ const kib = (bytes: number) => `${(bytes / 1024).toFixed(1)} KiB`;
 const problems: string[] = [];
 let ours: { name: string; gzip: number } | undefined;
 for (const [name, source] of entries) {
-  const built = ENTRIES[source];
+  const built = source.startsWith("npm:") ? undefined : ENTRIES[source];
   let code: Uint8Array;
   try {
     code = buildSync({
       stdin: {
-        contents: built ? `export * from ${JSON.stringify(built)}` : source,
+        // The namespace keeps every export, the default one included.
+        contents: `export * as entry from ${JSON.stringify(built ?? source.slice(4))}`,
         resolveDir: process.cwd(),
         loader: "ts",
       },

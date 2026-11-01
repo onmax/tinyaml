@@ -20,6 +20,10 @@ export interface Mode {
   json5?: boolean;
   /** Copy json5 1.0.2 where it differs from 2.2.3. Implies `json5`. */
   v1?: boolean;
+  /** strip-json-comments 2 rather than 3. */
+  strip2?: boolean;
+  /** strip-json-comments 5 rather than 3. */
+  strip5?: boolean;
 }
 
 /** Copy json5 2.2.3 (or 1.0.2, with `v1`). */
@@ -28,12 +32,18 @@ export let json5: boolean | undefined = false;
 export let v1: boolean | undefined = false;
 /** Neither: the root's rules, after the unreleased json5 3. */
 export let lean = true;
+/** strip-json-comments 2. */
+export let strip2: boolean | undefined = false;
+/** strip-json-comments 5. */
+export let strip5: boolean | undefined = false;
 
 /** Sets the flags for `mode`, and returns the ones it replaced. */
 export function setMode(mode: Mode): Mode | undefined {
-  const outer = { json5, v1 };
+  const outer = { json5, v1, strip2, strip5 };
   v1 = mode.v1;
   json5 = mode.json5 || v1;
   lean = !json5;
+  strip2 = mode.strip2;
+  strip5 = mode.strip5;
   return outer;
 }

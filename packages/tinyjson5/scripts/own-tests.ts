@@ -21,6 +21,27 @@ const SUITES: Record<string, { files: string[]; targets: [string, string][] }> =
       ["tinyjson5/json5-v1", "src/json5-v1/index.ts"],
     ],
   },
+  "strip-json-comments-v2": {
+    files: ["test.js"],
+    targets: [
+      ["strip-json-comments 2", "node_modules/strip-json-comments-v2/index.js"],
+      ["tinyjson5/strip-json-comments-v2", "src/strip-json-comments-v2/index.ts"],
+    ],
+  },
+  "strip-json-comments": {
+    files: ["test.js"],
+    targets: [
+      ["strip-json-comments 3", "node_modules/strip-json-comments/index.js"],
+      ["tinyjson5/strip-json-comments", "src/strip-json-comments/index.ts"],
+    ],
+  },
+  "strip-json-comments-v5": {
+    files: ["test.js"],
+    targets: [
+      ["strip-json-comments 5", "node_modules/strip-json-comments-v5/index.js"],
+      ["tinyjson5/strip-json-comments-v5", "src/strip-json-comments-v5/index.ts"],
+    ],
+  },
 };
 
 const name = process.argv[2]!;
@@ -52,7 +73,7 @@ for (const [label, path] of suite.targets) {
       .map((m) => m[1]);
     const [pass, fail] = [count("pass"), count("fail")];
     if (label !== suite.targets[0]![0]) failed += fail || (pass ? 0 : 1);
-    console.log(`${label.padEnd(20)} ${file.padEnd(18)} ${pass}/${pass + fail} pass`);
+    console.log(`${label.padEnd(34)} ${file.padEnd(18)} ${pass}/${pass + fail} pass`);
     for (const test of fails) console.log(`  FAIL ${test}`);
     if (!pass && !fail) console.log(run.stderr.slice(0, 2000));
   }

@@ -9,6 +9,9 @@ export const MODES = {
   lean: { index: "src/index.ts" },
   json5: { json5: "src/json5/index.ts" },
   "json5-v1": { "json5-v1": "src/json5-v1/index.ts" },
+  "strip-json-comments": { "strip-json-comments": "src/strip-json-comments/index.ts" },
+  "strip-json-comments-v2": { "strip-json-comments-v2": "src/strip-json-comments-v2/index.ts" },
+  "strip-json-comments-v5": { "strip-json-comments-v5": "src/strip-json-comments-v5/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
@@ -43,9 +46,23 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: { ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-*/**"] },
+  fmt: {
+    ignorePatterns: [
+      "**/dist/**",
+      ".cache/**",
+      "test/json5/**",
+      "test/json5-*/**",
+      "test/strip-json-comments*/**",
+    ],
+  },
   lint: {
-    ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-*/**"],
+    ignorePatterns: [
+      "**/dist/**",
+      ".cache/**",
+      "test/json5/**",
+      "test/json5-*/**",
+      "test/strip-json-comments*/**",
+    ],
     options: { typeAware: true, typeCheck: false },
     // The parser and stringifier detect control characters on purpose.
     rules: { "no-control-regex": "off" },
