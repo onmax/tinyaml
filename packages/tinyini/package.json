@@ -60,7 +60,8 @@
     "fuzz": "node scripts/fuzz.ts",
     "fuzz:stringify": "node scripts/fuzz-stringify.ts",
     "size": "node scripts/size.ts",
-    "bench": "node bench/index.ts"
+    "bench": "node bench/index.ts",
+    "versions": "node scripts/versions.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
