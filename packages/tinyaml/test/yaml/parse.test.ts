@@ -413,6 +413,12 @@ describe("parse", () => {
     ]);
   });
 
+  it("keeps a key a custom tag resolves to undefined, as yaml does", () => {
+    const customTags = [{ tag: "!u", resolve: () => undefined }];
+    expect(parse("!u x: 1", { customTags })).toEqual({ undefined: 1 });
+    expect(yaml.parse("!u x: 1", { customTags })).toEqual({ undefined: 1 });
+  });
+
   it("has a default export like yaml's namespace", () => {
     expect(YAML.parse("a: 1")).toEqual({ a: 1 });
     expect(typeof YAML.stringify).toBe("function");
@@ -611,6 +617,145 @@ describe("parse", () => {
       };
       expect(seen(parse), input).toEqual(seen(yaml.parse));
     }
+  });
+
+  describe("with tags and merges, as yaml converts its nodes", () => {
+    // The value, or the error, and onAnchor's calls. Symbols and Maps show
+    // as strings and entries, which toEqual can compare.
+    const outcome = (parse: Parse, input: string, options: any) => {
+      const calls: unknown[] = [];
+      const show = (value: unknown): unknown =>
+        typeof value === "symbol"
+          ? String(value)
+          : value instanceof Map
+            ? [...value].map(([k, v]) => [show(k), show(v)])
+            : value instanceof Set
+              ? [...value].map(show)
+              : value;
+      try {
+        const value = parse(input, {
+          ...options,
+          onAnchor: (...args: unknown[]) => calls.push(args),
+        });
+        return { value: show(value), calls };
+      } catch (e) {
+        const { name, message, code, pos } = e as YAMLParseError;
+        return { name, message, code, pos };
+      }
+    };
+    const agree = (cases: [string, any][]) => {
+      warnings();
+      for (const [input, options] of cases)
+        expect(outcome(parse, input, options), input).toEqual(outcome(yaml.parse, input, options));
+    };
+    const tag = (collection: "map" | "seq", resolve: (node: any) => unknown, more = {}) => ({
+      customTags: [{ tag: "!x", collection, resolve }],
+      ...more,
+    });
+    const pairs = (node: any) =>
+      node.items.map((p: any) => [String(p.key?.value), p.value?.value ?? String(p.value)]);
+    const key = { customTags: [{ tag: "!key", default: "key", test: /^KEY$/, resolve: () => 42 }] };
+
+    it("gives a collection tag each pair as written", () => {
+      agree([
+        ['!x {1: a, "1": b}', tag("map", pairs)],
+        ["!x {a: 1, b: 2, a: 3}", tag("map", pairs, { uniqueKeys: false })],
+        ['!x {null: 1, "": 2, ~: 3}', tag("map", pairs, { uniqueKeys: false })],
+        ['!x {b: x, "1": y, 1: z, c: w}', tag("map", pairs)],
+        ["!!set {b, 1, a, '0'}", {}],
+        ['!!pairs [1: a, "1": b, ~: c]', {}],
+        ['!!omap [1: a, "1": b]', {}],
+      ]);
+    });
+
+    it("reads a key's anchor as the key a tag reads", () => {
+      agree([
+        ["&a KEY: 1\nb: *a", key],
+        ["{&a KEY: 1, b: *a}", key],
+        ["? &a KEY\n: 1\nb: *a", key],
+        ["[&a KEY: 1, *a]", key],
+        ["[&a KEY, *a]", key],
+        ["a: &a KEY\nKEY: *a", key],
+      ]);
+    });
+
+    it("checks a tagged collection's pairs before merging them", () => {
+      const merge = { merge: true };
+      agree([
+        ["!!set {<<: {a: null}}", merge],
+        ["!!set {<<: {a: }, b: }", merge],
+        ["!!set {<<: [{a: }], b: }", merge],
+        ["!!set {<<: }", merge],
+        ["!!omap [<<: {a: 1}]", merge],
+        ["!!omap [<<: {a: 1}, <<: {b: 2}]", merge],
+        ["!!omap [<<: 1]", merge],
+        ["!!omap [a: {<<: 1}]", merge],
+        ["!!pairs [<<: [{a: 1}, {a: 2, b: 3}]]", merge],
+        ["!!pairs [<<: 1]", merge],
+        ["!x {<<: {a: 1}, b: 2}", tag("map", pairs, merge)],
+        ["!x [{<<: {a: 1}, b: 2}]", tag("seq", (node) => node.items[0].items.map(String), merge)],
+        ["!x [{<<: {a: 1}, b: 2}]", tag("seq", (node) => node.toJSON(), merge)],
+        ["a: {<<: 1}\nb: !!set {x: 1}", merge],
+        ["c: {<<: 1}\na: &a [1]\nb: [*a, *a, *a]", { merge: true, maxAliasCount: 2 }],
+        ["a: &a [1]\nb: [*a, *a, *a]\nc: {<<: 1}", { merge: true, maxAliasCount: 2 }],
+        ["a: &a !!timestamp 2001-01-01\nb: {<<: *a}", merge],
+        ["a: &a !!omap [x: 1]\nb: {<<: *a}", merge],
+        ["a: &a !x {y: 1}\nb: {<<: *a}", tag("map", () => ({ z: 2 }), merge)],
+        ["a: &a !x {y: 1}\nb: {<<: *a}", tag("map", (node) => node, merge)],
+      ]);
+    });
+
+    it("leaves out what a collection tag discards", () => {
+      const drop = (more = {}) => tag("seq", () => 42, more);
+      agree([
+        ["!x [&a 1, *a]", drop({ maxAliasCount: 1 })],
+        ["!x [&a 1, *a]", drop()],
+        ["!x [&a 1, *a]", drop({ maxAliasCount: 0 })],
+        ["a: &c !x [&a 1, *a]\nb: *c\nd: *c", drop()],
+        ["!x [{<<: 1}]", drop({ merge: true })],
+        ["a: !x [&a 1, *a]", tag("seq", (node) => node)],
+      ]);
+    });
+
+    it("merges the first of the keys that share a name", () => {
+      const merge = { merge: true };
+      agree([
+        ['base: &a {1: first, "1": second}\ncopy: {<<: *a}', merge],
+        ["base: &a {~: 1, true: 2, [a, b]: 3, {x: 1}: 4}\ncopy: {<<: *a}", merge],
+        ["base: &a {a: 1, a: 2}\ncopy: {<<: *a}", { ...merge, uniqueKeys: false }],
+        ['a: &a {1: x}\nb: &b {"1": y}\nc: {<<: [*b, *a]}\nd: {<<: [*a, *b]}', merge],
+        ['a: &a {<<: {1: x}, "1": y}\nc: {<<: *a}', merge],
+        ['a: &a {"1": y, <<: {1: x}}\nc: {<<: *a}', merge],
+        ['copy: {<<: {1: first, "1": second}}', merge],
+      ]);
+    });
+
+    it("gets null from a sequence, and undefined from a mapping", () => {
+      agree([
+        ["!x [null]", tag("seq", (node) => [node.get(0)])],
+        [
+          "!x [null, ~, 1, '']",
+          tag("seq", (node) => [
+            ...[0, 1, 5, "1", null, -1, "0"].map((i) => [node.get(i), node.has(i)]),
+            node.get(0, true).value,
+          ]),
+        ],
+        [
+          "!x {a: null, b: , 1: x, null: y, ~: z}",
+          tag(
+            "map",
+            (node) => [
+              ...["a", "b", 1, "1", null, "null", "zz", undefined].map((k) => [
+                node.get(k),
+                node.has(k),
+              ]),
+              node.get("a", true).value,
+            ],
+            { uniqueKeys: false },
+          ),
+        ],
+      ]);
+    });
   });
 
   it("revives only the entries an array had", () => {

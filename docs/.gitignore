@@ -1,0 +1,6 @@
+.nuxt
+.output
+.generated
+.data
+.vitehub
+dist

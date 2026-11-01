@@ -9,11 +9,13 @@
 // ParseException); and where both throw, the fields of the errors that
 // differ, message, position (parsedLine) or snippet, if any. Differences
 // of a known kind are named by kind, see LEAF, DOCUMENT and BUGS, whose
-// inputs must keep their kind; anything else is printed, and a stricter, differing or
-// crashing case fails the run. Each lenient case, each of a known kind and
-// each pair of differing errors is recorded, with both outcomes, in scripts/baselines/yamljs-fuzz.json (see
-// baseline.ts), and an unrecorded one, or a recorded one that's gone, fails
-// the run too.
+// inputs must keep their kind and both outcomes; a kind holds only where
+// tinyaml reads what yamljs does once its bug is out of the way. Anything
+// else is printed, and a stricter, differing or crashing case fails the
+// run. Each lenient case, each of a known kind and each pair of differing
+// errors is recorded, with both outcomes, in
+// scripts/baselines/yamljs-fuzz.json (see baseline.ts), and an unrecorded
+// one, or a recorded one that's gone, fails the run too.
 // Usage: node scripts/yamljs-fuzz.ts [cases] [seed] [-v] [--update]
 // After a deliberate change, `node scripts/yamljs-fuzz.ts 5000 1 --update`,
 // or `UPDATE=1 pnpm compare`, rewrites the records; review the diff.
@@ -246,47 +248,151 @@ const GROUPS = { message: ["message"], position: ["parsedLine"], snippet: ["snip
 
 // Known, deliberate differences: yamljs bugs tinyaml doesn't copy. A leaf
 // test accepts a pair of differing values or keys anywhere in the result; a
-// document test looks at the whole case.
+// document test looks at the whole case. Each tells the bug by yamljs's
+// value or the input, and holds only where tinyaml's value is what yamljs
+// reads with the bug out of the way, so a wrong value of tinyaml's is a
+// difference, not a known kind.
 const isString = (a: unknown): a is string => typeof a === "string";
-const LEAF: Record<string, (a: unknown, b: unknown) => boolean> = {
-  // yamljs keeps the line breaks of multi-line plain and quoted scalars, and
-  // of folded block scalars with more-indented lines.
+type Leaf = (a: unknown, b: unknown, text: string) => boolean;
+const LEAF: Record<string, Leaf> = {
+  // yamljs keeps the line breaks of multi-line plain and quoted scalars,
+  // where YAML folds them, and in a folded block scalar drops the one before
+  // a more-indented line, where YAML keeps it.
   "line folding": (a, b) =>
-    isString(a) && isString(b) && a.replace(/\s+/g, " ") === b.replace(/\s+/g, " "),
+    isString(a) &&
+    isString(b) &&
+    (b === fold(a) || (a !== b && a === b.replace(/\n(?=[ \t])/g, ""))),
   // yamljs trims trailing white space off the last line of a block scalar.
   "block scalar trailing spaces": (a, b) =>
-    isString(a) && isString(b) && a.trimEnd() === b.trimEnd(),
-  // yamljs reads `- - a` as the string "- a".
-  "nested compact sequences": (a, b) => isString(a) && a.startsWith("- ") && Array.isArray(b),
-  // yamljs reads `- ? a` as the string "? a".
-  "explicit keys": (a, b) => isString(a) && a.startsWith("? ") && typeof b === "object",
+    isString(a) && isString(b) && a !== b && a === b.replace(/[ \t]+(?=\n*$)/, ""),
+  // yamljs reads `- ? a` as the string "? a", which is `{ a: null }`.
+  "explicit keys": (a, b) =>
+    isString(a) && a.startsWith("? ") && equal(b, { [String(reads(a.slice(2)))]: null }),
   // yamljs writes \x, \u and \U escapes as UTF-8 bytes, one character each.
   "unicode escapes": (a, b) =>
-    isString(a) && isString(b) && a === Buffer.from(b, "utf8").toString("latin1"),
-  // yamljs reads an alias in a flow collection as its text.
-  "flow aliases": (a) => isString(a) && /^\*[^\s,[\]{}]+$/.test(a),
+    isString(a) && isString(b) && a !== b && a === Buffer.from(b, "utf8").toString("latin1"),
+  // yamljs reads an alias in a flow collection as its text, where tinyaml
+  // gives the anchored node.
+  "flow aliases": (a, b, text) => {
+    const alias = isString(a) && /^\*([^\s,[\]{}]+)$/.exec(a);
+    return !!alias && equal(b, anchored(text, alias[1]!), { identity: false });
+  },
 };
+// Each tells its bug, and tinyaml's value must be what yamljs reads from the
+// input rewritten around the bugs, `around`.
 const DOCUMENT: Record<string, (theirs: unknown, ours: unknown, text: string) => boolean> = {
   // yamljs reads a two-line document as its first line, even if that is
   // blank or a comment, and reads indented comments as content elsewhere.
-  "comments read as content": (theirs, ours) =>
-    /ote/.test(JSON.stringify(theirs)) && !/ote/.test(JSON.stringify(ours)),
-  "two-line documents": (theirs) => theirs === "" || (isString(theirs) && theirs[0] === "#"),
+  "comments read as content": (theirs, ours, text) =>
+    /ote/.test(JSON.stringify(theirs)) &&
+    !/ote/.test(JSON.stringify(ours)) &&
+    similar(around(text, true), ours, anyLeaf(text)),
+  "two-line documents": (theirs, ours, text) =>
+    (theirs === "" || (isString(theirs) && theirs[0] === "#")) &&
+    similar(around(text, true), ours, anyLeaf(text)),
   // In a one-line flow document, yamljs takes quoted strings starting with *
   // for aliases.
-  "quoted aliases": (_, __, text) =>
-    /^[^\n]*['"]\*[^\n]*$/.test(text.replace(/^---.*\n/gm, "").trim()),
+  "quoted aliases": (_, ours, text) =>
+    /^[^\n]*['"]\*[^\n]*$/.test(oneLine(text)) && similar(around(text), ours, anyLeaf(text)),
   // yamljs splits a flow mapping key at its first space: `{a b: c}` is
   // {a: "b: c"}, and the rest of the mapping goes wrong with it.
-  "flow keys with spaces": (_, __, text) => /[{,] *[^\s'"{}[\],:]+ [^'"{}[\],:]+:/.test(text),
+  "flow keys with spaces": (_, ours, text) =>
+    new RegExp(SPACED).test(text) && similar(around(text), ours, anyLeaf(text)),
   // yamljs drops a key named like a member of Object.prototype, such as
   // `constructor`, and a block mapping left empty is null.
-  "prototype keys": (theirs, ours) => {
+  "prototype keys": (theirs, ours, text) => {
     const kept = unprototyped(ours);
     const same = (a: unknown, b: unknown) => equal(a, b, { identity: false });
-    return !same(kept, ours) && (same(theirs, kept) || (theirs === null && same(kept, {})));
+    return (
+      !same(kept, ours) &&
+      (same(theirs, kept) || (theirs === null && same(kept, {}))) &&
+      similar(around(text), ours, anyLeaf(text))
+    );
   },
+  // yamljs reads `- - a` as the string "- a", or some of it.
+  "nested compact sequences": (_, ours, text) =>
+    NESTED.test(text) && similar(around(text), ours, anyLeaf(text)),
 };
+const SPACED = /([{,] *)([^\s'"{}[\],:]+ [^'"{}[\],:]+):/g;
+const NESTED = /^ *- - /m;
+const MARK = "⁣";
+const PROTOTYPE_KEY = new RegExp(
+  `(?<=^|[\\s{,'"])(${Object.getOwnPropertyNames(Object.prototype).join("|")})(?=['"]?[ \\t]*:)`,
+  "gm",
+);
+const oneLine = (text: string) => text.replace(/^---.*\n/gm, "").trim();
+
+// What yamljs reads, or a symbol nothing equals where it throws.
+const THROWS = Symbol("throws");
+function reads(text: string): unknown {
+  try {
+    return yamljs.parse(text);
+  } catch {
+    return THROWS;
+  }
+}
+
+// What yamljs reads from `text` rewritten around the bugs above, which
+// change nothing YAML reads: without comment lines, if `uncomment`, with
+// `- - a` as `-` and `- a` on the next line, flow keys quoted, keys named
+// like Object.prototype's members renamed and named back after, and a
+// one-line flow document as a mapping's value.
+function around(text: string, uncomment = false): unknown {
+  if (uncomment) text = text.replace(/^[ \t]*#.*(?:\r?\n|\r|$)/gm, "").replace(/^\s*\n/, "");
+  text = text
+    .replace(/^( *)((?:- )+)(?=- )/gm, (_, indent: string, run: string) => {
+      let lines = "";
+      for (let i = 0; i < run.length; i += 2) lines += `${indent}${" ".repeat(i)}-\n`;
+      return lines + indent + " ".repeat(run.length);
+    })
+    .replace(SPACED, '$1"$2":')
+    .replace(PROTOTYPE_KEY, `$1${MARK}`);
+  const line = oneLine(text);
+  return unmarked(
+    /^[[{][^\n]*$/.test(line)
+      ? (reads(`k: ${line}`) as { k?: unknown } | undefined)?.k
+      : reads(text),
+  );
+}
+
+// YAML's folding of the line breaks yamljs keeps: one becomes a space, and
+// each further one a line break.
+const fold = (text: string) =>
+  text.replace(/[ \t]*(?:\n[ \t]*)+/g, (breaks) => {
+    const n = breaks.split("\n").length - 1;
+    return n === 1 ? " " : "\n".repeat(n - 1);
+  });
+
+// `value` with MARK taken off its keys and strings.
+const unmarked = (value: unknown): unknown =>
+  isString(value)
+    ? value.replaceAll(MARK, "")
+    : Array.isArray(value)
+      ? value.map(unmarked)
+      : typeof value === "object" && value !== null && !(value instanceof Date)
+        ? Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key.replaceAll(MARK, ""), unmarked(item)]),
+          )
+        : value;
+
+// The node anchored as `name` in `text`, as yamljs reads it as a mapping's
+// value: the flow collection or scalar after the anchor on its line.
+function anchored(text: string, name: string): unknown {
+  const at = new RegExp(`&${name.replace(/\W/g, "\\$&")}[ \t]+([^\n]*)`).exec(text);
+  if (!at) return THROWS;
+  const rest = at[1]!;
+  let end = 0;
+  if (rest[0] === "{" || rest[0] === "[")
+    for (let depth = 0, quote = ""; end < rest.length; end++) {
+      const ch = rest[end]!;
+      if (quote) quote = ch === quote ? "" : quote;
+      else if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === "{" || ch === "[") depth++;
+      else if ((ch === "}" || ch === "]") && --depth === 0) break;
+    }
+  else end = /^[^,\]}#]*/.exec(rest)![0].length - 1;
+  return (reads(`k: ${rest.slice(0, end + 1).trim()}`) as { k?: unknown } | undefined)?.k;
+}
 
 // `value` without keys that name members of Object.prototype.
 const unprototyped = (value: unknown): unknown =>
@@ -302,23 +408,44 @@ const unprototyped = (value: unknown): unknown =>
         )
       : value;
 
-// yamljs bugs that the inputs above don't reach. Each must still differ, and
-// be told as the kind it's listed under.
-const BUGS: [kind: string, input: string][] = [
-  ["prototype keys", "constructor: 1\n"],
-  ["prototype keys", "{constructor: 1}\n"],
-  ["prototype keys", "a: 1\ntoString: 2\n"],
-  ["prototype keys", "a:\n  hasOwnProperty: 1\n  b: 2\n"],
-  ["flow aliases", "a: &x 1\nb: {c: *x}\n"],
-  ["flow aliases", "a: &x 1\nb: [*x]\n"],
-  ["flow aliases", "a: &x {k: 1}\nb: {c: *x}\n"],
+// yamljs bugs, some of which the inputs above don't reach. Each must still
+// be told as the kind it's listed under, with each side's outcome as
+// describe() writes it, which shows the objects an alias shares.
+const BUGS: [kind: string, input: string, yamljs: string, tinyaml: string][] = [
+  ["prototype keys", "constructor: 1\n", "null", '{"constructor":1}'],
+  ["prototype keys", "{constructor: 1}\n", "{}", '{"constructor":1}'],
+  ["prototype keys", "a: 1\ntoString: 2\n", '{"a":1}', '{"a":1,"toString":2}'],
+  [
+    "prototype keys",
+    "a:\n  hasOwnProperty: 1\n  b: 2\n",
+    '{"a":{"b":2}}',
+    '{"a":{"hasOwnProperty":1,"b":2}}',
+  ],
+  ["flow aliases", "a: &x 1\nb: {c: *x}\n", '{"a":1,"b":{"c":"*x"}}', '{"a":1,"b":{"c":1}}'],
+  ["flow aliases", "a: &x 1\nb: [*x]\n", '{"a":1,"b":["*x"]}', '{"a":1,"b":[1]}'],
+  [
+    "flow aliases",
+    "a: &x {k: 1}\nb: {c: *x}\n",
+    '{"a":{"k":1},"b":{"c":"*x"}}',
+    '{"a":&1 {"k":1},"b":{"c":*1}}',
+  ],
+  ["line folding", "a: x\n  y\n", '{"a":"x\\ny"}', '{"a":"x y"}'],
+  ["line folding", "a: >\n  x\n    y\n  z\n", '{"a":"x  y\\nz\\n"}', '{"a":"x\\n  y\\nz\\n"}'],
+  ["block scalar trailing spaces", "a: |\n  x  \n", '{"a":"x\\n"}', '{"a":"x  \\n"}'],
+  ["nested compact sequences", "a:\n  - - b\n", '{"a":["- b"]}', '{"a":[["b"]]}'],
+  ["explicit keys", "a:\n  - ? b\n", '{"a":["? b"]}', '{"a":[{"b":null}]}'],
+  ["unicode escapes", 'a: "\\u00e9"\n', '{"a":"Ã©"}', '{"a":"é"}'],
+  ["quoted aliases", '{x: "*a", y: b}\n', "[]", '{"x":"*a","y":"b"}'],
+  ["flow keys with spaces", "{a b: c, d: e}\n", '{"a":"b: c","d":"e"}', '{"a b":"c","d":"e"}'],
 ];
-const anyLeaf = (a: unknown, b: unknown) => Object.values(LEAF).some((test) => test(a, b));
+const anyLeaf = (text: string) => (a: unknown, b: unknown) =>
+  Object.values(LEAF).some((test) => test(a, b, text));
 
 function known(theirs: unknown, ours: unknown, text: string): string {
   for (const [kind, test] of Object.entries(DOCUMENT)) if (test(theirs, ours, text)) return kind;
-  if (!similar(theirs, ours, anyLeaf)) return "differ";
-  for (const [kind, test] of Object.entries(LEAF)) if (similar(theirs, ours, test)) return kind;
+  if (!similar(theirs, ours, anyLeaf(text))) return "differ";
+  for (const [kind, test] of Object.entries(LEAF))
+    if (similar(theirs, ours, (a, b) => test(a, b, text))) return kind;
   return "several known";
 }
 
@@ -356,7 +483,7 @@ expectAliases(
   (text) => yamljs.parse(text),
   (text) => parse(text),
 );
-for (const [kind, text] of BUGS) {
+for (const [kind, text, yamljsReads, tinyamlReads] of BUGS) {
   const theirs = run(() => yamljs.parse(text));
   const ours = run(() => parse(text), ParseException);
   const found =
@@ -366,6 +493,12 @@ for (const [kind, text] of BUGS) {
         ? "the same value"
         : known(theirs.value, ours.value, text);
   if (found !== kind) fail(`yamljs bug ${JSON.stringify(text)}: ${found}, expected ${kind}`);
+  for (const [side, o, expected] of [
+    ["yamljs", theirs, yamljsReads],
+    ["tinyaml", ours, tinyamlReads],
+  ] as const)
+    if (outcome(o) !== expected)
+      fail(`yamljs bug ${JSON.stringify(text)}: ${side} gives ${outcome(o)}, expected ${expected}`);
 }
 for (let n = 0; n < cases; n++) {
   const original = write(value(0));

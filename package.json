@@ -12,13 +12,16 @@
     "drop-ins": "pnpm fixtures && node --no-warnings .github/scripts/drop-ins.ts && automd",
     "readme": "automd",
     "brand": "node --no-warnings .github/scripts/brand.ts",
-    "fixtures": "pnpm --filter tinyaml fixtures && (test -d packages/tinyjson5/.cache/json5-2.2.3 || pnpm --filter tinyjson5 json5:fetch)"
+    "fixtures": "pnpm --filter tinyaml fixtures && (test -d packages/tinyjson5/.cache/json5-2.2.3 || pnpm --filter tinyjson5 json5:fetch)",
+    "docs:dev": "pnpm --filter tiny-docs dev",
+    "docs:generate": "pnpm --filter tiny-docs generate"
   },
   "engines": {
     "node": ">=22.12.0"
   },
   "packageManager": "pnpm@12.16.1",
   "devDependencies": {
-    "automd": "^0.4.3"
+    "automd": "^0.4.3",
+    "wrangler": "^4.156.0"
   }
 }

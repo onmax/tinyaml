@@ -1,8 +1,100 @@
 packages:
   - packages/*
+  # The website, private so the release skips it.
+  - docs
+
+# The code that ViteHub generates into docs/.vitehub imports its @vite-hub/* packages by name, from the docs app.
+publicHoistPattern:
+  - "@vite-hub/*"
 
 allowBuilds:
   # esbuild's binary comes from its platform package; the postinstall only checks it.
   esbuild: false
   # automd only needs @parcel/watcher for --watch, which the scripts don't use.
   "@parcel/watcher": false
+  # ViteHub's optional dependencies (zstd, swc, cbor-extract, cpu-features, liblzma, ssh2) are not used by the docs.
+  "@mongodb-js/zstd": false
+  "@swc/core": false
+  cbor-extract: false
+  cpu-features: false
+  msgpackr-extract: true
+  node-liblzma: false
+  ssh2: false
+  workerd: true
+
+# ViteHub 0.1.0 and comark-ui 0.8.0, which the website uses, came out within a day of the move to them.
+minimumReleaseAgeExclude:
+  - "@vite-hub/agent@0.1.0"
+  - "@vite-hub/auth@0.1.0"
+  - "@vite-hub/blob@0.1.0"
+  - "@vite-hub/browser@0.1.0"
+  - "@vite-hub/channels@0.1.0"
+  - "@vite-hub/cli@0.1.0"
+  - "@vite-hub/comments@0.1.0"
+  - "@vite-hub/connections@0.1.0"
+  - "@vite-hub/content@0.1.0"
+  - "@vite-hub/database@0.1.0"
+  - "@vite-hub/email@0.1.0"
+  - "@vite-hub/env@0.1.0"
+  - "@vite-hub/forge@0.1.0"
+  - "@vite-hub/gateways@0.1.0"
+  - "@vite-hub/kv@0.1.0"
+  - "@vite-hub/markdown-template@0.1.0"
+  - "@vite-hub/presets@0.1.0"
+  - "@vite-hub/queue@0.1.0"
+  - "@vite-hub/rate-limit@0.1.0"
+  - "@vite-hub/realtime@0.1.0"
+  - "@vite-hub/runtime@0.1.0"
+  - "@vite-hub/sandbox@0.1.0"
+  - "@vite-hub/schedule@0.1.0"
+  - "@vite-hub/shell@0.1.0"
+  - "@vite-hub/source@0.1.0"
+  - "@vite-hub/ui@0.1.0"
+  - "@vite-hub/workflow@0.1.0"
+  - "@vite-hub/workspace@0.1.0"
+  - comark-annotate@0.8.0
+  - comark-badge@0.8.0
+  - comark-cards@0.8.0
+  - comark-carousel@0.8.0
+  - comark-cast@0.8.0
+  - comark-charts@0.8.0
+  - comark-chips@0.8.0
+  - comark-cjk@0.8.0
+  - comark-code-notes@0.8.0
+  - comark-code@0.8.0
+  - comark-colors@0.8.0
+  - comark-comments@0.8.0
+  - comark-critic@0.8.0
+  - comark-deflist@0.8.0
+  - comark-details@0.8.0
+  - comark-diagrams@0.8.0
+  - comark-diff@0.8.0
+  - comark-embed@0.8.0
+  - comark-fields@0.8.0
+  - comark-figure@0.8.0
+  - comark-file-tree@0.8.0
+  - comark-footnotes@0.8.0
+  - comark-github@0.8.0
+  - comark-icon@0.8.0
+  - comark-include@0.8.0
+  - comark-keys@0.8.0
+  - comark-links@0.8.0
+  - comark-magic-move@0.8.0
+  - comark-mark@0.8.0
+  - comark-mathml@0.8.0
+  - comark-media@0.8.0
+  - comark-metrics@0.8.0
+  - comark-outline@0.8.0
+  - comark-properties@0.8.0
+  - comark-qr@0.8.0
+  - comark-quiz@0.8.0
+  - comark-reading-time@0.8.0
+  - comark-sources@0.8.0
+  - comark-steps@0.8.0
+  - comark-table@0.8.0
+  - comark-tabs@0.8.0
+  - comark-tests@0.8.0
+  - comark-ui@0.8.0
+  - comark-xref@0.8.0
+  - comark-zoom@0.8.0
+  - vite-hub@0.1.0

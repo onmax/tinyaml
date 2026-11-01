@@ -48,12 +48,15 @@ export type TagId = keyof typeof byName;
 export type Tags = (ScalarTag | CollectionTag | TagId)[];
 
 export const Y = "tag:yaml.org,2002:";
+/** A pair as written: its key, its value, and the name it's stored under. */
+export type Written = [key: unknown, value: unknown, name: string];
 /**
- * The keys of each mapping under each name the parser stored them under,
- * where that's not just the name: keys that weren't strings, or that share
- * a name, so tags can tell 1 from "1".
+ * The pairs of each mapping as written, where they're not just its entries:
+ * where a key isn't a string, or shares a name, or may be an array index,
+ * which a JS object puts first, and with each `<<`, as MERGE, and its value.
+ * Tags tell 1 from "1" by them, and merges copy what yaml copies.
  */
-export const typed = new WeakMap<object, Map<string, unknown[]>>();
+export const written = new WeakMap<object, Written[]>();
 export const MERGE = Symbol("<<");
 
 // What a collection tag's `resolve` gets: the parsed value as yaml's node,
@@ -83,6 +86,17 @@ export class Pair {
     this.value = value;
     this.name = name;
   }
+  toJSON(): object {
+    const k = this.key.toJSON();
+    const v = this.value?.toJSON() ?? null;
+    // A `<<` merges its mappings, the first one's keys winning.
+    return typeof k === "symbol"
+      ? Object.assign({}, ...[v].flat().reverse())
+      : { [this.name ?? (k === null ? "" : String(k))]: v };
+  }
+  toString(): string {
+    return JSON.stringify(this);
+  }
 }
 
 export abstract class Collection {
@@ -94,7 +108,7 @@ export abstract class Collection {
   abstract find(key: unknown): any;
   get(key: unknown, keepScalar?: boolean): any {
     const node = this.find(key);
-    return (!keepScalar && node instanceof Scalar ? node.value : node) ?? undefined;
+    return !keepScalar && node instanceof Scalar ? node.value : node;
   }
   has(key: unknown): boolean {
     return this.find(key) !== undefined;
@@ -116,6 +130,10 @@ export class YAMLSeq extends Collection {
 }
 
 export class YAMLMap extends Collection {
+  // yaml's map, unlike its sequence, gives undefined for a null value.
+  override get(key: unknown, keepScalar?: boolean): any {
+    return super.get(key, keepScalar) ?? undefined;
+  }
   find(key: unknown): any {
     const k = key instanceof Scalar ? key.value : key;
     return this.items.find(
@@ -134,10 +152,14 @@ export function toNode(value: unknown, nodes = new Map<unknown, Scalar | Collect
   nodes.set(value, out);
   out.items = seq
     ? value.map((v) => toNode(v, nodes))
-    : Object.entries(value as object).flatMap(([name, v]) =>
-        (typed.get(value as object)?.get(name) ?? [name]).map(
-          (k) => new Pair(toNode(k, nodes), toNode(v, nodes), name),
-        ),
+    : (written.get(value as object) ?? Object.entries(value as object)).map(
+        ([k, v, name = k as string]) =>
+          // yaml's merge key is a new symbol each time.
+          new Pair(
+            k === MERGE ? new Scalar(Symbol("<<")) : toNode(k, nodes),
+            toNode(v, nodes),
+            name,
+          ),
       );
   return out;
 }
@@ -231,7 +253,7 @@ function pairs(seq: YAMLSeq, onError: (message: string) => void): Pair[] {
   });
 }
 
-const omap = tag(
+export const omap = tag(
   "omap",
   undefined,
   (seq, onError) => {
@@ -262,16 +284,10 @@ export const known: Tag[] = [
   binary,
   merge,
   omap,
-  tag(
-    "pairs",
-    undefined,
-    (seq, onError) =>
-      pairs(seq, onError).map(({ key, value, name }) => {
-        const k = key.toJSON();
-        return { [name ?? (k === null ? "" : String(k))]: value?.toJSON() ?? null };
-      }),
-    { default: false, collection: "seq" },
-  ),
+  tag("pairs", undefined, (seq, onError) => pairs(seq, onError).map((pair) => pair.toJSON()), {
+    default: false,
+    collection: "seq",
+  }),
   set,
   timestamp,
 ];

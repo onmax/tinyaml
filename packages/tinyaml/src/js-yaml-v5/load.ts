@@ -53,7 +53,8 @@ const BUILT = new WeakSet<object>();
 const BOM =
   /(?<=\n)\uFEFF(?=(?:[ \t]*(?:#.*)?\n)*(?:%|---(?:[ \t\n]|$)))|(?<=(?:^|\n)\.\.\.(?:[ \t].*)?\n(?:[ \t]*(?:#.*)?\n)*)\uFEFF/g;
 
-const isObjectMap = (tag: unknown) => tag === mapTag || tag === legacyMapTag;
+const isObjectMap = (tag: unknown): tag is MappingTagDefinition =>
+  tag === mapTag || tag === legacyMapTag;
 
 const NON_PRINTABLE =
   /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
@@ -116,8 +117,9 @@ function engine(input: string, options: LoadOptions) {
   // Keys behind placeholder names.
   const keys = new Map<string, unknown>();
   // With `json`, every pair has a name of its own, so a carrier sees each
-  // repeat; these are the pairs a merge copied, which it skips once it has
-  // the key.
+  // repeat. So does each pair a merge copies: these are their names, and
+  // each stands for the mapping it comes from, which the tag reads the value
+  // from as it builds the mapping, as js-yaml 5 does at the `<<`.
   const merged = new Set<string>();
   // Values tags built, as opposed to arrays and objects straight from the parser.
   const built = new WeakSet<object>();
@@ -179,17 +181,23 @@ function engine(input: string, options: LoadOptions) {
         const error = tag.addItem(carrier, convert(item), index);
         if (error) reject(error);
       });
-    else
-      for (const key of Object.keys(raw)) {
-        const value = convert((raw as Record<string, unknown>)[key]);
-        const real = convert(decode(key));
-        if (tag.has(carrier, real)) {
-          if (merged.has(key)) continue;
-          if (!options.json) reject("duplicated mapping key");
-        }
-        const error = tag.addPair(carrier, real, value);
+    else {
+      // Keys a merge added, which a later pair may override once.
+      const overridable = new Set<unknown>();
+      for (const name of Object.keys(raw)) {
+        const key = convert(decode(name));
+        let value = convert((raw as Record<string, unknown>)[name]);
+        if (merged.has(name)) {
+          if (tag.has(carrier, key)) continue;
+          value = (mappings.get(value as object) ?? defaultMap!).get(value, key);
+        } else if (!options.json && tag.has(carrier, key) && !overridable.has(key))
+          reject("duplicated mapping key");
+        const error = tag.addPair(carrier, key, value);
         if (error) reject(error);
+        if (merged.has(name)) overridable.add(key);
+        else overridable.delete(key);
       }
+    }
     let result: unknown = carrier;
     if (!tag.carrierIsResult)
       try {
@@ -318,22 +326,34 @@ function engine(input: string, options: LoadOptions) {
     // js-yaml 5 merges any mapping, through its tag, and nothing else. The
     // parser rejects what isn't an object, and arrays.
     merge(source) {
-      let pairs: [unknown, unknown][];
+      let sourceKeys: Iterable<unknown>;
       if (built.has(source as object)) {
         const tag = mappings.get(source as object);
         if (!tag) return;
-        pairs = [...tag.keys(source)].map((key) => [key, tag.get(source, key)]);
-      } else if (typed && options.json && isPlainObject(source))
-        pairs = Object.entries(source as object).map(([name, value]) => [decode(name), value]);
-      else return source;
-      return Object.fromEntries(
-        pairs.map(([key, value]) => {
-          const name = self.key(key);
-          if (typed && options.json) merged.add(name);
-          return [name, value];
-        }),
-      );
+        sourceKeys = tag.keys(source);
+        if (!typed)
+          return Object.fromEntries(
+            [...sourceKeys].map((key) => [self.key(key), tag.get(source, key)]),
+          );
+      } else if (typed && isPlainObject(source)) {
+        // The keys the default tag will build it with.
+        const names = Object.keys(source as object).map(decode);
+        if (isObjectMap(defaultMap)) {
+          const carrier = defaultMap.create("");
+          for (const key of names) defaultMap.addPair(carrier, key, null);
+          sourceKeys = defaultMap.keys(carrier);
+        } else sourceKeys = new Set(names);
+      } else return source;
+      const pairs: Record<string, unknown> = {};
+      for (const key of sourceKeys) {
+        const name = `${PLACEHOLDER}${keys.size}`;
+        keys.set(name, key);
+        merged.add(name);
+        pairs[name] = source;
+      }
+      return pairs;
     },
+    mapping: (value) => mappings.has(value),
     convert,
     done() {
       parsing = false;

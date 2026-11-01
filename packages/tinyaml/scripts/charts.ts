@@ -34,12 +34,17 @@ const pairs = [
   ["@std/yaml", "tinyaml/std", "@std/yaml"],
   ["yamljs", "tinyaml/yamljs", "yamljs"],
 ] as const;
+// Each row names the subpath that replaces the library, so a reader knows
+// which import the numbers belong to.
+const label = (ours: string, theirs: string) => `${ours} vs ${theirs}`;
 
 const size: Record<string, { gzip: number }> = run("scripts/size.ts");
 await draw("size.svg", 'horizontal labels title="Bundle size, KiB gzip"', [
   row("library", "tinyaml", "original"),
   row("---", "--:", "--:"),
-  ...pairs.map(([name, ours, theirs]) => row(name, kib(size[ours]!.gzip), kib(size[theirs]!.gzip))),
+  ...pairs.map(([, ours, theirs]) =>
+    row(label(ours, theirs), kib(size[ours]!.gzip), kib(size[theirs]!.gzip)),
+  ),
 ]);
 
 // BENCH=<file> reuses a saved `node bench/index.ts --json` run, so the chart
@@ -55,8 +60,8 @@ const speedup = (library: string, operation: string) => {
 await draw("speed.svg", 'horizontal labels title="Times faster than the original, 268 KiB file"', [
   row("library", "parse", "stringify"),
   row("---", "--:", "--:"),
-  ...pairs.map(([name]) =>
-    row(name, speedup(name, "parse large"), speedup(name, "stringify large")),
+  ...pairs.map(([name, ours, theirs]) =>
+    row(label(ours, theirs), speedup(name, "parse large"), speedup(name, "stringify large")),
   ),
 ]);
 

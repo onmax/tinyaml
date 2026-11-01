@@ -241,6 +241,12 @@ describe("parse", () => {
   it("takes verbatim tags as written and rejects malformed ones", () => {
     for (const text of ["!<> x", "!<!> x", "!<bad|tag> x", "!<a%zz> x", "!<$:?> x"])
       expect(() => parse(text), text).toThrow(/bad verbatim tag/);
+    // A URI's scheme is a letter, then letters, digits, `+`, `-` and `.`, and
+    // its path may be empty.
+    for (const text of ["!<a_:b> x", "!<1a:b> x", "!<:b> x", "!<a> x", "!<a:%2> x", "!<a:b{> x"])
+      expect(() => parse(text), text).toThrow(/bad verbatim tag/);
+    for (const text of ["!<a:> x", "!<a+b-c.d:> x", "!<Z9:_~> x", "!<!a> x", "!<a:%2F[]> x"])
+      expect(parse(text), text).toBe("x");
     expect(parse("!<tag:yaml.org,2002:%69nt> 12")).toBe("12");
     expect(parse("!<tag:yaml.org,2002:int> 12")).toBe(12);
     expect(parse("!<!a%21> x", { tags: { "!a%21": () => 1 } })).toBe(1);
@@ -262,10 +268,21 @@ describe("parse", () => {
       ["- &a 1\n- - *a", 3],
       ["[&a 1, [*a]]", 3],
       ["[&a 1, [*a : *a]]", 4],
+      ["&a x: *a", 3],
+      ["[&a 1, {*a}]", 4],
+      ["- &a x\n- ? *a", 4],
     ] as const) {
       expect(() => parse(text, { maxDepth: depth - 1 }), text).toThrow(/maxDepth/);
       expect(() => parse(text, { maxDepth: depth }), text).not.toThrow(/maxDepth/);
     }
+    // A block mapping's first key is a level deeper, and so is what it holds.
+    const tags = { "!s": () => "k" };
+    expect(() => parse("!s [a]: b", { maxDepth: 3, tags })).toThrow(/maxDepth/);
+    expect(parse("!s [a]: b", { maxDepth: 4, tags })).toEqual({ k: "b" });
+  });
+
+  it("keeps a key a custom tag resolves to undefined", () => {
+    expect(parse("!u x: 1", { tags: { "!u": () => undefined } })).toEqual({ undefined: 1 });
   });
 
   it("throws a YAMLError where nesting overflows the call stack", () => {
@@ -355,6 +372,34 @@ describe("stringify", () => {
     expect(stringify({ b: 1, a: { toJSON: cycle } }, { sortKeys: true })).toBe(
       "a: &ref_0\n  a: 1\n  self: *ref_0\nb: 1\n",
     );
+  });
+
+  it("reads toJSON and an array's length once, as JSON.stringify does", () => {
+    let reads = 0;
+    const value = {
+      get toJSON() {
+        const read = ++reads;
+        return read > 1 ? undefined : () => read;
+      },
+    };
+    expect(stringify(value)).toBe("1\n");
+    expect(reads).toBe(1);
+    const grows = [0];
+    Object.defineProperty(grows, 0, { get: () => (grows.push(2), 1) });
+    expect(stringify(grows)).toBe("- 1\n");
+    const shrinks = [1, 2];
+    Object.defineProperty(shrinks, 0, { get: () => ((shrinks.length = 1), 1) });
+    expect(stringify(shrinks)).toBe("- 1\n- null\n");
+    // Keys too: one a getter deletes is left out, and one it adds isn't read.
+    const object: Record<string, unknown> = {
+      get a() {
+        delete object.b;
+        object.c = 3;
+        return 1;
+      },
+      b: 2,
+    };
+    expect(stringify(object)).toBe("a: 1\n");
   });
 
   it("round-trips through parse", () => {
