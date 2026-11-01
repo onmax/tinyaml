@@ -132,6 +132,11 @@ export const create = kept(4)
 export const HostMap = all_native ? MapCtor : undefined
 export const map_get = uncurry(kept(7))
 export const map_set = uncurry(kept(8))
+export const char_code_at = uncurry(kept(9))
+export const string_slice = uncurry(kept(10))
+
+// Whether globalThis[name] is still value, read without running a getter.
+export const global_is = (name, value) => value !== undefined && own(GLOBAL, name) === value
 
 // Whether object[key] is still the built-in kept for it.
 export const untouched = (object, key) => {

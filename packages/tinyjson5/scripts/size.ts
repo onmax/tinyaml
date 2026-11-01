@@ -59,7 +59,7 @@ const BUDGET: Record<string, number> = {
   "tinyjson5/strip-json-comments-v2": 560,
   "tinyjson5/strip-json-comments-v5": 680,
   "tinyjson5/jsonc-parser": 6140,
-  "tinyjson5/comment-json": 18700,
+  "tinyjson5/comment-json": 18800,
   "tinyjson5/jju": 9950,
 };
 

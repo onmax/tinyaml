@@ -32,14 +32,17 @@ import {
   HostMap,
   SymbolCtor,
   array_prototype,
+  char_code_at,
   create,
   descriptor_of,
+  global_is,
   key_for,
   map_get,
   map_set,
   object_prototype,
   own_symbols,
   prototype_of,
+  string_slice,
   untouched
 } from './builtins.js'
 
@@ -56,7 +59,9 @@ const AFTER_PROP = `${PREFIX_AFTER_PROP}:`
 const AFTER_COLON = `${PREFIX_AFTER_COLON}:`
 const AFTER_VALUE = `${PREFIX_AFTER_VALUE}:`
 const AFTER = `${PREFIX_AFTER}:`
-const symbol_key = (tag, prop) => prop === UNDEFINED
+// NO_PROP for the tags of the whole object or array, which have no prop.
+const NO_PROP = {}
+const symbol_key = (tag, prop) => prop === NO_PROP
   ? tag
   : `${tag}${prop}`
 
@@ -113,12 +118,12 @@ const count_trailing_line_breaks = (str, gap) => {
 //   WHOLE block of comments is always a block group
 // Each object's comments by their symbol's key, read once per call where
 // that reads what looking each one up would: own data properties keyed by
-// registered symbols, on the standard prototype chain without any, with
-// Symbol.for the engine's own. A null entry looks each one up, as
-// comment-json does. Without a replacer only, which could change comments
-// while the text is written. It reads with the built-ins there were at load
-// (./builtins.js), walks arrays by index, and is set up at the first comment
-// it looks for, so a value without comments reads nothing more.
+// registered symbols, on the standard prototype chain without any, with the
+// global Symbol and its Symbol.for the engine's own. A null entry looks each
+// one up, as comment-json does. Without a replacer only, which could change
+// comments while the text is written. It reads with the built-ins there were
+// at load (./builtins.js), walks arrays by index, and is set up at the first
+// comment it looks for, so a value without comments reads nothing more.
 const PENDING = {}
 let hosts = null
 const PROTOTYPES = [object_prototype, array_prototype, CommentArray.prototype]
@@ -138,6 +143,7 @@ const registered = object => {
 // they are by default, without a comment of their own to inherit.
 const standard_prototypes = () =>
   map_get !== undefined
+  && global_is('Symbol', SymbolCtor)
   && untouched(SymbolCtor, 'for')
   && prototype_of(PROTOTYPES[2]) === PROTOTYPES[1]
   && prototype_of(PROTOTYPES[1]) === PROTOTYPES[0]
@@ -167,13 +173,17 @@ const read_comments = host => {
     }
 
     // By its key, or by `${prefix}:` and then the prop after it.
-    const colon = key.indexOf(COLON)
-    if (colon === - 1) {
+    let colon = 0
+    while (colon < key.length && char_code_at(key, colon) !== 58) {
+      colon ++
+    }
+
+    if (colon === key.length) {
       comments[key] = value.value
     } else {
-      const bucket = key.slice(0, colon + 1)
+      const bucket = string_slice(key, 0, colon + 1)
       const by_prop = comments[bucket] || (comments[bucket] = create(null))
-      by_prop[key.slice(colon + 1)] = value.value
+      by_prop[string_slice(key, colon + 1)] = value.value
     }
   }
 
@@ -200,7 +210,7 @@ const comments_of = (host, tag, prop) => {
     return host[Symbol.for(symbol_key(tag, prop))]
   }
 
-  if (prop === UNDEFINED) {
+  if (prop === NO_PROP) {
     return comments[tag]
   }
 
@@ -296,7 +306,7 @@ const join = (one, two, gap) =>
       : EMPTY
 
 const join_content = (inside, value, gap) => {
-  const comment = process_comments(value, PREFIX_BEFORE, UNDEFINED, gap + indent, true)
+  const comment = process_comments(value, PREFIX_BEFORE, NO_PROP, gap + indent, true)
 
   return join(comment, inside, gap)
 }
@@ -356,7 +366,7 @@ const array_stringify = (value, gap) => {
 
   inside += join(
     after_comma,
-    process_comments(value, PREFIX_AFTER, UNDEFINED, deeper_gap),
+    process_comments(value, PREFIX_AFTER, NO_PROP, deeper_gap),
     deeper_gap
   )
 
@@ -432,7 +442,7 @@ const object_stringify = (value, gap) => {
 
   inside += join(
     after_comma,
-    process_comments(value, PREFIX_AFTER, UNDEFINED, deeper_gap),
+    process_comments(value, PREFIX_AFTER, NO_PROP, deeper_gap),
     deeper_gap
   )
 
@@ -579,9 +589,9 @@ export default (value, replacer_, space) => {
     clean()
 
     return is_object(value)
-      ? process_comments(value, PREFIX_BEFORE_ALL, UNDEFINED, EMPTY, true).trimLeft()
+      ? process_comments(value, PREFIX_BEFORE_ALL, NO_PROP, EMPTY, true).trimLeft()
         + str
-        + process_comments(value, PREFIX_AFTER_ALL, UNDEFINED, EMPTY).trimRight()
+        + process_comments(value, PREFIX_AFTER_ALL, NO_PROP, EMPTY).trimRight()
       : str
   } finally {
     hosts = null
