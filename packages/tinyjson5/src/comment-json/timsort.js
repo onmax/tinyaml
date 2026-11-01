@@ -1,6 +1,7 @@
 // array-timsort 1.0.3 (MIT, Copyright (c) 2015 Marco Ziccardi), unchanged
-// but for the ES module export and, marked "tinyjson5", writes to the array
-// it sorts, which fail silently as in its sloppy-mode code.
+// but for the ES module export and, marked "tinyjson5", the writes its
+// sloppy-mode functions make to the array it sorts, which fail silently
+// there. The TimSort class is strict code anyway, and its writes still throw.
 
 // tinyjson5: an assignment as sloppy mode makes it, which fails silently
 // where this module's strict mode would throw, and still throws what a
@@ -613,7 +614,7 @@ class TimSort {
     let cursor2 = start2
     let dest = start1
 
-    sloppy_set(array, dest, array[cursor2])
+    array[dest] = array[cursor2]
     results[dest] = results[cursor2]
 
     dest ++
@@ -621,7 +622,7 @@ class TimSort {
 
     if (-- length2 === 0) {
       for (i = 0; i < length1; i ++) {
-        sloppy_set(array, dest + i, tmp[cursor1 + i])
+        array[dest + i] = tmp[cursor1 + i]
         results[dest + i] = tmpIndex[cursor1 + i]
       }
       return
@@ -629,10 +630,10 @@ class TimSort {
 
     if (length1 === 1) {
       for (i = 0; i < length2; i ++) {
-        sloppy_set(array, dest + i, array[cursor2 + i])
+        array[dest + i] = array[cursor2 + i]
         results[dest + i] = results[cursor2 + i]
       }
-      sloppy_set(array, dest + length2, tmp[cursor1])
+      array[dest + length2] = tmp[cursor1]
       results[dest + length2] = tmpIndex[cursor1]
       return
     }
@@ -646,7 +647,7 @@ class TimSort {
 
       do {
         if (compare(array[cursor2], tmp[cursor1]) < 0) {
-          sloppy_set(array, dest, array[cursor2])
+          array[dest] = array[cursor2]
           results[dest] = results[cursor2]
           dest ++
           cursor2 ++
@@ -658,7 +659,7 @@ class TimSort {
             break
           }
         } else {
-          sloppy_set(array, dest, tmp[cursor1])
+          array[dest] = tmp[cursor1]
           results[dest] = tmpIndex[cursor1]
           dest ++
           cursor1 ++
@@ -680,7 +681,7 @@ class TimSort {
 
         if (count1 !== 0) {
           for (i = 0; i < count1; i ++) {
-            sloppy_set(array, dest + i, tmp[cursor1 + i])
+            array[dest + i] = tmp[cursor1 + i]
             results[dest + i] = tmpIndex[cursor1 + i]
           }
 
@@ -693,7 +694,7 @@ class TimSort {
           }
         }
 
-        sloppy_set(array, dest, array[cursor2])
+        array[dest] = array[cursor2]
         results[dest] = results[cursor2]
 
         dest ++
@@ -708,7 +709,7 @@ class TimSort {
 
         if (count2 !== 0) {
           for (i = 0; i < count2; i ++) {
-            sloppy_set(array, dest + i, array[cursor2 + i])
+            array[dest + i] = array[cursor2 + i]
             results[dest + i] = results[cursor2 + i]
           }
 
@@ -721,7 +722,7 @@ class TimSort {
             break
           }
         }
-        sloppy_set(array, dest, tmp[cursor1])
+        array[dest] = tmp[cursor1]
         results[dest] = tmpIndex[cursor1]
         dest ++
         cursor1 ++
@@ -756,16 +757,16 @@ class TimSort {
 
     if (length1 === 1) {
       for (i = 0; i < length2; i ++) {
-        sloppy_set(array, dest + i, array[cursor2 + i])
+        array[dest + i] = array[cursor2 + i]
         results[dest + i] = results[cursor2 + i]
       }
-      sloppy_set(array, dest + length2, tmp[cursor1])
+      array[dest + length2] = tmp[cursor1]
       results[dest + length2] = tmpIndex[cursor1]
     } else if (length1 === 0) {
       throw new Error('mergeLow preconditions were not respected')
     } else {
       for (i = 0; i < length1; i ++) {
-        sloppy_set(array, dest + i, tmp[cursor1 + i])
+        array[dest + i] = tmp[cursor1 + i]
         results[dest + i] = tmpIndex[cursor1 + i]
       }
     }
@@ -802,7 +803,7 @@ class TimSort {
     let customCursor = 0
     let customDest = 0
 
-    sloppy_set(array, dest, array[cursor1])
+    array[dest] = array[cursor1]
     results[dest] = results[cursor1]
 
     dest --
@@ -812,7 +813,7 @@ class TimSort {
       customCursor = dest - (length2 - 1)
 
       for (i = 0; i < length2; i ++) {
-        sloppy_set(array, customCursor + i, tmp[i])
+        array[customCursor + i] = tmp[i]
         results[customCursor + i] = tmpIndex[i]
       }
 
@@ -826,11 +827,11 @@ class TimSort {
       customCursor = cursor1 + 1
 
       for (i = length1 - 1; i >= 0; i --) {
-        sloppy_set(array, customDest + i, array[customCursor + i])
+        array[customDest + i] = array[customCursor + i]
         results[customDest + i] = results[customCursor + i]
       }
 
-      sloppy_set(array, dest, tmp[cursor2])
+      array[dest] = tmp[cursor2]
       results[dest] = tmpIndex[cursor2]
       return
     }
@@ -844,7 +845,7 @@ class TimSort {
 
       do {
         if (compare(tmp[cursor2], array[cursor1]) < 0) {
-          sloppy_set(array, dest, array[cursor1])
+          array[dest] = array[cursor1]
           results[dest] = results[cursor1]
           dest --
           cursor1 --
@@ -855,7 +856,7 @@ class TimSort {
             break
           }
         } else {
-          sloppy_set(array, dest, tmp[cursor2])
+          array[dest] = tmp[cursor2]
           results[dest] = tmpIndex[cursor2]
           dest --
           cursor2 --
@@ -890,7 +891,7 @@ class TimSort {
           customCursor = cursor1 + 1
 
           for (i = count1 - 1; i >= 0; i --) {
-            sloppy_set(array, customDest + i, array[customCursor + i])
+            array[customDest + i] = array[customCursor + i]
             results[customDest + i] = results[customCursor + i]
           }
 
@@ -900,7 +901,7 @@ class TimSort {
           }
         }
 
-        sloppy_set(array, dest, tmp[cursor2])
+        array[dest] = tmp[cursor2]
         results[dest] = tmpIndex[cursor2]
         dest --
         cursor2 --
@@ -927,7 +928,7 @@ class TimSort {
           customCursor = cursor2 + 1
 
           for (i = 0; i < count2; i ++) {
-            sloppy_set(array, customDest + i, tmp[customCursor + i])
+            array[customDest + i] = tmp[customCursor + i]
             results[customDest + i] = tmpIndex[customCursor + i]
           }
 
@@ -937,7 +938,7 @@ class TimSort {
           }
         }
 
-        sloppy_set(array, dest, array[cursor1])
+        array[dest] = array[cursor1]
         results[dest] = results[cursor1]
         dest --
         cursor1 --
@@ -977,18 +978,18 @@ class TimSort {
       customCursor = cursor1 + 1
 
       for (i = length1 - 1; i >= 0; i --) {
-        sloppy_set(array, customDest + i, array[customCursor + i])
+        array[customDest + i] = array[customCursor + i]
         results[customDest + i] = results[customCursor + i]
       }
 
-      sloppy_set(array, dest, tmp[cursor2])
+      array[dest] = tmp[cursor2]
       results[dest] = tmpIndex[cursor2]
     } else if (length2 === 0) {
       throw new Error('mergeHigh preconditions were not respected')
     } else {
       customCursor = dest - (length2 - 1)
       for (i = 0; i < length2; i ++) {
-        sloppy_set(array, customCursor + i, tmp[i])
+        array[customCursor + i] = tmp[i]
         results[customCursor + i] = tmpIndex[i]
       }
     }

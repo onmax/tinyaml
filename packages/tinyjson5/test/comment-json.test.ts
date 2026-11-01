@@ -49,4 +49,18 @@ describe("comment-json", () => {
       expect(() => api.removeComments(value, { where: "before-all" })).not.toThrow();
     }
   });
+
+  it("sorts a frozen CommentArray as comment-json does: quietly when small, throwing in a merge", () => {
+    const theirs = require("comment-json");
+    const outcome = (lib: any, length: number) => {
+      const array = new lib.CommentArray(...Array.from({ length }, (_, i) => (i + 16) % length));
+      try {
+        return [...Object.freeze(array).sort((x: number, y: number) => x - y)];
+      } catch (e) {
+        return String(e);
+      }
+    };
+    for (const length of [2, 3, 32, 64])
+      expect(outcome(ours, length), String(length)).toEqual(outcome(theirs, length));
+  });
 });
