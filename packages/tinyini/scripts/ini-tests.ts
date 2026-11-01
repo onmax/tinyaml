@@ -14,10 +14,12 @@ for (const name of process.argv[2] ? [process.argv[2]] : ENGINES) {
   ] as const) {
     let total = 0;
     let passed = 0;
+    // A suite with no test files means it wasn't found.
+    for (const dir of tests) if (!files(dir).length) failed++;
     for (const [dir, file] of tests.flatMap((dir) => files(dir).map((file) => [dir, file]))) {
       const results = runTapFile(file!, lib, dir, lib === theirs ? fresh : undefined);
       const bad = results.filter((r) => !r.ok);
-      failed += bad.length;
+      failed += bad.length + (results.length ? 0 : 1);
       total += results.length;
       passed += results.length - bad.length;
       console.log(

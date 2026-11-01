@@ -93,8 +93,10 @@ const check = (label: string, call: (lib: any) => unknown) => {
 
   const b = attempt(() => call(ours));
   if (!a.ok) throws++;
-  if (JSON.stringify(a).replaceAll(theirs.version(), ours.version()) !== JSON.stringify(b))
-    diffs.set(label, `wasm:    ${show(a)}\n  tinyini: ${show(b)}`);
+  const seen = process.env.THEIRS
+    ? JSON.stringify(a).replaceAll(theirs.version(), ours.version())
+    : JSON.stringify(a);
+  if (seen !== JSON.stringify(b)) diffs.set(label, `wasm:    ${show(a)}\n  tinyini: ${show(b)}`);
 };
 const array = (u: unknown) => (u instanceof Uint32Array ? `Uint32Array ${u.join()}` : u);
 
@@ -176,6 +178,37 @@ for (const polluted of [["inherited"], "inherited"])
         return describe(lib.parse_to_json(input));
       }),
     );
+// The same names as setters that log each assignment, so that the AST is
+// built in the same order, one assignment at a time, as serde builds it.
+for (const input of ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
+  check(`parse_to_json ${JSON.stringify(input)} with setters on Object.prototype`, (lib) =>
+    restoreBuiltIns(() => {
+      const log: string[] = [];
+      for (const key of ["body", "type", "key", "value", "name", "indicator", "version"])
+        Object.defineProperty(
+          Object.prototype,
+          key,
+          Object.assign(Object.create(null), {
+            configurable: true,
+            set(this: object, v: unknown) {
+              log.push(`${key}=${Array.isArray(v) ? `[${v.length}]` : String(v)}`);
+              Object.defineProperty(
+                this,
+                key,
+                Object.assign(Object.create(null), {
+                  value: v,
+                  writable: true,
+                  enumerable: true,
+                  configurable: true,
+                }),
+              );
+            },
+          }),
+        );
+      const ast = lib.parse_to_json(input);
+      return `${log.join(" ")} ${JSON.stringify(ast)}`;
+    }),
+  );
 check("version()", (lib) => lib.version());
 check("TokenTypes", (lib) => [lib.TokenTypes, Object.isFrozen(lib.TokenTypes)]);
 

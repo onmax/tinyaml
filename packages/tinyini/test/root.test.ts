@@ -150,6 +150,10 @@ describe("stringify", () => {
     };
     expect(stringify({ x: once })).toBe("x=ok\n");
     expect(reads).toBe(1);
+    // Items a toJSON adds to its array are past the length JSON.stringify read.
+    const list: unknown[] = [];
+    list.push({ toJSON: () => (list.push("extra"), "first") });
+    expect(stringify({ list })).toBe("list[]=first\n");
   });
 
   it("leaves the options object alone", () => {

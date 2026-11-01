@@ -7,7 +7,10 @@ import { files, runTapFile } from "../scripts/tap.ts";
 for (const name of ENGINES) {
   const { label, theirs, ours, tests, fresh } = await engine(name);
   describe(`${label} test suite`, () => {
-    for (const dir of tests)
+    for (const dir of tests) {
+      it(`${dir.slice("test/suites/".length)} has tests`, () => {
+        expect(files(dir).length).toBeGreaterThan(0);
+      });
       for (const file of files(dir))
         it(`${dir.slice("test/suites/".length)}/${file}`, () => {
           // The original passes too, or the stand-ins are wrong.
@@ -19,5 +22,6 @@ for (const name of ENGINES) {
             expect(results.filter((r) => !r.ok)).toEqual([]);
           }
         });
+    }
   });
 }

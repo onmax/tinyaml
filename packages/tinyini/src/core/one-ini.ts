@@ -146,37 +146,54 @@ interface Node {
   type: string;
   [key: string]: unknown;
 }
-type Body = { body?: Node[] };
+
+/** A parsed item: its token type, its first and second text, and a section's items. */
+type Item = [type: number, a: string, b: string, items: Item[]];
 
 /**
- * Adds a node to a body, which serde leaves out while it's empty. A `body`
- * that Object.prototype has isn't the node's.
+ * Items as serde writes them once the parse is done: each object and array
+ * built one assignment at a time, and a body left out while it's empty.
  */
-const add = (o: Body, node: Node) =>
-  (Object.hasOwn(o, "body") ? o.body! : (o.body = [])).push(node);
+function build(items: Item[]): Node[] {
+  const out: Node[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const [type, a, b, body] = items[i]!;
+    const node = {} as Node;
+    if (type === 2) {
+      node.type = "Section";
+      node.name = a;
+      if (body.length) node.body = build(body);
+    } else if (type === 0) {
+      node.type = "Pair";
+      node.key = a;
+      node.value = b;
+    } else {
+      node.type = "Comment";
+      node.indicator = a;
+      node.value = b;
+    }
+    out[i] = node;
+  }
+  return out;
+}
 
 /** The AST of an EditorConfig INI file, as one-ini's `parse_to_json` returns it. */
 export function parse_to_json(contents: string): { version: string; body?: Node[] } {
   const text = utf16(contents);
-  const out = { version: version() } as { version: string } & Body;
-  let target: Body = out;
-  let last: Node;
+  const top: Item[] = [];
+  let target = top;
+  let last: Item;
   scan(text, (type, start, end) => {
     const value = text.slice(start, end);
-    if (type === 2) {
-      const section: Node & Body = { type: "Section", name: value };
-      add(out, section);
-      target = section;
-    } else if (type === 1 || type === 4) last.value = value;
-    else
-      add(
-        target,
-        (last =
-          type === 0
-            ? { type: "Pair", key: value, value: "" }
-            : { type: "Comment", indicator: value, value: "" }),
-      );
+    if (type === 1 || type === 4) last[2] = value;
+    else {
+      (type === 2 ? top : target).push((last = [type, value, "", []]));
+      if (type === 2) target = last[3];
+    }
   });
+  const out = {} as { version: string; body?: Node[] };
+  out.version = version();
+  if (top.length) out.body = build(top);
   return out;
 }
 
