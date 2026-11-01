@@ -199,8 +199,7 @@ for (const [n, input] of inputs.entries()) {
 }
 // unsafe and safe on values that are not strings.
 for (const value of [undefined, null, 0, 1, true, false, {}, [], [1], NaN, new String(" 'x' ")])
-  for (const fn of ["safe", "unsafe"] as const)
-    check(fn, describe(value), (lib) => lib[fn](value));
+  for (const fn of ["safe", "unsafe"] as const) check(fn, describe(value), (lib) => lib[fn](value));
 
 const limit = Number(process.env.SHOW ?? 10);
 for (const [input, diff] of [...diffs].sort((a, b) => a[0].length - b[0].length).slice(0, limit))

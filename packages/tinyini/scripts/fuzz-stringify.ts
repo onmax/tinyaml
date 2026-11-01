@@ -88,7 +88,8 @@ for (let n = 0; n < count; n++) {
     const b = attempt(() => tinyini.decode(text, { ...read }));
     if (JSON.stringify(a) === JSON.stringify(b)) continue;
     const doc = documented.find(
-      (d) => JSON.stringify(attempt(() => d.theirs.decode(text, { ...read }))) === JSON.stringify(b),
+      (d) =>
+        JSON.stringify(attempt(() => d.theirs.decode(text, { ...read }))) === JSON.stringify(b),
     );
     if (doc) known.set(doc.name, (known.get(doc.name) ?? 0) + 1);
     else {

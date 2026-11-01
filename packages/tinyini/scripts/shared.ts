@@ -69,8 +69,7 @@ function guardBuiltIns<T>(input: string, fn: () => T): T {
   } finally {
     builtIns.forEach((o, i) => {
       const before = saved[i]!;
-      for (const key of Reflect.ownKeys(o))
-        if (!(key in before)) Reflect.deleteProperty(o, key);
+      for (const key of Reflect.ownKeys(o)) if (!(key in before)) Reflect.deleteProperty(o, key);
       for (const key of Reflect.ownKeys(before)) {
         const d = before[key as string]!;
         const now = Object.getOwnPropertyDescriptor(o, key);
@@ -80,8 +79,6 @@ function guardBuiltIns<T>(input: string, fn: () => T): T {
     });
   }
 }
-
-
 
 /** Loads a CommonJS module anew. */
 const load = (id: string): unknown => {
@@ -202,7 +199,9 @@ export function iniInputs(): string[] {
   const fixtures = readdirSync("test/suites/ini-7.0.0/fixtures").map((f) =>
     readFileSync(join("test/suites/ini-7.0.0/fixtures", f), "utf8"),
   );
-  const proto = /var data = `([^`]*)`/.exec(readFileSync("test/suites/ini-7.0.0/proto.js", "utf8"))![1]!;
+  const proto = /var data = `([^`]*)`/.exec(
+    readFileSync("test/suites/ini-7.0.0/proto.js", "utf8"),
+  )![1]!;
   return [
     ...fixtures,
     proto,

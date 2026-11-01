@@ -49,7 +49,7 @@ export function stringify(value: object, options: StringifyOptions = {}): string
         for (let item of v) {
           item = own(item);
           if (item && typeof item === "object")
-            throw new TypeError("tinyini can't write an object or array inside an array");
+            throw new TypeError("tinyini can't write an object inside an array");
           lines.push(text(k, KEY) + "[]", scalar(skipped(item) ? null : item));
         }
       else if (v && typeof v === "object") children.push([k, v]);
@@ -62,7 +62,7 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     for (let i = 0; i < lines.length; i += 2)
       out += lines[i]!.padEnd(width) + separator + lines[i + 1] + eol;
     if (path && (out || !children.length))
-      out = `[${path && text(path.slice(1), NAME)}]${eol}${options.newline ? eol : ""}${out}`;
+      out = `[${text(path.slice(1), NAME)}]${eol}${options.newline ? eol : ""}${out}`;
     for (const [k, v] of children) {
       const child = write(v, `${path}.${k.replace(/[\\.]/g, "\\$&")}`);
       if (out && child) out += eol;

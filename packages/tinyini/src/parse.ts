@@ -23,19 +23,13 @@ const isSection = (value: unknown): value is Section =>
 
 /** A value: a JSON string in double quotes, text in single quotes, or else cut at a comment. */
 function value(text: string): string | boolean | null {
-  const n = text.length;
-  const a = text.charCodeAt(0);
-  if (n > 1 && a === text.charCodeAt(n - 1)) {
-    if (a === 34) return json(text) ?? text;
-    if (a === 39) return text.slice(1, -1);
-  }
-  let i = 0;
-  let c = 0;
-  while (i < n && (c = text.charCodeAt(i)) !== 59 && c !== 35 && c !== 92) i++;
+  if (quoted(text, '"')) return json(text) ?? text;
+  if (quoted(text, "'")) return text.slice(1, -1);
   // `\\`, `\;` and `\#` are escapes; any other `;` or `#` starts a comment.
-  if (i < n)
+  const i = text.search(/[;#\\]/);
+  if (i >= 0)
     text = (
-      c === 92
+      text[i] === "\\"
         ? text.replace(/\\([;#\\])|[;#][^]*/g, (_, escaped?: string) => escaped ?? "")
         : text.slice(0, i)
     ).trimEnd();

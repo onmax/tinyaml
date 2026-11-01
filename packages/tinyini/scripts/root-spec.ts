@@ -175,7 +175,7 @@ export function stringify(value: object, options: StringifyOptions = {}): string
         for (const item of v) {
           const x = toJSON(item);
           if (x !== null && typeof x === "object")
-            throw new TypeError("tinyini can't write an object or array inside an array");
+            throw new TypeError("tinyini can't write an object inside an array");
           lines.push([keyText(k, true), scalarText(skipped(x) ? null : x)]);
         }
       else if (v !== null && typeof v === "object")
