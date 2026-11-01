@@ -3,16 +3,18 @@ packages:
   # The website, private so the release skips it.
   - docs
 
-# The code that ViteHub generates into docs/.vitehub imports its @vite-hub/* packages by name, from the docs app.
-publicHoistPattern:
-  - "@vite-hub/*"
+overrides:
+  # comark-content 0.4.1, which @vite-hub/content reads pages through, asks for comark 0.7, and the comark-ui preset
+  # needs 0.8's parser.
+  "comark-content>comark": ^0.8.1
 
 allowBuilds:
   # esbuild's binary comes from its platform package; the postinstall only checks it.
   esbuild: false
   # automd only needs @parcel/watcher for --watch, which the scripts don't use.
   "@parcel/watcher": false
-  # ViteHub's optional dependencies (zstd, swc, cbor-extract, cpu-features, liblzma, ssh2) are not used by the docs.
+  # Optional dependencies of the ViteHub packages that @vite-hub/content brings (zstd, swc, cbor-extract, cpu-features,
+  # liblzma, ssh2), which the docs don't use.
   "@mongodb-js/zstd": false
   "@swc/core": false
   cbor-extract: false
@@ -22,15 +24,18 @@ allowBuilds:
   ssh2: false
   workerd: true
 
-# ViteHub 0.1.0 and comark-ui 0.8.0, which the website uses, came out within a day of the move to them.
+# The Nuxt 5 nightly, ViteHub 0.1.0 and comark-ui 0.8.0, which the website uses, came out within a day of the move to
+# them.
 minimumReleaseAgeExclude:
+  - "@nuxt/kit-nightly@5.0.0-2611010234-c709ec8"
+  - "@nuxt/nitro-server-nightly@5.0.0-2611010234-c709ec8"
+  - "@nuxt/schema-nightly@5.0.0-2611010234-c709ec8"
+  - "@nuxt/vite-builder-nightly@5.0.0-2611010234-c709ec8"
+  - "@nuxt/vite-server-nightly@5.0.0-2611010234-c709ec8"
+  - nuxt-nightly@5.0.0-2611010234-c709ec8
   - "@vite-hub/agent@0.1.0"
   - "@vite-hub/auth@0.1.0"
   - "@vite-hub/blob@0.1.0"
-  - "@vite-hub/browser@0.1.0"
-  - "@vite-hub/channels@0.1.0"
-  - "@vite-hub/cli@0.1.0"
-  - "@vite-hub/comments@0.1.0"
   - "@vite-hub/connections@0.1.0"
   - "@vite-hub/content@0.1.0"
   - "@vite-hub/database@0.1.0"
@@ -40,8 +45,6 @@ minimumReleaseAgeExclude:
   - "@vite-hub/gateways@0.1.0"
   - "@vite-hub/kv@0.1.0"
   - "@vite-hub/markdown-template@0.1.0"
-  - "@vite-hub/presets@0.1.0"
-  - "@vite-hub/queue@0.1.0"
   - "@vite-hub/rate-limit@0.1.0"
   - "@vite-hub/realtime@0.1.0"
   - "@vite-hub/runtime@0.1.0"
@@ -49,7 +52,6 @@ minimumReleaseAgeExclude:
   - "@vite-hub/schedule@0.1.0"
   - "@vite-hub/shell@0.1.0"
   - "@vite-hub/source@0.1.0"
-  - "@vite-hub/ui@0.1.0"
   - "@vite-hub/workflow@0.1.0"
   - "@vite-hub/workspace@0.1.0"
   - comark-annotate@0.8.0
@@ -97,4 +99,3 @@ minimumReleaseAgeExclude:
   - comark-ui@0.8.0
   - comark-xref@0.8.0
   - comark-zoom@0.8.0
-  - vite-hub@0.1.0

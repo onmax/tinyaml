@@ -1,23 +1,15 @@
-// Renders the site the way comark-ui's docs (github.com/onmax/comark-ui/tree/main/docs) do: each Markdown file in
-// docs/pages/ goes through comark with the comark-ui preset, and this file draws the page around it. Each page's parts
-// go to docs/.generated/pages/ for the app in docs/app to serve, and what the pages load (fonts, the brand, the
-// charts, search, each page's Markdown copy) goes to docs/.generated/public/.
-// Usage: node docs/build.ts, which `pnpm docs:dev` and `pnpm docs:generate` run first.
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+// Draws each page around its Markdown the way comark-ui's docs (github.com/onmax/comark-ui/tree/main/docs) do, and makes
+// what the pages load besides themselves: the search index, llms.txt, and each page's Markdown copy. The pages come
+// from @vite-hub/content (server/content.ts). It all prerenders, so the Worker only serves files, and this module only
+// loads in dev and while prerendering (server/load-pages.ts).
 import { renderHtmlFromDocument } from "@comark/html";
-import shiki from "@comark/html/plugins/shiki";
 import { icons as lucide } from "@iconify-json/lucide";
-import { parseMarkdown, type ComarkTree, type ElementNode, type Node } from "comark";
+import type { ElementNode, Node } from "comark";
 import { escapeHtml, textContent } from "comark/utils";
 import { createIcons, css as iconCss, iconHtml } from "comark-icon/html";
-import comarkUi, { criticCss } from "comark-ui/html";
-import diff from "shiki/langs/diff.mjs";
-import dark from "shiki/themes/github-dark-default.mjs";
-import light from "shiki/themes/github-light-high-contrast.mjs";
+import { criticCss } from "comark-ui/html";
+import { content, preset } from "./content.ts";
 
-const root = new URL("./", import.meta.url);
-const repo = new URL("../", root);
-const out = new URL(".generated/public/", root);
 const site = "https://tiny.onmax.me";
 const github = "https://github.com/onmax/tiny";
 
@@ -51,7 +43,8 @@ const sections: Section[] = [
   {
     slug: "tinyjson5",
     icon: "braces",
-    blurb: "Replaces json5 2.2.3. 3.0 KB gzipped where json5 is 7.5 KB, and parses 8 to 9 times faster.",
+    blurb:
+      "Replaces json5 2.2.3. 3.0 KB gzipped where json5 is 7.5 KB, and parses 8 to 9 times faster.",
     lists: [{ slugs: ["getting-started", "compatibility", "size-and-speed", "develop"] }],
   },
   {
@@ -61,48 +54,14 @@ const sections: Section[] = [
     lists: [{ slugs: ["getting-started", "compatibility", "size-and-speed", "develop"] }],
   },
 ];
-// The files the pages show, from where the READMEs show them, so the site and the READMEs can't drift apart.
-const files: [from: string, to: string][] = [
-  [".github/assets/logo.svg", "logo.svg"],
-  [".github/assets/favicon.svg", "favicon.svg"],
-  [".github/assets/favicon.ico", "favicon.ico"],
-  [".github/assets/favicon-32.png", "favicon-32.png"],
-  [".github/assets/apple-touch-icon.png", "apple-touch-icon.png"],
-  [".github/assets/logo-512.png", "logo-512.png"],
-  ...["size", "speed", "correctness"].map(
-    (chart) => [`packages/tinyaml/.github/${chart}.svg`, `charts/${chart}.svg`] as [string, string],
-  ),
-  ["node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2", "fonts/Geist-Variable.woff2"],
-  ["node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2", "fonts/GeistMono-Variable.woff2"],
-];
-
-// Lucide's icons come from the installed set, so a slow Iconify API can't fail the build. Shiki goes before
-// comark-code, which marks the lines Shiki drew, and adds diff to its languages for the import swaps. The site's own
-// links stay plain, without chips.
-const preset = comarkUi({
-  typeset: false,
-  chips: false,
-  icon: { collections: { lucide } },
-  github: { references: { repo: "onmax/tiny" } },
-});
-const code = preset.plugins.findIndex((plugin) => plugin.name === "comark-code");
-const plugins = [
-  ...preset.plugins.slice(0, code),
-  shiki({ themes: { light, dark }, languages: [diff] }),
-  ...preset.plugins.slice(code),
-];
-
 const siteIcons = await createIcons({ collections: { lucide }, fetch: false }).resolve(
-  [
-    ...sections.map((section) => section.icon),
-    "arrow-left",
-    "arrow-right",
-    "search",
-  ].map((name) => `lucide:${name}`),
+  [...sections.map((section) => section.icon), "arrow-left", "arrow-right", "search"].map(
+    (name) => `lucide:${name}`,
+  ),
 );
 const siteIcon = (name: string, size = 18) => {
   const found = siteIcons.get(`lucide:${name}`);
-  if (!found || "problem" in found) throw new Error(`docs/build.ts: no icon "${name}".`);
+  if (!found || "problem" in found) throw new Error(`docs/server/pages.ts: no icon "${name}".`);
   return iconHtml(found).replace('style="', `style="--comark-icon-size:${size}px;`);
 };
 
@@ -111,8 +70,8 @@ const fileOf = (slug: string) => `docs/pages/${slug || "index"}.md`;
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const isElement = (node: Node): node is ElementNode => Array.isArray(node);
 
-const toc = (document: ComarkTree) =>
-  document.nodes
+const toc = (nodes: Node[]) =>
+  nodes
     .filter(isElement)
     .filter(([tag]) => tag === "h2" || tag === "h3")
     .map(
@@ -123,22 +82,22 @@ const toc = (document: ComarkTree) =>
 
 async function parsePage(slug: string, section?: Section) {
   const file = fileOf(slug);
-  const source = await readFile(new URL(file, repo), "utf8");
-  const document = await parseMarkdown(source, { plugins });
-  if (document.meta.issues.length) throw new Error(`${file}:\n${document.meta.issues.join("\n")}`);
-  const [title, label, description, headline, tagline, install] = [
-    "title",
-    "label",
-    "description",
-    "headline",
-    "tagline",
-    "install",
-  ].map((key) => text(document.frontmatter[key]));
+  const [source, parsed] = await Promise.all([
+    content.getSource()!.getItem(`${slug || "index"}.md`),
+    content.get(`/${slug}`),
+  ]);
+  if (!parsed) throw new Error(`${file} is missing.`);
+  const issues = (parsed.meta.issues as string[] | undefined) ?? [];
+  if (issues.length) throw new Error(`${file}:\n${issues.join("\n")}`);
+  const document = { nodes: parsed.nodes, frontmatter: parsed.data, meta: parsed.meta };
+  const field = (key: string) => text(document.frontmatter[key]);
+  const [title, label, description] = [field("title"), field("label"), field("description")];
+  const [headline, tagline, install] = [field("headline"), field("tagline"), field("install")];
   if (!title || !description) throw new Error(`${file} needs a title and a description.`);
   return {
     slug,
     section,
-    source,
+    source: String(source),
     document,
     title,
     label: label || title,
@@ -146,7 +105,7 @@ async function parsePage(slug: string, section?: Section) {
     headline,
     tagline,
     install,
-    toc: toc(document),
+    toc: toc(document.nodes),
   };
 }
 type Page = Awaited<ReturnType<typeof parsePage>>;
@@ -189,7 +148,9 @@ const rail = (current?: Section) =>
     .join("")}</nav>`;
 // The second column: the current package's pages.
 const column = (section: Section, current: string) =>
-  `<nav class="pages" aria-label="${section.slug}"><p class="pages-title">${section.slug}</p>${pagesOf(section)
+  `<nav class="pages" aria-label="${section.slug}"><p class="pages-title">${section.slug}</p>${pagesOf(
+    section,
+  )
     .map(
       (list) =>
         `${list.title ? `<p class="nav-group">${escapeHtml(list.title)}</p>` : ""}${list.pages
@@ -239,7 +200,9 @@ function installer(install: string) {
 <div class="installer-bar"><div class="seg installer-pm" role="group" aria-label="Package manager">${Object.keys(
     commands,
   )
-    .map((pm, i) => `<button type="button" data-pm="${pm}" aria-pressed="${i === 0}">${pm}</button>`)
+    .map(
+      (pm, i) => `<button type="button" data-pm="${pm}" aria-pressed="${i === 0}">${pm}</button>`,
+    )
     .join("")}</div></div>
 <button type="button" class="install" data-copy="${escapeHtml(commands.pnpm)}" title="Copy the install command"><span aria-hidden="true">$</span><code>${escapeHtml(commands.pnpm)}</code><span class="install-hint">${copyIcon}${checkIcon}</span></button>
 </div>`;
@@ -474,9 +437,15 @@ const searchDialog = `<dialog class="search" aria-label="Search the docs">
 <p class="search-empty" role="status" hidden>No page or heading matches.</p>
 </dialog>`;
 
-// Each page's title, description, and body, which the docs app (docs/app) serves.
-const fragments = new Map<string, { title: string; description: string; body: string }>();
-function shell(options: { slug: string; section?: Section; title: string; description: string; body: string }) {
+// Each page's title, description, and body, which the docs app (docs/app) serves through /api/pages/.
+export const fragments = new Map<string, { title: string; description: string; body: string }>();
+function shell(options: {
+  slug: string;
+  section?: Section;
+  title: string;
+  description: string;
+  body: string;
+}) {
   const { slug, section } = options;
   const nav = rail(section) + (section ? column(section, slug) : "");
   const header = `<div class="top-start"><a class="name" href="/">${logo}tiny</a>${section ? "" : `<nav class="top-links" aria-label="Packages">${sections.map((s) => `<a href="${href(`${s.slug}/${s.lists[0]!.slugs[0]}`)}">${s.slug}</a>`).join("")}</nav>`}</div>
@@ -496,10 +465,11 @@ ${section ? `<div class="layout">\n<aside class="sidebar">${nav}</aside>${reveal
 
 // A table wider than the column scrolls inside it instead of widening the page.
 const render = async (page: Page, components = {}) =>
-  (await renderHtmlFromDocument(page.document, { components: { ...preset.components, ...components } })).replace(
-    /<table>[\s\S]*?<\/table>/g,
-    (table) => `<div class="table-scroll">${table}</div>`,
-  );
+  (
+    await renderHtmlFromDocument(page.document, {
+      components: { ...preset.components, ...components },
+    })
+  ).replace(/<table>[\s\S]*?<\/table>/g, (table) => `<div class="table-scroll">${table}</div>`);
 
 shell({
   slug: "",
@@ -534,7 +504,20 @@ ${page.toc ? `<aside class="toc"><nav aria-label="On this page"><p class="nav-gr
 
 // What a page or a heading says, in one line, so search finds it by its words and not only its title. Code blocks
 // are left out.
-const inlineTags = new Set(["a", "code", "del", "em", "ins", "kbd", "mark", "s", "span", "strong", "sub", "sup"]);
+const inlineTags = new Set([
+  "a",
+  "code",
+  "del",
+  "em",
+  "ins",
+  "kbd",
+  "mark",
+  "s",
+  "span",
+  "strong",
+  "sub",
+  "sup",
+]);
 const prose = (nodes: Node[]): string =>
   nodes
     .map((node) => {
@@ -550,12 +533,13 @@ const prose = (nodes: Node[]): string =>
 const sectionsOf = (nodes: Node[]) => {
   const parts: { heading?: ElementNode; nodes: Node[] }[] = [{ nodes: [] }];
   for (const node of nodes)
-    if (isElement(node) && (node[0] === "h2" || node[0] === "h3")) parts.push({ heading: node, nodes: [] });
+    if (isElement(node) && (node[0] === "h2" || node[0] === "h3"))
+      parts.push({ heading: node, nodes: [] });
     else parts.at(-1)!.nodes.push(node);
   return parts;
 };
 // One entry per page and per heading: its title, where it sits, its link, and the words that find it.
-const searchIndex = [landing, ...parsed].flatMap((page) => {
+export const searchIndex = [landing, ...parsed].flatMap((page) => {
   const where = page.section ? `${page.section.slug} › ${page.label}` : "tiny";
   const [intro, ...headed] = sectionsOf(page.document.nodes);
   return [
@@ -577,12 +561,8 @@ const searchIndex = [landing, ...parsed].flatMap((page) => {
   ];
 });
 
-await rm(new URL(".generated/", root), { recursive: true, force: true });
-for (const [from, to] of files) {
-  await mkdir(new URL(".", new URL(to, out)), { recursive: true });
-  await cp(new URL(from, from.startsWith("node_modules/") ? root : repo), new URL(to, out));
-}
-await writeFile(new URL("search.json", out), JSON.stringify(searchIndex));
+// The site's icon styles, which every page loads.
+export const css = iconCss + criticCss;
 
 // The Markdown copies keep each page's source under its title and description, with the site's links made absolute.
 const markdownOf = (page: Page) =>
@@ -590,31 +570,16 @@ const markdownOf = (page: Page) =>
     .replace(/^---\n[\s\S]*?\n---\n+/, "")
     .replaceAll("](/", `](${site}/`)
     .trim()}\n\n## Sitemap\n\nSee the full list of pages in [llms.txt](${site}/llms.txt).\n`;
-for (const page of [landing, ...parsed]) {
-  const file = new URL(markdownHref(page.slug).slice(1), out);
-  await mkdir(new URL(".", file), { recursive: true });
-  await writeFile(file, markdownOf(page));
-}
-// llms.txt: what the site is, and every page's Markdown copy by package.
-await writeFile(
-  new URL("llms.txt", out),
-  `# tiny\n\n> ${landing.tagline}\n\nEvery page has a Markdown copy at its path plus \`.md\`, listed here.\n\n- [tiny](${site}/index.md): ${landing.description}\n${sections
-    .map(
-      (section) =>
-        `\n## ${section.slug}\n\n${section.blurb}\n\n${pagesOf(section)
-          .flatMap((list) => list.pages)
-          .map((page) => `- [${page.title}](${site}${markdownHref(page.slug)}): ${page.description}`)
-          .join("\n")}\n`,
-    )
-    .join("")}`,
+export const markdown = new Map(
+  [landing, ...parsed].map((page) => [markdownHref(page.slug), markdownOf(page)]),
 );
-
-const generatedPages = new URL(".generated/pages/", root);
-await mkdir(generatedPages, { recursive: true });
-await writeFile(new URL("site.json", generatedPages), JSON.stringify({ css: iconCss + criticCss }));
-for (const [slug, fragment] of fragments)
-  await writeFile(
-    new URL(`${slug.replaceAll("/", "~") || "index"}.json`, generatedPages),
-    JSON.stringify(fragment),
-  );
-console.log(`docs/.generated/ written (${fragments.size} pages)`);
+// llms.txt: what the site is, and every page's Markdown copy by package.
+export const llms = `# tiny\n\n> ${landing.tagline}\n\nEvery page has a Markdown copy at its path plus \`.md\`, listed here.\n\n- [tiny](${site}/index.md): ${landing.description}\n${sections
+  .map(
+    (section) =>
+      `\n## ${section.slug}\n\n${section.blurb}\n\n${pagesOf(section)
+        .flatMap((list) => list.pages)
+        .map((page) => `- [${page.title}](${site}${markdownHref(page.slug)}): ${page.description}`)
+        .join("\n")}\n`,
+  )
+  .join("")}`;

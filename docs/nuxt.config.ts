@@ -1,17 +1,51 @@
+import { cp, mkdir, rm } from "node:fs/promises";
 import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineNuxtConfig } from "nuxt/config";
 
-// The same app as comark-ui's docs (github.com/onmax/comark-ui/tree/main/docs): docs/build.ts renders every page with
-// comark, and this app serves what it wrote, prerendered, from a Cloudflare Worker.
+// The same app as comark-ui's docs (github.com/onmax/comark-ui/tree/main/docs). server/pages.ts renders every page in
+// docs/pages/ from @vite-hub/content, and the Worker serves them prerendered.
 const root = new URL("./", import.meta.url);
+const repo = new URL("../", root);
 const generated = new URL(".generated/public/", root);
 
-// Every page, so one that nothing links to still prerenders.
-const pageRoutes = () =>
-  readdirSync(new URL("pages/", root), { recursive: true, encoding: "utf8" })
-    .filter((file) => file.endsWith(".md"))
-    .map((file) => `/${file.replace(/(^|\/)?index\.md$|\.md$/, "")}`.replace(/\/?$/, "/"));
+// The files the pages show, from where the READMEs show them, so the site and the READMEs can't drift apart.
+const files: [from: string, to: string][] = [
+  [".github/assets/logo.svg", "logo.svg"],
+  [".github/assets/favicon.svg", "favicon.svg"],
+  [".github/assets/favicon.ico", "favicon.ico"],
+  [".github/assets/favicon-32.png", "favicon-32.png"],
+  [".github/assets/apple-touch-icon.png", "apple-touch-icon.png"],
+  [".github/assets/logo-512.png", "logo-512.png"],
+  ...["size", "speed", "correctness"].map(
+    (chart) => [`packages/tinyaml/.github/${chart}.svg`, `charts/${chart}.svg`] as [string, string],
+  ),
+  ["node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2", "fonts/Geist-Variable.woff2"],
+  [
+    "node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2",
+    "fonts/GeistMono-Variable.woff2",
+  ],
+];
+async function copyFiles() {
+  await rm(generated, { recursive: true, force: true });
+  for (const [from, to] of files) {
+    await mkdir(new URL(".", new URL(to, generated)), { recursive: true });
+    await cp(new URL(from, from.startsWith("node_modules/") ? root : repo), new URL(to, generated));
+  }
+}
+
+// Every page, so one that nothing links to still prerenders, and its Markdown copy.
+const markdown = readdirSync(new URL("pages/", root), { recursive: true, encoding: "utf8" }).filter(
+  (file) => file.endsWith(".md"),
+);
+const routes = [
+  ...markdown.map((file) => `/${file.replace(/(^|\/)?index\.md$|\.md$/, "")}`.replace(/\/?$/, "/")),
+  ...markdown.map((file) => `/${file}`),
+  // Fetched by scripts, so the crawler doesn't find them.
+  "/search.json",
+  "/llms.txt",
+];
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-10-01",
@@ -24,7 +58,7 @@ export default defineNuxtConfig({
   },
   css: ["~~/style.css"],
   runtimeConfig: {
-    generatedPagesDir: fileURLToPath(new URL(".generated/pages/", root)),
+    pagesDir: fileURLToPath(new URL("pages/", root)),
   },
   app: {
     head: {
@@ -45,30 +79,43 @@ export default defineNuxtConfig({
     },
   },
   modules: [
-    "vite-hub/nuxt",
-    "~~/modules/wrangler-output",
-    (_, nuxt) => {
+    async (_, nuxt) => {
+      await copyFiles();
       nuxt.options.nitro.publicAssets ??= [];
       nuxt.options.nitro.publicAssets.push({ dir: fileURLToPath(generated), maxAge: 0 });
+      // Nuxt 5's nightly leaves Vite's client manifest in the public output, which would publish /manifest.json. The
+      // server has already inlined it.
+      nuxt.hook("nitro:init", (nitro) => {
+        nitro.hooks.hook("compiled", () =>
+          rm(join(nitro.options.output.publicDir, "manifest.json"), { force: true }),
+        );
+      });
     },
   ],
-  vitehub: {
-    name: "tiny",
-    preset: "cloudflare",
-  },
   nitro: {
-    // The root wrangler.jsonc holds what ViteHub doesn't generate (name, routes). Nitro merges it with ViteHub's
-    // bindings into docs/dist/server/wrangler.json, which the local Wrangler module selects for commands run from the
-    // repository's root.
+    preset: "cloudflare_module",
+    output: { dir: fileURLToPath(new URL("dist/", root)) },
+    // The Worker's whole config. The build writes it, with `main` and the assets' directory filled in, to
+    // docs/dist/server/wrangler.json, which .github/workflows/docs.yml deploys.
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
+      wrangler: {
+        name: "tiny",
+        compatibility_date: "2026-10-01",
+        compatibility_flags: ["nodejs_compat"],
+        // The Worker runs first so the old host can redirect before an asset answers. Nitro's middleware then serves
+        // the prerendered file through ASSETS (server/middleware/site.ts).
+        assets: { binding: "ASSETS", run_worker_first: true },
+        // tiny.onmax.me and tinyaml.onmax.me are attached to the Worker as custom domains in Cloudflare, not listed
+        // here as routes, so the deploy token needs no zone permissions. A deploy leaves them in place.
+        workers_dev: false,
+      },
     },
-    output: { dir: fileURLToPath(new URL("dist/", root)) },
     prerender: {
       crawlLinks: true,
       failOnError: true,
-      routes: pageRoutes(),
+      routes,
     },
   },
 });
