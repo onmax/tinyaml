@@ -11,7 +11,9 @@
     "bench": "pnpm -r bench",
     "charts": "pnpm fixtures && node --no-warnings .github/scripts/charts.ts",
     "brand": "node --no-warnings .github/scripts/brand.ts",
-    "fixtures": "pnpm --filter tinyaml fixtures && (test -d packages/tinyjson5/.cache/json5-2.2.3 || pnpm --filter tinyjson5 json5:fetch)"
+    "fixtures": "pnpm --filter tinyaml fixtures && (test -d packages/tinyjson5/.cache/json5-2.2.3 || pnpm --filter tinyjson5 json5:fetch)",
+    "docs:dev": "pnpm --filter tiny-docs dev",
+    "docs:generate": "pnpm --filter tiny-docs generate"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -19,6 +21,7 @@
   "packageManager": "pnpm@12.16.1",
   "devDependencies": {
     "comark": "^0.8.1",
-    "comark-charts": "^0.7.4"
+    "comark-charts": "^0.7.4",
+    "wrangler": "^4.156.0"
   }
 }
