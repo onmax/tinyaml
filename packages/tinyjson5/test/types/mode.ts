@@ -2,6 +2,7 @@
 // src/core/mode.ts (see vite.config.ts), so each must export what mode.ts
 // does, each export usable where the original is. tsrs checks this file.
 import type * as Mode from "../../src/core/mode.ts";
+import type * as CommentJson from "../../src/core/mode/comment-json.ts";
 import type * as Json5 from "../../src/core/mode/json5.ts";
 import type * as Json5V1 from "../../src/core/mode/json5-v1.ts";
 import type * as JsoncParser from "../../src/core/mode/jsonc-parser.ts";
@@ -18,6 +19,7 @@ type StandsIn<T> =
   Equal<keyof T, keyof typeof Mode> extends true ? (T extends typeof Mode ? true : false) : false;
 
 export const checks: [
+  StandsIn<typeof CommentJson>,
   StandsIn<typeof Json5>,
   StandsIn<typeof Json5V1>,
   StandsIn<typeof JsoncParser>,
@@ -25,4 +27,4 @@ export const checks: [
   StandsIn<typeof StripJsonComments>,
   StandsIn<typeof StripJsonCommentsV2>,
   StandsIn<typeof StripJsonCommentsV5>,
-] = [true, true, true, true, true, true, true];
+] = [true, true, true, true, true, true, true, true];

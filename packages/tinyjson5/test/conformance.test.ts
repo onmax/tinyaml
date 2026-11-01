@@ -51,3 +51,9 @@ describe("jsonc-parser", () => {
     expect(run("scripts/fuzz-jsonc.ts", "300", "1")).toMatch(/: 0 differ$/m);
   });
 });
+
+describe("comment-json", () => {
+  it("matches parse, stringify, tokenize and the comment helpers on mutated inputs", () => {
+    expect(run("scripts/fuzz-comment-json.ts", "300", "1")).toMatch(/: 0 differ$/m);
+  });
+});

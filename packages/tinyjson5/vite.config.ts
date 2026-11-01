@@ -13,6 +13,7 @@ export const MODES = {
   "strip-json-comments-v2": { "strip-json-comments-v2": "src/strip-json-comments-v2/index.ts" },
   "strip-json-comments-v5": { "strip-json-comments-v5": "src/strip-json-comments-v5/index.ts" },
   "jsonc-parser": { "jsonc-parser": "src/jsonc-parser/index.ts" },
+  "comment-json": { "comment-json": "src/comment-json/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
@@ -41,8 +42,8 @@ export default defineConfig({
   })),
   test: {
     include: ["test/**/*.test.ts"],
-    // jsonc-parser's own tests, which scripts/own-tests.ts runs.
-    exclude: ["test/jsonc-parser/**"],
+    // jsonc-parser's and comment-json's own tests, which scripts/own-tests.ts runs.
+    exclude: ["test/jsonc-parser/**", "test/comment-json/**"],
     // The conformance tests shell out to scripts that parse thousands of inputs.
     testTimeout: 120_000,
   },
@@ -57,6 +58,10 @@ export default defineConfig({
       "test/json5-*/**",
       "test/strip-json-comments*/**",
       "test/jsonc-parser/**",
+      "test/comment-json/**",
+      // comment-json's code, esprima's tokenizer and array-timsort, kept as
+      // they are upstream so they diff against it.
+      "src/comment-json/*.js",
     ],
   },
   lint: {
@@ -67,6 +72,10 @@ export default defineConfig({
       "test/json5-*/**",
       "test/strip-json-comments*/**",
       "test/jsonc-parser/**",
+      "test/comment-json/**",
+      // comment-json's code, esprima's tokenizer and array-timsort, kept as
+      // they are upstream so they diff against it.
+      "src/comment-json/*.js",
     ],
     options: { typeAware: true, typeCheck: false },
     // The parser and stringifier detect control characters on purpose.

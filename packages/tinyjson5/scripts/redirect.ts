@@ -15,6 +15,7 @@ const target = process.env.REDIRECT_TARGET!;
 const STAND_INS: Record<string, string> = {
   sinon: new URL("./sinon.ts", import.meta.url).href,
   ava: new URL("./ava.ts", import.meta.url).href,
+  "test-fixture": new URL("./test-fixture.ts", import.meta.url).href,
 };
 // How each library's tests import it.
 // jsonc-parser's format tests import its formatter, which is its `format`.
@@ -24,6 +25,7 @@ const LIBRARY = new Set([
   ".",
   "./",
   "./index.js",
+  "..",
   "../main",
   "../impl/format",
 ]);
@@ -34,6 +36,9 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (context.parentURL?.includes("/test/")) {
       if (LIBRARY.has(specifier)) return { url: target, shortCircuit: true };
+      // comment-json's tests also reach into its src/common.js.
+      if (specifier === "../src/common")
+        return { url: new URL("common.js", target).href, shortCircuit: true };
       if (specifier in STAND_INS) return { url: STAND_INS[specifier]!, shortCircuit: true };
     }
     return nextResolve(specifier, context);

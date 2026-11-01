@@ -33,6 +33,7 @@ describe("own test suites", () => {
     "strip-json-comments-v2",
     "strip-json-comments-v5",
     "jsonc-parser",
+    "comment-json",
   ])
     it(`${suite}: all`, () => {
       expect(failures(suite)).toEqual([]);

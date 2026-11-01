@@ -50,6 +50,20 @@ const SUITES: Record<string, { files: string[]; targets: [string, string][] }> =
       ["tinyjson5/jsonc-parser", "src/jsonc-parser/index.ts"],
     ],
   },
+  "comment-json": {
+    files: [
+      "parse.test.js",
+      "stringify.test.js",
+      "array.test.js",
+      "others.test.js",
+      "remove-comments.test.js",
+      "move-comments.test.js",
+    ],
+    targets: [
+      ["comment-json 4.6.2", "node_modules/comment-json/src/index.js"],
+      ["tinyjson5/comment-json", "src/comment-json/index.ts"],
+    ],
+  },
 };
 
 const name = process.argv[2]!;
