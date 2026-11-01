@@ -132,7 +132,10 @@ for (let n = 0; n < count; n++) {
   // Letters as indentation don't parse back, so that space is left out here.
   for (const space of spaces.slice(0, -1))
     for (const quote of quotes) {
-      const text = stringify(value, { space, quote })!;
+      // The root throws on a BigInt; the comparison above checked it throws as json5 3 does.
+      const written = attempt(() => stringify(value, { space, quote }));
+      if (!written.ok) continue;
+      const text = written.value as string | undefined;
       roundTrips++;
       const back = text === undefined ? { ok: true, value: undefined } : attempt(() => parse(text));
       if (!back.ok || !same(back.value, expected)) {

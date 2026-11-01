@@ -28,16 +28,18 @@ const entries: [string, string][] = [
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
-  tinyjson5: 3200,
-  "tinyjson5/json5": 3200,
+  tinyjson5: 3470,
+  "tinyjson5/json5": 3260,
 };
 
 // Code that only one mode has, as it reads once minified. Each must show up
 // in its own mode's entries, so a marker that goes stale fails too, and in
 // no other.
 const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
-  lean: [],
-  json5: [],
+  // json5 3's BigInt error, and the strict JSONC whitespace test.
+  lean: ["serialize a BigInt"],
+  // json5 2.2.3's warning about U+2028 and U+2029 in strings.
+  json5: ["in strings is not valid ECMAScript"],
 };
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as

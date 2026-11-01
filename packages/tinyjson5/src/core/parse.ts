@@ -1,19 +1,41 @@
 // A one-pass JSON5 parser over character codes. In json5 mode it accepts and
 // rejects the same inputs as json5 2.2.3, builds the same values, and reports
-// errors at the same line and column with the same message.
-import { setMode, type Mode } from "./mode.ts";
+// errors at the same line and column with the same message. In the lean mode
+// it follows the unreleased json5 3 instead: no warnings, a reviver that
+// works as JSON.parse's does, line terminators as ECMAScript has them in
+// error positions, and the `bigint` and `jsonc` options.
+import { json5, lean, setMode, type Mode } from "./mode.ts";
 import { formatChar, isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Reviver = (this: any, key: string, value: any) => any;
 
+export interface ParseOptions {
+  /** Return integers outside the safe range as BigInts. */
+  bigint?: boolean;
+  /** Accept only JSON with comments: no JSON5 syntax, trailing commas, or extra whitespace. */
+  jsonc?: boolean;
+}
+
 let src = "";
 let pos = 0;
 let len = 0;
+// The lean mode's options, for the call in progress.
+let bigint: boolean | undefined = false;
+let jsonc: boolean | undefined = false;
 
 /** Parses `text` the way `mode` says. */
-export function parse(text: string, reviver: Reviver | null | undefined, mode: Mode): unknown {
+export function parse(
+  text: string,
+  reviver: Reviver | null | undefined,
+  mode: Mode,
+  options?: ParseOptions,
+): unknown {
   const outerMode = setMode(mode);
   try {
+    if (lean) {
+      bigint = options?.bigint;
+      jsonc = options?.jsonc;
+    }
     src = String(text);
     pos = 0;
     len = src.length;
@@ -86,6 +108,7 @@ function parseText(): unknown {
           if (!inArray) key = propertyName(e);
           break;
         }
+        if (lean && jsonc) fail(pos);
       } else if (d !== (inArray ? 93 : 125)) fail(pos);
       pos++;
       parent = stack.pop();
@@ -97,7 +120,8 @@ function parseText(): unknown {
 // Reads a property name and the colon after it. `c` is the code at `pos`.
 function propertyName(c: number): string {
   let name: string;
-  if (c === 34 || c === 39) name = string(c);
+  if (c === 34 || (c === 39 && !(lean && jsonc))) name = string(c);
+  else if (lean && jsonc) fail(pos);
   else if (c === 92 /* \ */ || isIdStart(src.codePointAt(pos) ?? -1)) name = identifier();
   else fail(pos);
   skip();
@@ -121,21 +145,23 @@ function skip(): void {
     const c = src.charCodeAt(pos);
     if (c > 32 && c < 160 && c !== 47) return;
     if (
-      c === 32 ||
-      c === 10 ||
-      c === 13 ||
-      c === 9 ||
-      c === 11 ||
-      c === 12 ||
-      c === 0xa0 ||
-      c === 0xfeff ||
-      c === 0x2028 ||
-      c === 0x2029 ||
-      c === 0x1680 ||
-      (c >= 0x2000 && c <= 0x200a) ||
-      c === 0x202f ||
-      c === 0x205f ||
-      c === 0x3000
+      lean && jsonc
+        ? c === 32 || c === 10 || c === 13 || c === 9
+        : c === 32 ||
+          c === 10 ||
+          c === 13 ||
+          c === 9 ||
+          c === 11 ||
+          c === 12 ||
+          c === 0xa0 ||
+          c === 0xfeff ||
+          c === 0x2028 ||
+          c === 0x2029 ||
+          c === 0x1680 ||
+          (c >= 0x2000 && c <= 0x200a) ||
+          c === 0x202f ||
+          c === 0x205f ||
+          c === 0x3000
     ) {
       pos++;
     } else if (c === 47 /* / */) {
@@ -148,7 +174,7 @@ function skip(): void {
         pos += 2;
         while (pos < len) {
           const d = src.charCodeAt(pos);
-          if (d === 10 || d === 13 || d === 0x2028 || d === 0x2029) break;
+          if (d === 10 || d === 13 || (!(lean && jsonc) && (d === 0x2028 || d === 0x2029))) break;
           pos++;
         }
       } else fail(pos + 1);
@@ -157,6 +183,7 @@ function skip(): void {
 }
 
 function scalar(c: number): unknown {
+  if (lean && jsonc && "'+.IN".includes(src[pos]!)) fail(pos);
   switch (c) {
     case 34 /* " */:
     case 39 /* ' */:
@@ -175,7 +202,7 @@ function scalar(c: number): unknown {
   if (c === 45 /* - */ || c === 43 /* + */) {
     if (c === 45) sign = -1;
     c = src.charCodeAt(++pos);
-    if (!(c === 46 || (c >= 48 && c <= 57) || c === 73 || c === 78)) fail(pos);
+    if (lean && jsonc ? !isDigit(c) : !(c === 46 || isDigit(c) || c === 73 || c === 78)) fail(pos);
   }
   if (c === 73 /* I */) {
     literal("Infinity");
@@ -186,6 +213,8 @@ function scalar(c: number): unknown {
     return NaN;
   }
   const start = pos;
+  // Whether the literal is an integer that the `bigint` option applies to.
+  let integer = false;
   if (c === 46 /* . */) {
     pos++;
     if (!isDigit(src.charCodeAt(pos))) fail(pos);
@@ -193,32 +222,43 @@ function scalar(c: number): unknown {
   } else if (c === 48 /* 0 */) {
     pos++;
     const d = src.charCodeAt(pos);
-    if (d === 120 || d === 88 /* x X */) {
+    if (!(lean && jsonc) && (d === 120 || d === 88) /* x X */) {
       pos++;
       if (!isHex(src.charCodeAt(pos))) fail(pos);
       while (isHex(src.charCodeAt(pos))) pos++;
-      return sign * Number(src.slice(start, pos));
+      return number(sign, start, true);
     }
-    if (d === 46) {
-      pos++;
-      digits();
-    }
+    if (d === 46) fraction();
   } else if (c >= 49 && c <= 57) {
     digits();
-    if (src.charCodeAt(pos) === 46) {
-      pos++;
-      digits();
-    }
+    if (src.charCodeAt(pos) === 46) fraction();
+    else integer = true;
   } else fail(pos);
   const e = src.charCodeAt(pos);
   if (e === 101 || e === 69 /* e E */) {
+    integer = false;
     pos++;
     const s = src.charCodeAt(pos);
     if (s === 43 || s === 45) pos++;
     if (!isDigit(src.charCodeAt(pos))) fail(pos);
     digits();
   }
-  return sign * Number(src.slice(start, pos));
+  return number(sign, start, integer);
+}
+
+// The digits after a decimal point, which JSON requires one of.
+function fraction(): void {
+  pos++;
+  if (lean && jsonc && !isDigit(src.charCodeAt(pos))) fail(pos);
+  digits();
+}
+
+function number(sign: number, start: number, integer: boolean): number | bigint {
+  const text = src.slice(start, pos);
+  const value = Number(text);
+  if (lean && bigint && integer && !Number.isSafeInteger(value))
+    return sign < 0 ? -BigInt(text) : BigInt(text);
+  return sign * value;
 }
 
 function digits(): void {
@@ -254,8 +294,8 @@ function string(quote: number): string {
       start = pos;
       continue;
     }
-    if (c === 10 || c === 13) fail(pos);
-    if (c === 0x2028 || c === 0x2029)
+    if (c === 10 || c === 13 || (lean && jsonc && c < 32)) fail(pos);
+    if (json5 && (c === 0x2028 || c === 0x2029))
       console.warn(
         `JSON5: '${formatChar(String.fromCharCode(c))}' in strings is not valid ECMAScript; consider escaping`,
       );
@@ -266,6 +306,8 @@ function string(quote: number): string {
 
 function escape(): string {
   const c = src.charCodeAt(pos);
+  // JSON's escapes. At the end of input `src[pos]` is undefined, which fails too.
+  if (lean && jsonc && !'"\\/bfnrtu'.includes(src[pos]!)) fail(pos);
   switch (c) {
     case 98 /* b */:
       pos++;
@@ -352,31 +394,43 @@ function identifier(): string {
   return out + src.slice(start, pos);
 }
 
-// json5 reports a position after the offending character has been read:
-// line and column count code units, only "\n" starts a new line, and reading
-// past the end adds one more column.
-function position(end: number): [line: number, column: number] {
+// The line and column json5 reports for `width` code units read at `at`:
+// columns count code units, and reading past the end counts as one. In json5
+// 2.2.3 only "\n" starts a line, and a "\n" counts as the first character of
+// the next. In the lean mode, as in json5 3, "\n", "\r", "\r\n", U+2028 and
+// U+2029 each end a line, and count as its last character.
+function position(at: number, width: number): [line: number, column: number] {
   let line = 1;
   let lineStart = 0;
-  for (let k = src.indexOf("\n"); k >= 0 && k < end; k = src.indexOf("\n", k + 1)) {
-    line++;
-    lineStart = k + 1;
-  }
-  return [line, end - lineStart];
+  if (json5) {
+    const end = at + width;
+    for (let k = src.indexOf("\n"); k >= 0 && k < end; k = src.indexOf("\n", k + 1)) {
+      line++;
+      lineStart = k + 1;
+    }
+  } else
+    for (let k = 0; k < at; k++) {
+      const c = src.charCodeAt(k);
+      if (c === 10 || c === 0x2028 || c === 0x2029 || (c === 13 && src.charCodeAt(k + 1) !== 10)) {
+        line++;
+        lineStart = k + 1;
+      }
+    }
+  return [line, at + width - lineStart];
 }
 
 function fail(at: number): never {
   const cp = src.codePointAt(at);
   if (cp === undefined) {
-    const [line, column] = position(len);
-    throw syntaxError("invalid end of input", line, column + 1);
+    const [line, column] = position(len, 1);
+    throw syntaxError("invalid end of input", line, column);
   }
-  const [line, column] = position(at + (cp > 0xffff ? 2 : 1));
+  const [line, column] = position(at, cp > 0xffff ? 2 : 1);
   throw syntaxError(`invalid character '${formatChar(String.fromCodePoint(cp))}'`, line, column);
 }
 
 function invalidIdentifier(): never {
-  const [line, column] = position(pos);
+  const [line, column] = position(pos, 0);
   throw syntaxError("invalid identifier character", line, column - 5);
 }
 
@@ -390,8 +444,9 @@ function syntaxError(message: string, line: number, column: number): SyntaxError
   return error;
 }
 
-// json5's reviver walk: arrays by index, objects with for...in. The loop
-// bodies stay inline so deep input recurses no deeper than json5 does.
+// json5's reviver walk: arrays by index, objects with for...in in json5 2.2.3
+// and by their own keys, as JSON.parse walks them, in the lean mode. The
+// loop bodies stay inline so deep input recurses no deeper than json5 does.
 function internalize(holder: any, name: string, reviver: Reviver): unknown {
   const value = holder[name];
   if (value != null && typeof value === "object") {
@@ -402,17 +457,30 @@ function internalize(holder: any, name: string, reviver: Reviver): unknown {
         // Deleting leaves a hole, as json5 does. json5 runs in sloppy mode, where
         // deleting a non-configurable property fails silently; Reflect does too.
         if (replacement === undefined) Reflect.deleteProperty(value, key);
-        else Object.defineProperty(value, key, own(replacement));
+        else define(value, key, replacement);
+      }
+    } else if (lean) {
+      for (const key of Object.keys(value)) {
+        const replacement = internalize(value, key, reviver);
+        if (replacement === undefined) Reflect.deleteProperty(value, key);
+        else define(value, key, replacement);
       }
     } else {
       for (const key in value) {
         const replacement = internalize(value, key, reviver);
         if (replacement === undefined) Reflect.deleteProperty(value, key);
-        else Object.defineProperty(value, key, own(replacement));
+        else define(value, key, replacement);
       }
     }
   }
   return reviver.call(holder, name, value);
+}
+
+// json5 2.2.3 throws when the reviver made the property non-configurable;
+// JSON.parse, and the lean mode, ignore the failed update.
+function define(object: object, key: string, value: unknown): void {
+  if (lean) Reflect.defineProperty(object, key, own(value));
+  else Object.defineProperty(object, key, own(value));
 }
 
 function own(value: unknown): PropertyDescriptor {

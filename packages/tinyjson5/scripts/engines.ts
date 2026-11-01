@@ -15,6 +15,8 @@ export interface Engine {
   library: string;
   ours: () => Promise<JSON5Like>;
   theirs: () => Promise<JSON5Like>;
+  /** False when only values and accept/reject are comparable, not error messages. */
+  errors?: boolean;
   /** The library's identifier tests, which the random values' characters must agree with. */
   util?: () => Promise<Record<"isIdStartChar" | "isIdContinueChar", (c: string) => boolean>>;
 }
@@ -24,6 +26,50 @@ const cache = (path: string) =>
   pathToFileURL(new URL(`../.cache/${path}`, import.meta.url).pathname).href;
 
 export const ENGINES: Record<string, Engine> = {
+  // The root follows json5's unreleased main branch, which `pnpm json5:main:fetch` puts in .cache.
+  root: {
+    entry: "tinyjson5",
+    library: "json5 main (6d21f2f)",
+    ours: () => import("../src/index.ts"),
+    theirs: () => import(cache("json5-main/lib/index.js")),
+    util: () =>
+      import(cache("json5-main/lib/util.js")).then((util) => ({
+        isIdStartChar: (c: string) => util.isIdStartChar(c, c.codePointAt(0)),
+        isIdContinueChar: (c: string) => util.isIdContinueChar(c, c.codePointAt(0)),
+      })),
+  },
+  // The root's `bigint` option, against json5 main's, with a reviver that
+  // records every call, so both walk the result the same way.
+  "root-bigint": {
+    entry: "tinyjson5 { bigint: true } with a reviver",
+    library: "json5 main (6d21f2f)",
+    ours: () => import("../src/index.ts").then(withOptions),
+    theirs: () => import(cache("json5-main/lib/index.js")).then(withOptions),
+  },
+  // The root's `jsonc` option against jsonc-parser: input parses when
+  // jsonc-parser reports no error with trailing commas off, to what JSON.parse
+  // makes of it without the comments.
+  jsonc: {
+    entry: "tinyjson5 { jsonc: true }",
+    library: "jsonc-parser 3.3.1 strict",
+    errors: false,
+    ours: async () => {
+      const { parse, stringify } = await import("../src/index.ts");
+      return { parse: (text: string) => parse(text, { jsonc: true }), stringify };
+    },
+    theirs: async () => {
+      const jsonc = require("jsonc-parser") as typeof import("jsonc-parser");
+      return {
+        parse(text: string) {
+          const errors: import("jsonc-parser").ParseError[] = [];
+          jsonc.parse(text, errors, { allowTrailingComma: false, allowEmptyContent: false });
+          if (errors.length) throw new SyntaxError(jsonc.printParseErrorCode(errors[0]!.error));
+          return JSON.parse(jsonc.stripComments(text));
+        },
+        stringify: JSON.stringify,
+      };
+    },
+  },
   json5: {
     entry: "tinyjson5/json5",
     library: "json5 2.2.3",
@@ -32,6 +78,28 @@ export const ENGINES: Record<string, Engine> = {
     util: async () => require("json5/lib/util.js"),
   },
 };
+
+// parse(text) as parse(text, reviver, { bigint: true }) with a reviver that
+// deletes some keys, replaces others, and returns its log with the value.
+function withOptions(lib: JSON5Like): JSON5Like {
+  return {
+    parse(text: string) {
+      const log: string[] = [];
+      const value = (lib.parse as (t: string, r: unknown, o: unknown) => unknown)(
+        text,
+        function (this: unknown, key: string, value: unknown) {
+          log.push(`${key}:${typeof value}`);
+          if (key === "a") return undefined;
+          if (typeof value === "bigint") return `${value}n`;
+          return value;
+        },
+        { bigint: true },
+      );
+      return { value, log };
+    },
+    stringify: lib.stringify,
+  };
+}
 
 /** The engine named by the first argument that isn't a number or a flag. */
 export async function engineFromArgs(): Promise<

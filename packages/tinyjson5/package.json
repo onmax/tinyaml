@@ -57,6 +57,8 @@
     "corpus": "node scripts/corpus.ts",
     "corpus:fetch": "git clone https://github.com/json5/json5-tests .cache/json5-tests && git -C .cache/json5-tests checkout ceb24d4080137d70833f86c25659c1331b80a387",
     "json5:fetch": "git clone --depth 1 --branch v2.2.3 https://github.com/json5/json5 .cache/json5-2.2.3",
+    "json5-main-tests": "node scripts/json5-main-tests.ts",
+    "json5:main:fetch": "git clone https://github.com/json5/json5 .cache/json5-main && git -C .cache/json5-main checkout 6d21f2f86f58379171dbbadc5b00d0ae17ab9919",
     "json5-tests": "node scripts/json5-tests.ts",
     "fuzz": "node scripts/fuzz.ts",
     "fuzz:stringify": "node scripts/fuzz-stringify.ts",

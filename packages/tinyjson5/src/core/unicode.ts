@@ -24,7 +24,10 @@ export function isIdContinue(cp: number): boolean {
   );
 }
 
-const ESCAPES: Record<string, string> = {
+// How json5 escapes a character, in strings and in error messages. json5
+// builds this table as an object literal and indexes it with the quote
+// option, so an unusual `quote` behaves exactly as it does there.
+export const ESCAPES: Record<string, string> = {
   "'": "\\'",
   '"': '\\"',
   "\\": "\\\\",

@@ -42,9 +42,9 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: { ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**"] },
+  fmt: { ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-main/**"] },
   lint: {
-    ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**"],
+    ignorePatterns: ["**/dist/**", ".cache/**", "test/json5/**", "test/json5-main/**"],
     options: { typeAware: true, typeCheck: false },
     // The parser and stringifier detect control characters on purpose.
     rules: { "no-control-regex": "off" },

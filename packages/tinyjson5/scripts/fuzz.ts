@@ -19,8 +19,9 @@ const [iterations = 20000, seed = 1] = numbers();
 const next = seeded(seed);
 const pick = <T>(list: T[]) => list[Math.floor(next() * list.length)]!;
 
-// Seeds: the corpus, json5's test inputs, and 200 documents json5 writes for
-// random values, with every indent and quote style and a few comments.
+// Seeds: the corpus, json5's test inputs, 200 documents json5 writes for
+// random values, with every indent and quote style and a few comments, and
+// 100 that JSON.stringify writes, half of them with comments.
 const seeds = [...corpus().map(({ file }) => readFileSync(file, "utf8")), ...testInputs()];
 const generate = generator(seeded(1));
 while (seeds.length < 400) {
@@ -31,6 +32,15 @@ while (seeds.length < 400) {
   if (text !== undefined && text.length > 2)
     seeds.push(
       next() < 0.5 ? text : `// ${text.length}\n/* doc */ ${text.replaceAll(",", ", /*c*/")}\n`,
+    );
+}
+while (seeds.length < 500) {
+  // BigInts and cycles throw, and those values are skipped.
+  const json = attempt(() => JSON.stringify(generate(0).value, null, pick([undefined, 2, "\t"])));
+  const text = json.ok ? (json.value as string | undefined) : undefined;
+  if (text !== undefined && text.length > 2)
+    seeds.push(
+      next() < 0.5 ? text : `// ${text.length}\n/* doc */ ${text.replaceAll(",\n", ", // c\n")}\n`,
     );
 }
 
@@ -96,6 +106,8 @@ const pieces = [
   "NaN",
   "0x",
   "0x1F",
+  "9007199254740993",
+  "0xFFFFFFFFFFFFFFFF",
   ".5",
   "1e",
   "//",
@@ -166,7 +178,7 @@ for (const input of inputs) {
     );
   } else if (!expected.ok && !actual.ok) {
     bothThrow++;
-    if (expected.error === actual.error) sameError++;
+    if (expected.error === actual.error || engine.errors === false) sameError++;
     else
       errorDiffs.set(
         input,

@@ -1,6 +1,9 @@
-// JSON5 output. In json5 mode, byte for byte what json5 2.2.3 writes.
-import { setMode, type Mode } from "./mode.ts";
-import { isIdContinue, isIdStart } from "./unicode.ts";
+// JSON5 output. In json5 mode, byte for byte what json5 2.2.3 writes. In the
+// lean mode, what the unreleased json5 3 writes: BigInts throw, `quote` must
+// be a quote, lone surrogates are escaped, and replacer lists, arrays,
+// toJSON5 and toJSON are read once, as JSON.stringify reads them.
+import { json5, lean, setMode, type Mode } from "./mode.ts";
+import { ESCAPES, isIdContinue, isIdStart } from "./unicode.ts";
 
 export type Replacer = (this: any, key: string, value: any) => any;
 
@@ -12,23 +15,6 @@ export interface StringifyOptions {
   /** The quote character to use for strings. By default the one that needs fewer escapes. */
   quote?: string | null;
 }
-
-// json5 builds this table as an object literal and indexes it with the quote
-// option, so an unusual `quote` behaves exactly as it does there.
-const REPLACEMENTS: Record<string, string> = {
-  "'": "\\'",
-  '"': '\\"',
-  "\\": "\\\\",
-  "\b": "\\b",
-  "\f": "\\f",
-  "\n": "\\n",
-  "\r": "\\r",
-  "\t": "\\t",
-  "\v": "\\v",
-  "\0": "\\0",
-  "\u2028": "\\u2028",
-  "\u2029": "\\u2029",
-};
 
 /** Writes `value` as JSON5 the way `mode` says. */
 export function stringify(value: any, replacer: any, space: any, mode: Mode): string | undefined {
@@ -52,13 +38,19 @@ function write(value: any, replacer: any, space: any): string | undefined {
     space = replacer.space;
     quote = replacer.quote;
     replacer = replacer.replacer;
+    if (lean && quote != null && quote !== "'" && quote !== '"')
+      throw new TypeError(`JSON5: quote must be "'" or '"'`);
   }
 
   if (typeof replacer === "function") {
     replacerFunc = replacer as Replacer;
   } else if (Array.isArray(replacer)) {
     propertyList = [];
-    for (const v of replacer as unknown[]) {
+    // JSON.stringify reads a replacer list by index, up to the length it had.
+    const list: unknown[] = lean
+      ? Array.from({ length: replacer.length }, (_, i) => replacer[i])
+      : replacer;
+    for (const v of list) {
       let item: string | undefined;
       if (typeof v === "string") item = v;
       else if (typeof v === "number" || v instanceof String || v instanceof Number)
@@ -81,10 +73,19 @@ function write(value: any, replacer: any, space: any): string | undefined {
   function serializeProperty(key: string | number, holder: any): string | undefined {
     let value = holder[key];
     if (value != null) {
-      if (typeof value.toJSON5 === "function") value = value.toJSON5(String(key));
-      else if (typeof value.toJSON === "function") value = value.toJSON(String(key));
+      // json5 2.2.3 reads the method twice, to test it and to call it.
+      let method = value.toJSON5;
+      if (typeof method === "function")
+        value = json5 ? value.toJSON5(String(key)) : Reflect.apply(method, value, [String(key)]);
+      else if (typeof (method = value.toJSON) === "function")
+        value = json5 ? value.toJSON(String(key)) : Reflect.apply(method, value, [String(key)]);
     }
     if (replacerFunc) value = replacerFunc.call(holder, String(key), value);
+    if (value instanceof Number) value = Number(value);
+    else if (value instanceof String) value = String(value);
+    else if (value instanceof Boolean)
+      value = json5 ? !!value.valueOf() : Boolean.prototype.valueOf.call(value);
+    else if (lean && value instanceof BigInt) value = BigInt.prototype.valueOf.call(value);
 
     switch (typeof value) {
       case "string":
@@ -93,14 +94,12 @@ function write(value: any, replacer: any, space: any): string | undefined {
         return String(value);
       case "boolean":
         return value ? "true" : "false";
+      case "bigint":
+        if (lean) throw new TypeError("Do not know how to serialize a BigInt");
+        break;
       case "object":
-      case "function":
         if (value === null) return "null";
-        if (value instanceof Number) return String(Number(value));
-        if (value instanceof String) return quoteString(String(value), quote);
-        if (value instanceof Boolean) return value.valueOf() ? "true" : "false";
-        if (typeof value === "object")
-          return Array.isArray(value) ? serializeArray(value) : serializeObject(value);
+        return Array.isArray(value) ? serializeArray(value) : serializeObject(value);
     }
     return undefined;
   }
@@ -130,7 +129,7 @@ function write(value: any, replacer: any, space: any): string | undefined {
     const stepback = indent;
     indent += gap;
     let out = "";
-    for (let i = 0; i < value.length; i++) {
+    for (let i = 0, length = value.length; i < (lean ? length : value.length); i++) {
       const item = serializeProperty(i, value) ?? "null";
       if (gap === "") out += (i === 0 ? "[" : ",") + item;
       else out += (i === 0 ? "[\n" : ",\n") + indent + item;
@@ -146,11 +145,14 @@ function serializeKey(key: string, quote: unknown): string {
   if (key.length === 0) return quoteString(key, quote);
   const first = key.codePointAt(0)!;
   if (!isIdStart(first)) return quoteString(key, quote);
-  // json5 steps through the rest one code unit at a time, so it tests the
-  // second half of a surrogate pair on its own and quotes any such key.
+  // json5 2.2.3 steps through the rest one code unit at a time, so it tests
+  // the second half of a surrogate pair on its own and quotes any such key.
+  // The lean mode steps by code point.
   for (let i = first > 0xffff ? 2 : 1; i < key.length; i++) {
-    const c = key.charCodeAt(i);
-    if ((c >= 0xd800 && c <= 0xdfff) || !isIdContinue(c)) return quoteString(key, quote);
+    const c = lean ? key.codePointAt(i)! : key.charCodeAt(i);
+    if (lean ? !isIdContinue(c) : (c >= 0xd800 && c <= 0xdfff) || !isIdContinue(c))
+      return quoteString(key, quote);
+    if (c > 0xffff) i++;
   }
   return key;
 }
@@ -165,18 +167,20 @@ function quoteString(value: string, quote: unknown): string {
     else if (c === 34) double++;
     else if (c < 32 || c === 92 || c === 0x2028 || c === 0x2029) plain = false;
   }
-  const quoteChar = quote || (single > double ? '"' : "'");
-  if (quoteChar === "'" || quoteChar === '"') {
+  if (lean && !value.isWellFormed()) plain = false;
+  const quoteChar = (quote || (single > double ? '"' : "'")) as string;
+  // The lean mode only takes one of the two quotes.
+  if (lean || quoteChar === "'" || quoteChar === '"') {
     if (plain && (quoteChar === "'" ? single : double) === 0) return quoteChar + value + quoteChar;
     return quoteChar + escape(value, quoteChar.charCodeAt(0)) + quoteChar;
   }
   // Any other quote goes through json5's own steps: a regular expression made
   // from the option, replaced by whatever the table holds for it.
   const product = escape(value, -1).replace(
-    new RegExp(quoteChar as string, "g"),
-    REPLACEMENTS[quoteChar as string] as string,
+    new RegExp(quoteChar, "g"),
+    ESCAPES[quoteChar] as string,
   );
-  return (quoteChar as string) + product + (quoteChar as string);
+  return quoteChar + product + quoteChar;
 }
 
 function escape(value: string, quote: number): string {
@@ -189,11 +193,19 @@ function escape(value: string, quote: number): string {
     else if (c === 92) replacement = "\\\\";
     else if (c === 0x2028) replacement = "\\u2028";
     else if (c === 0x2029) replacement = "\\u2029";
+    // A lone surrogate is escaped, as JSON.stringify escapes it: one that
+    // doesn't start, or end, a code point above U+FFFF.
+    else if (
+      lean &&
+      (c & 0xf800) === 0xd800 &&
+      !(value.codePointAt(c < 0xdc00 ? i : i - 1)! > 0xffff)
+    )
+      replacement = "\\u" + c.toString(16);
     else if (c >= 32) continue;
     else if (c === 0) {
       const next = value.charCodeAt(i + 1);
       replacement = next >= 48 && next <= 57 ? "\\x00" : "\\0";
-    } else replacement = REPLACEMENTS[value[i]!] ?? "\\x" + c.toString(16).padStart(2, "0");
+    } else replacement = ESCAPES[value[i]!] ?? "\\x" + c.toString(16).padStart(2, "0");
     out += value.slice(start, i) + replacement;
     start = i + 1;
   }
