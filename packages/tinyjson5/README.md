@@ -3,6 +3,13 @@
 </h1>
 
 <!-- automd:comark-badges name=tinyjson5 size=size -->
+
+[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyjson5&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=3.4+KiB+gzip)](#size)
+[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyjson5?activeTab=dependencies)
+[![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
+[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
+
 <!-- /automd -->
 
 **JSON5 for JavaScript in 3.4 KiB.** No dependencies, json5 3's rules before json5 3 is out, and strict JSON with comments with one option.
@@ -17,6 +24,22 @@ Already on a JSON5 or JSONC library? Change one import and keep your code:
 tinyjson5 ships drop-in replacements for json5 2 and 1, strip-json-comments 3, 2 and 5, jsonc-parser, comment-json and jju. Each one is smaller and faster than the library it replaces, passes that library's own tests, and gives the same result on a million fuzzed inputs.
 
 <!-- automd:drop-ins package=tinyjson5 -->
+
+| You use               | Switch to                          |      Size, gzip |      Parses | Stringifies |
+| --------------------- | ---------------------------------- | --------------: | ----------: | ----------: |
+| json5 2.2.3           | `tinyjson5/json5`                  |   7.6 → 3.2 KiB | 6.5× faster | 4.8× faster |
+| json5 1.0.2           | `tinyjson5/json5-v1`               |   8.4 → 3.3 KiB | 7.3× faster | 6.6× faster |
+| strip-json-comments 3 | `tinyjson5/strip-json-comments`    |   0.8 → 0.5 KiB | 4.0× faster |           — |
+| strip-json-comments 2 | `tinyjson5/strip-json-comments-v2` |   0.7 → 0.5 KiB | 4.5× faster |           — |
+| strip-json-comments 5 | `tinyjson5/strip-json-comments-v5` |   0.6 → 0.6 KiB | 4.1× faster |           — |
+| jsonc-parser 3.3.1    | `tinyjson5/jsonc-parser`           |   6.6 → 5.9 KiB | 1.2× faster |           — |
+| comment-json 4.6.2    | `tinyjson5/comment-json`           | 35.7 → 17.4 KiB | 1.5× faster | 1.3× faster |
+| jju 1.4.0             | `tinyjson5/jju`                    |   9.8 → 9.6 KiB | 1.2× faster | 1.5× faster |
+
+The root `tinyjson5` API is 3.4 KiB against 7.6 KiB for json5 2.2.3. It parses 8.1× faster than json5 2.2.3 and stringifies 5.2× faster.
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on AMD Ryzen 7 255 w/ Radeon 780M Graphics, Node 24.21.0.
+
 <!-- /automd -->
 
 [Get started](#get-started) · [Switching](#switching-from-another-library) · [Size](#size) · [Speed](#speed) · [API](#api) · [Develop](#develop)
@@ -116,7 +139,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 <details>
 <summary>comment-json: what's different</summary>
 
-- `stringify` reads each object's comments once per call. A getter or `toJSON` that adds or changes comments while the value is written isn't seen, where comment-json reads them again. So is a getter on a comment symbol, which it reads once, and a proxy sees other traps. Without a replacer only; with one, comments are read as comment-json reads them.
+- `stringify` reads each object's comments once per call. Code that runs while the value is written and adds or changes comments, such as a getter, a `toJSON`, or the `toString` of a comment's value, isn't seen, where comment-json reads them again. A getter on a comment symbol is read once, and a proxy sees other traps. Without a replacer only, and only with `Symbol.for` and the prototypes of objects, arrays and `CommentArray` as they were; otherwise comments are read as comment-json reads them.
 - `tokenize` builds esprima's tokens itself for JSON with comments, and hands any other input to esprima's own tokenizer, which comes along unchanged.
 - No `require("comment-json")`: ES modules only, and no deep imports.
 - 1,000,509 mutated inputs, 8,004,072 calls: `parse` with and without comments and with a reviver, compared with every comment symbol and token; `tokenize`; `stringify` with each space and replacer; `assign`, `moveComments` and `removeComments`. All give the same result or throw the same error, with esprima's and comment-json's error fields.

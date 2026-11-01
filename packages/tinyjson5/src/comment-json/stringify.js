@@ -94,36 +94,41 @@ const count_trailing_line_breaks = (str, gap) => {
 //   WHOLE block of comments is always a block group
 // Each object's comments by their symbol's key, read once per call where
 // that reads what looking each one up would: own data properties keyed by
-// registered symbols, on the standard prototype chain without any. A null entry looks
-// each one up, as comment-json does. Without a replacer only, which could
-// change comments while the text is written.
+// registered symbols, on the standard prototype chain without any, with
+// Symbol.for as it was. A null entry looks each one up, as comment-json
+// does. Without a replacer only, which could change comments while the text
+// is written. The built-ins it reads with are the ones there were at load.
 let hosts = null
 const PROTOTYPES = [Object.prototype, Array.prototype, CommentArray.prototype]
+const {for: symbol_for, keyFor: key_for} = Symbol
+const {getOwnPropertySymbols: own_symbols, getOwnPropertyDescriptor: own_descriptor, getPrototypeOf: prototype_of} = Object
+const CommentsMap = Map
 
-const registered = object => Object.getOwnPropertySymbols(object)
-.some(symbol => Symbol.keyFor(symbol) !== undefined)
+const registered = object => own_symbols(object)
+.some(symbol => key_for(symbol) !== undefined)
 
 // CommentArray.prototype, Array.prototype and Object.prototype, chained as
 // they are by default, without a comment of their own to inherit.
 const standard_prototypes = () =>
-  Object.getPrototypeOf(CommentArray.prototype) === Array.prototype
-  && Object.getPrototypeOf(Array.prototype) === Object.prototype
-  && Object.getPrototypeOf(Object.prototype) === null
+  Symbol.for === symbol_for
+  && prototype_of(CommentArray.prototype) === Array.prototype
+  && prototype_of(Array.prototype) === Object.prototype
+  && prototype_of(Object.prototype) === null
   && !PROTOTYPES.some(registered)
 
 const read_comments = host => {
-  if (!PROTOTYPES.includes(Object.getPrototypeOf(host))) {
+  if (!PROTOTYPES.includes(prototype_of(host))) {
     return null
   }
 
-  const comments = new Map()
-  for (const symbol of Object.getOwnPropertySymbols(host)) {
-    const key = Symbol.keyFor(symbol)
+  const comments = new CommentsMap()
+  for (const symbol of own_symbols(host)) {
+    const key = key_for(symbol)
     if (key === undefined) {
       continue
     }
 
-    const descriptor = Object.getOwnPropertyDescriptor(host, symbol)
+    const descriptor = own_descriptor(host, symbol)
     if (!('value' in descriptor)) {
       return null
     }
