@@ -138,7 +138,7 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
         start = pos;
         continue;
       }
-      if (ch <= 0x1f) {
+      if (ch >= 0 && ch <= 0x1f) {
         if (ch === 10 || ch === 13) {
           result += text.substring(start, pos);
           scanError = 2;
@@ -210,8 +210,7 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
         // jsonc-parser starts a comment's value one character early, so it
         // holds the character before the comment too.
         const start = pos - 1;
-        const next = text.charCodeAt(pos + 1);
-        if (next === 47) {
+        if (text.charCodeAt(pos + 1) === 47) {
           pos += 2;
           while (pos < len) {
             const ch = text.charCodeAt(pos);
@@ -220,7 +219,7 @@ export function createScanner(text: string, ignoreTrivia = false): JSONScanner {
           }
           return sliced(12, start); /* LineCommentTrivia */
         }
-        if (next === 42 /* * */) {
+        if (text.charCodeAt(pos + 1) === 42 /* * */) {
           pos += 2;
           const safeLength = len - 1;
           let closed = false;
