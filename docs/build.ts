@@ -66,6 +66,7 @@ const files: [from: string, to: string][] = [
   [".github/assets/logo.svg", "logo.svg"],
   [".github/assets/favicon.svg", "favicon.svg"],
   [".github/assets/favicon.ico", "favicon.ico"],
+  [".github/assets/favicon-32.png", "favicon-32.png"],
   [".github/assets/apple-touch-icon.png", "apple-touch-icon.png"],
   [".github/assets/logo-512.png", "logo-512.png"],
   [".github/assets/drop-ins.svg", "drop-ins.svg"],
