@@ -86,6 +86,28 @@ for (let n = 0; n < count; n++) {
       );
     }
   }
+  // The value behind a proxy that reads null every third time, so that
+  // reading a key more or fewer times than the original shows.
+  if (n % 10 === 0)
+    for (const make of [() => ({ align: true }), () => ({}), () => ({ align: true, sort: true })]) {
+      const proxy = () => {
+        let reads = 0;
+        return new Proxy(value as object, {
+          get: (target, key, receiver) =>
+            ++reads % 3 === 0 ? null : Reflect.get(target, key, receiver),
+        });
+      };
+      calls++;
+      const expected = attempt(() => ini.encode(proxy(), make()));
+      const actual = attempt(() => tinyini.encode(proxy(), make()));
+      if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+        encodeDiffs++;
+        diffs.set(
+          `proxy ${describe(value)} ${describe(make())}`,
+          `ini:     ${show(expected)}\n  tinyini: ${show(actual)}`,
+        );
+      }
+    }
   const options: (() => unknown)[] = combinations.map((o) => () => ({ ...o }));
   if (n % 10 === 0) options.push(...odd);
   for (const [i, make] of options.entries()) {

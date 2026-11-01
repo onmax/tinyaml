@@ -45,7 +45,6 @@ export const section = (): Section => (plain ? {} : Object.create(null));
 export function decode(str: string, opt: DecodeOptions = {}): Record<string, any> {
   // ini 1.x to 4.0 take no options.
   if (!legacy) set(opt, "bracketedArray", opt.bracketedArray !== false);
-  const bracketed = legacy || opt.bracketedArray;
   const out: Section = section();
   let p: Section = out;
   const duplicates: Record<string, any> = {};
@@ -88,7 +87,8 @@ export function decode(str: string, opt: DecodeOptions = {}): Record<string, any
     // as ini wrote them, and throw where ini throws.
     const keyRaw = unquote(eq < 0 ? line : line.slice(0, eq)) as string;
     let isArray;
-    if (bracketed) {
+    // ini reads the option again for every key, so a getter can change it.
+    if (legacy || opt.bracketedArray) {
       isArray = plain ? bracketedKey(keyRaw) : keyRaw.length > 2 && keyRaw.slice(-2) === "[]";
     } else {
       duplicates[keyRaw] = (duplicates?.[keyRaw] || 0) + 1;

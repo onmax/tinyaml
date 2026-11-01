@@ -61,16 +61,17 @@ function write(obj: any, o: Options): string {
   const keys = !legacy && o.sort ? Object.keys(obj).sort() : Object.keys(obj);
 
   // Pad to the longest written key among the values on this level, arrays
-  // counted with `[]` whether or not they are written with it.
+  // counted with `[]` whether or not they are written with it. Written as ini
+  // writes it, so a getter is read as many times.
   let padToChars = 0;
   if (!legacy && o.align)
-    for (const k of keys) {
-      const val = obj[k];
-      if (val === null || typeof val !== "object" || Array.isArray(val)) {
-        const length = safe(Array.isArray(val) ? `${k}[]` : k).length;
-        if (length > padToChars) padToChars = length;
-      }
-    }
+    padToChars = safe(
+      keys
+        .filter((k) => obj[k] === null || Array.isArray(obj[k]) || typeof obj[k] !== "object")
+        .map((k) => (Array.isArray(obj[k]) ? `${k}[]` : k))
+        .concat([""])
+        .reduce((a, b) => (safe(a).length >= safe(b).length ? a : b)),
+    ).length;
 
   let out = "";
   const arraySuffix = legacy || o.bracketedArray ? "[]" : "";

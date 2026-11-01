@@ -1,6 +1,7 @@
 // tinyini/one-ini and tinyini/one-ini-v0.1 against @one-ini/wasm 0.2.1 and
-// 0.1.1: the differential fuzzer, and editorconfig-core-test through the
-// editorconfig package when CMake is installed.
+// 0.1.1: the differential fuzzer, one-ini's own Rust tests, and
+// editorconfig-core-test through the editorconfig package when CMake is
+// installed.
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vite-plus/test";
 import * as one from "../src/one-ini/index.ts";
@@ -57,9 +58,18 @@ describe("one-ini", () => {
       expect(run("scripts/one-ini-fuzz.ts", "5000", "1", name)).toMatch(/: 0 differences$/m);
     });
 
-  it.skipIf(!cmake)("passes editorconfig-core-test wherever the WASM module does", () => {
-    expect(run("scripts/editorconfig-tests.ts")).toMatch(
-      /^tinyini: 0 tests fail only with tinyini$/m,
-    );
+  it("passes one-ini's own tests, as the WASM module does", () => {
+    expect(run("scripts/one-ini-tests.ts")).toMatch(/^tinyini: 0 failing tests$/m);
   });
+
+  // Four CTest runs of 203 tests, each starting Node: over a minute.
+  it.skipIf(!cmake)(
+    "passes editorconfig-core-test wherever the WASM module does",
+    () => {
+      expect(run("scripts/editorconfig-tests.ts")).toMatch(
+        /^tinyini: 0 tests fail only with tinyini$/m,
+      );
+    },
+    600_000,
+  );
 });

@@ -81,7 +81,8 @@
     "bench": "node bench/index.ts",
     "versions": "node scripts/versions.ts",
     "editorconfig-tests": "node scripts/editorconfig-tests.ts",
-    "one-ini-fuzz": "node scripts/one-ini-fuzz.ts"
+    "one-ini-fuzz": "node scripts/one-ini-fuzz.ts",
+    "one-ini-tests": "node scripts/one-ini-tests.ts"
   },
   "devDependencies": {
     "@one-ini/wasm": "0.2.1",

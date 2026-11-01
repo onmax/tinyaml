@@ -77,7 +77,8 @@ export function generator(next: () => number) {
     if (r < 0.82) return () => 1;
     if (r < 0.84) return Symbol("s");
     if (r < 0.85) return 10n;
-    if (r < 0.87) return { toJSON: () => "json" };
+    if (r < 0.86) return { toJSON: () => "json" };
+    if (r < 0.87) return Object.assign(() => 1, { toJSON: () => "fn json" });
     if (r < 0.9) return { a: 1, b: [2, "c"] };
     return "";
   }
@@ -108,9 +109,16 @@ export function generator(next: () => number) {
     return obj;
   }
 
-  /** A random value; about 1 in 200 contains a cycle. */
+  /**
+   * A random value; about 1 in 200 contains a cycle, and about 1 in 100 has a
+   * toJSON method that returns another random value.
+   */
   return (): unknown => {
-    const value = object(0);
+    let value = object(0);
+    if (next() < 0.01) {
+      const inner = object(0);
+      value = { ...value, toJSON: () => inner };
+    }
     if (next() < 0.005) {
       const keys = Object.keys(value);
       const inner = { self: value };

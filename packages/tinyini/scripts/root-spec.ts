@@ -152,7 +152,13 @@ function scalarText(v: unknown): string {
   return quote ? JSON.stringify(v) : v;
 }
 
-const toJSON = (v: any): unknown => (v && typeof v.toJSON === "function" ? v.toJSON() : v);
+/** Calls toJSON where JSON.stringify does: on objects, functions and BigInts. */
+const toJSON = (v: any): unknown =>
+  v !== null &&
+  (typeof v === "object" || typeof v === "function" || typeof v === "bigint") &&
+  typeof v.toJSON === "function"
+    ? v.toJSON()
+    : v;
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 
 function header(path: string[]): string {
@@ -193,5 +199,5 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     }
     return out;
   };
-  return write(value as Record<string, unknown>, []);
+  return write(toJSON(value) as Record<string, unknown>, []);
 }

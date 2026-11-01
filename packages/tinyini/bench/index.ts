@@ -1,5 +1,6 @@
 // Median time per call over seven rounds: each tinyini entry against the
-// library it replaces, and tinyini's own API against ini 7.0.0. The ini
+// library it replaces, and tinyini's own API against ini 7.0.0 and against
+// the tinyini/ini* entries. The ini
 // inputs are ini's foo.ini test fixture, the .gitconfig in test/samples,
 // and about 100 KB of generated sections, comments, quoted values, escapes
 // and arrays; stringify passes `whitespace: true`, as confbox does. The
@@ -74,6 +75,10 @@ const pairs: [string, Record<string, string>, Ops, Ops][] = [
   ["ini 1.3.8", iniInputs, codec(require("ini-v1")), codec(iniV1)],
   // tinyini's own API, against the ini it takes its rules from.
   ["ini 7.0.0 (tinyini root)", iniInputs, codec(require("ini")), codec(root as never)],
+  // The root against the compatibility entries, which carry ini's legacy.
+  ["tinyini/ini (tinyini root)", iniInputs, codec(ini), codec(root as never)],
+  ["tinyini/ini-v2 (tinyini root)", iniInputs, codec(iniV2), codec(root as never)],
+  ["tinyini/ini-v1 (tinyini root)", iniInputs, codec(iniV1), codec(root as never)],
   ["@one-ini/wasm 0.2.1", editorconfigInputs, wasm(require("@one-ini/wasm")), wasm(oneIni)],
   ["@one-ini/wasm 0.1.1", editorconfigInputs, wasm(require("one-ini-v0.1")), wasm(oneIniV01)],
 ];

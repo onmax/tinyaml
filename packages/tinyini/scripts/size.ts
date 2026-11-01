@@ -46,11 +46,11 @@ const require = createRequire(import.meta.url);
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
   tinyini: 1330,
-  "tinyini/ini": 1550,
+  "tinyini/ini": 1590,
   "tinyini/ini-v2": 1420,
   "tinyini/ini-v1": 1430,
-  "tinyini/one-ini": 1465,
-  "tinyini/one-ini-v0.1": 1465,
+  "tinyini/one-ini": 1520,
+  "tinyini/one-ini-v0.1": 1520,
 };
 
 // Code that some modes have, as it reads once minified, and the modes whose

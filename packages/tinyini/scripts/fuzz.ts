@@ -194,6 +194,19 @@ for (const [n, input] of inputs.entries()) {
       const own = copy(options);
       return [lib.decode(input, own), own];
     });
+  // Options whose bracketedArray getter flips on every read, as ini reads it
+  // again for every key.
+  if (n % 10 === 0)
+    check("decode with a flipping getter", input, (lib) => {
+      let reads = 0;
+      const options = {
+        get bracketedArray() {
+          return ++reads % 2 === 1;
+        },
+        set bracketedArray(_: unknown) {},
+      };
+      return [lib.decode(input, options), reads];
+    });
   check("unsafe", input, (lib) => lib.unsafe(input));
   check("safe", input, (lib) => lib.safe(input));
 }

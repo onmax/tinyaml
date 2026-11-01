@@ -217,8 +217,9 @@ function utf8Error(bytes: Uint8Array): string | undefined {
  * throw the Error Rust's from_utf8 gives.
  */
 export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
-  // wasm-bindgen copies the argument into memory the same way.
-  const bytes = new Uint8Array(contents.length * 1);
+  // wasm-bindgen copies the argument into memory the same way, after a
+  // malloc that takes the length as an i32 and traps on a negative one.
+  const bytes = new Uint8Array(malloc(contents.length * 1));
   bytes.set(contents);
   const text = decoder.decode(bytes);
   if (text.includes("\ufffd")) {
@@ -253,6 +254,12 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
 
 const encoder = new TextEncoder();
 
+/** The size wasm-bindgen's malloc gets: the length as an i32, which traps if negative. */
+function malloc(len: number): number {
+  if ((len | 0) < 0) throw new WebAssembly.RuntimeError("unreachable");
+  return len | 0;
+}
+
 /**
  * The text the WASM module gets: wasm-bindgen copies a string's ASCII
  * start, and has TextEncoder write the rest, which turns a lone surrogate
@@ -261,6 +268,7 @@ const encoder = new TextEncoder();
 function utf16(arg: any): string {
   if (typeof arg === "string") return arg.toWellFormed();
   const len = arg.length;
+  malloc(len);
   let offset = 0;
   let out = "";
   for (; offset < len; offset++) {

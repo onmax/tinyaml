@@ -64,7 +64,8 @@ export function restoreBuiltIns<T>(fn: () => T): T {
   } finally {
     builtIns.forEach((o, i) => {
       const before = saved[i]!;
-      for (const key of Reflect.ownKeys(o)) if (!(key in before)) Reflect.deleteProperty(o, key);
+      for (const key of Reflect.ownKeys(o))
+        if (!Object.hasOwn(before, key)) Reflect.deleteProperty(o, key);
       for (const key of Reflect.ownKeys(before)) {
         const d = before[key as string]!;
         const now = Object.getOwnPropertyDescriptor(o, key);

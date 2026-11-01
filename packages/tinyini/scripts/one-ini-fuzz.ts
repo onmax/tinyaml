@@ -140,8 +140,20 @@ const odd: unknown[] = [
   [97, 61, 98],
   new Uint16Array([97, 61, 1000]),
   "\ud800=1",
+  // wasm-bindgen's malloc takes the length as an i32: a negative one traps,
+  // a fractional one is cut. 0.1.1 reads 2 ** 31 as unsigned and allocates
+  // 2 GiB, so only 0.2.1 gets it.
+  { length: -1 },
+  { length: -2.5 },
+  ...(name === "one-ini" ? [{ length: 2 ** 31 }] : []),
+  { length: 2 ** 32 + 1, 0: 97 },
+  { length: 1.5, 0: 97, 1: 98 },
+  { length: "2", 0: 97, 1: 61 },
+  { length: NaN },
 ];
 for (const value of odd) {
+  // A trap can leave the module's allocator broken, so each gets a fresh one.
+  theirs = load();
   check(`parse_to_json ${describe(value)}`, (lib) => lib.parse_to_json(value));
   check(`parse_to_uint32array ${describe(value)}`, (lib) => array(lib.parse_to_uint32array(value)));
 }

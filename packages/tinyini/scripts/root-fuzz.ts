@@ -110,7 +110,12 @@ for (let i = 0; i < seeds.length + iterations; i++) {
 
 // What parse reads back from what stringify writes for `v`.
 const model = (v: any, sort: boolean, inArray = false): any => {
-  if (v && typeof v.toJSON === "function") v = v.toJSON();
+  if (
+    v !== null &&
+    (typeof v === "object" || typeof v === "function" || typeof v === "bigint") &&
+    typeof v.toJSON === "function"
+  )
+    v = v.toJSON();
   if (v === undefined || typeof v === "function" || typeof v === "symbol")
     return inArray ? null : undefined;
   if (v === null || typeof v === "boolean") return v;

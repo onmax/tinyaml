@@ -21,8 +21,13 @@ const KEY = /^$|^[\s[;#"]|\s$|[=\r\n]/;
 const VALUE = /^[\s"']|\s$|[\r\n;#\\]|^(?:true|false|null)$/;
 const NAME = /^[\s"]|\s$|[\r\n]/;
 
+// toJSON is called where JSON.stringify calls it: on objects, functions and
+// BigInts.
 const own = (v: any): unknown =>
-  typeof v === "object" && v && typeof v.toJSON === "function" ? v.toJSON() : v;
+  (typeof v === "object" ? v : typeof v === "function" || typeof v === "bigint") &&
+  typeof v.toJSON === "function"
+    ? v.toJSON()
+    : v;
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 const text = (s: string, special: RegExp) => (special.test(s) ? JSON.stringify(s) : s);
 const scalar = (v: unknown) => (typeof v === "string" ? text(v, VALUE) : String(v));
@@ -70,5 +75,5 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     }
     return out;
   };
-  return write(value as Record<string, unknown>, "");
+  return write(own(value) as Record<string, unknown>, "");
 }
