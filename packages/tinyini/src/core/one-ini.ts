@@ -147,32 +147,54 @@ interface Node {
   [key: string]: unknown;
 }
 
-/** A parsed item: its token type, its first and second text, and a section's items. */
-type Item = [type: number, a: string, b: string, items: Item[]];
+/**
+ * A parsed item, linked to the next one in its list, since writes to an array
+ * would call any setter Array.prototype has for an index.
+ */
+interface Item {
+  type: number;
+  /** The key, the comment's indicator, or the section's name. */
+  a: string;
+  /** The value or the comment's text. */
+  b: string;
+  first: Item | null;
+  last: Item | null;
+  next: Item | null;
+}
+
+const item = (type: number, a: string): Item => ({
+  type,
+  a,
+  b: "",
+  first: null,
+  last: null,
+  next: null,
+});
 
 /**
- * Items as serde writes them once the parse is done: each object and array
- * built one assignment at a time, and a body left out while it's empty.
+ * A list's items as serde writes them once the parse is done: each object
+ * and array built one assignment at a time, and a body left out while it's
+ * empty.
  */
-function build(items: Item[]): Node[] {
+function build(list: Item): Node[] {
   const out: Node[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const [type, a, b, body] = items[i]!;
+  let i = 0;
+  for (let it = list.first; it; it = it.next) {
     const node = {} as Node;
-    if (type === 2) {
+    if (it.type === 2) {
       node.type = "Section";
-      node.name = a;
-      if (body.length) node.body = build(body);
-    } else if (type === 0) {
+      node.name = it.a;
+      if (it.first) node.body = build(it);
+    } else if (it.type === 0) {
       node.type = "Pair";
-      node.key = a;
-      node.value = b;
+      node.key = it.a;
+      node.value = it.b;
     } else {
       node.type = "Comment";
-      node.indicator = a;
-      node.value = b;
+      node.indicator = it.a;
+      node.value = it.b;
     }
-    out[i] = node;
+    out[i++] = node;
   }
   return out;
 }
@@ -180,20 +202,24 @@ function build(items: Item[]): Node[] {
 /** The AST of an EditorConfig INI file, as one-ini's `parse_to_json` returns it. */
 export function parse_to_json(contents: string): { version: string; body?: Node[] } {
   const text = utf16(contents);
-  const top: Item[] = [];
+  const top = item(-1, "");
   let target = top;
-  let last: Item;
+  let last = top;
   scan(text, (type, start, end) => {
     const value = text.slice(start, end);
-    if (type === 1 || type === 4) last[2] = value;
+    if (type === 1 || type === 4) last.b = value;
     else {
-      (type === 2 ? top : target).push((last = [type, value, "", []]));
-      if (type === 2) target = last[3];
+      const list = type === 2 ? top : target;
+      last = item(type, value);
+      if (list.last) list.last.next = last;
+      else list.first = last;
+      list.last = last;
+      if (type === 2) target = last;
     }
   });
   const out = {} as { version: string; body?: Node[] };
   out.version = version();
-  if (top.length) out.body = build(top);
+  if (top.first) out.body = build(top);
   return out;
 }
 
@@ -250,7 +276,9 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
     const error = utf8Error(bytes);
     if (error) throw new Error(error);
   }
-  const out: number[] = [];
+  // A typed array, which no setter on Array.prototype sees, doubled as it fills.
+  let out = new Uint32Array(96);
+  let length = 0;
   // Byte offsets, counted from the UTF-16 ones as the tokens come, in order.
   const ascii = text.length === bytes.length;
   let index = 0;
@@ -272,8 +300,17 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
     }
     return offset;
   };
-  scan(text, (type, start, end) => out.push(type, at(start), at(end)));
-  return new Uint32Array(out);
+  scan(text, (type, start, end) => {
+    if (length + 3 > out.length) {
+      const bigger = new Uint32Array(out.length * 2);
+      bigger.set(out);
+      out = bigger;
+    }
+    out[length++] = type;
+    out[length++] = at(start);
+    out[length++] = at(end);
+  });
+  return out.slice(0, length);
 }
 
 const encoder = new TextEncoder();

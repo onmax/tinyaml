@@ -9,7 +9,17 @@
 // `safe` and `unsafe` on every input.
 // Usage: node scripts/fuzz.ts [iterations] [seed] [engine]
 import { generator } from "./values.ts";
-import { attempt, describe, engine, ini, iniInputs, samples, seeded, show } from "./shared.ts";
+import {
+  attempt,
+  count,
+  describe,
+  engine,
+  ini,
+  iniInputs,
+  samples,
+  seeded,
+  show,
+} from "./shared.ts";
 
 const {
   label,
@@ -19,8 +29,8 @@ const {
   guard = (_input, fn) => fn(),
 } = await engine(process.argv[4]);
 
-const iterations = Number(process.argv[2] ?? 20000);
-const next = seeded(Number(process.argv[3] ?? 1));
+const iterations = count(2, 20000);
+const next = seeded(count(3, 1));
 const pick = <T>(list: readonly T[]) => list[Math.floor(next() * list.length)]!;
 
 const seeds = [...iniInputs(), ...samples()];

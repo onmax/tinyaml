@@ -51,8 +51,9 @@ export function stringify(value: object, options: StringifyOptions = {}): string
       // parse drops __proto__ keys, so they aren't written.
       if (skipped(v) || k === "__proto__") continue;
       if (Array.isArray(v))
-        // Up to the length it had before any toJSON ran, as JSON.stringify.
-        for (let i = 0, n = v.length; i < n; i++) {
+        // Up to the length it had before any toJSON ran, cut to a whole
+        // number, as JSON.stringify.
+        for (let i = 0, n = +v.length; i + 1 <= n; i++) {
           const item = own(v[i], "" + i);
           if (item && typeof item === "object")
             throw new TypeError("tinyini can't write an object inside an array");

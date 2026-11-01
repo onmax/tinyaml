@@ -10,11 +10,20 @@
 import { parse, stringify } from "../src/index.ts";
 import * as spec from "./root-spec.ts";
 import { generator } from "./values.ts";
-import { attempt, describe, ini, iniInputs, samples, seeded, show } from "./shared.ts";
+import {
+  attempt,
+  count as argument,
+  describe,
+  ini,
+  iniInputs,
+  samples,
+  seeded,
+  show,
+} from "./shared.ts";
 
-const iterations = Number(process.argv[2] ?? 20000);
-const count = Number(process.argv[3] ?? 1000);
-const seed = Number(process.argv[4] ?? 1);
+const iterations = argument(2, 20000);
+const count = argument(3, 1000);
+const seed = argument(4, 1);
 const next = seeded(seed);
 const pick = <T>(list: readonly T[]) => list[Math.floor(next() * list.length)]!;
 
@@ -117,7 +126,12 @@ const model = (v: any, sort: boolean, key: string, inArray = false): any => {
     return inArray ? null : undefined;
   if (v === null || typeof v === "boolean") return v;
   if (typeof v !== "object") return String(v);
-  if (Array.isArray(v)) return Array.from(v, (x, i) => model(x, sort, String(i), true));
+  if (Array.isArray(v)) {
+    const items = [];
+    const n = Math.min(Math.max(Math.trunc(Number(v.length)) || 0, 0), Number.MAX_SAFE_INTEGER);
+    for (let i = 0; i < n; i++) items.push(model(v[i], sort, String(i), true));
+    return items;
+  }
   const out = Object.create(null);
   const keys = Object.keys(v);
   if (sort) keys.sort();

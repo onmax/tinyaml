@@ -7,7 +7,15 @@
 // tinyini must describe the same as with ini.
 // Usage: node scripts/fuzz-stringify.ts [values] [seed] [engine]
 import { generator } from "./values.ts";
-import { attempt, describe, engine, restoreBuiltIns, seeded, show } from "./shared.ts";
+import {
+  attempt,
+  count as argument,
+  describe,
+  engine,
+  restoreBuiltIns,
+  seeded,
+  show,
+} from "./shared.ts";
 
 const {
   label,
@@ -31,8 +39,8 @@ const onWindows = <T>(fn: () => T): T => {
 };
 const win32 = onWindows(fresh);
 
-const count = Number(process.argv[2] ?? 1000);
-const generate = generator(seeded(Number(process.argv[3] ?? 1)));
+const count = argument(2, 1000);
+const generate = generator(seeded(argument(3, 1)));
 
 const flags = ["align", "sort", "whitespace", "newline", "bracketedArray"] as const;
 const combinations: Record<string, unknown>[] = [];

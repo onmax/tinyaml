@@ -176,14 +176,17 @@ export function stringify(value: object, options: StringifyOptions = {}): string
     for (const k of keys) {
       const v = toJSON(o[k], k);
       if (skipped(v) || k === "__proto__") continue;
-      if (Array.isArray(v))
-        for (const [i, item] of Array.from(v).entries()) {
-          const x = toJSON(item, String(i));
+      if (Array.isArray(v)) {
+        // Each item read after the toJSON before it, up to the length read
+        // first, made a whole number: JSON's LengthOfArrayLike.
+        const n = Math.min(Math.max(Math.trunc(Number(v.length)) || 0, 0), Number.MAX_SAFE_INTEGER);
+        for (let i = 0; i < n; i++) {
+          const x = toJSON(v[i], String(i));
           if (x !== null && typeof x === "object")
             throw new TypeError("tinyini can't write an object inside an array");
           lines.push([keyText(k, true), scalarText(skipped(x) ? null : x)]);
         }
-      else if (v !== null && typeof v === "object")
+      } else if (v !== null && typeof v === "object")
         children.push([k, v as Record<string, unknown>]);
       else lines.push([keyText(k, false), scalarText(v)]);
     }

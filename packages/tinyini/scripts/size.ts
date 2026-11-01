@@ -49,13 +49,15 @@ const BUDGET: Record<string, number> = {
   "tinyini/ini": 1590,
   "tinyini/ini-v2": 1420,
   "tinyini/ini-v1": 1430,
-  "tinyini/one-ini": 1610,
-  "tinyini/one-ini-v0.1": 1610,
+  "tinyini/one-ini": 1700,
+  "tinyini/one-ini-v0.1": 1700,
 };
 
 // Code that some modes have, as it reads once minified, and the modes whose
 // entries must hold it. Every other entry must not, and an entry that lacks
-// its own mode's code fails too, so a marker that goes stale shows up.
+// its own mode's code fails too, so a marker that goes stale shows up. Each
+// flag the core reads (legacy, plain, emptyValues) decides at least one
+// marker, so an entry whose bundle stops folding any of them fails here.
 type Mode = keyof typeof MODES;
 const MARKERS: [string | RegExp, Mode[]][] = [
   // The root's error for an object in an array.

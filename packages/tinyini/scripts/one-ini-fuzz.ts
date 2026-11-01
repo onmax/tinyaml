@@ -13,11 +13,20 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { attempt, describe, iniInputs, restoreBuiltIns, samples, seeded, show } from "./shared.ts";
+import {
+  attempt,
+  count,
+  describe,
+  iniInputs,
+  restoreBuiltIns,
+  samples,
+  seeded,
+  show,
+} from "./shared.ts";
 
 const require = createRequire(import.meta.url);
-const iterations = Number(process.argv[2] ?? 20000);
-const next = seeded(Number(process.argv[3] ?? 1));
+const iterations = count(2, 20000);
+const next = seeded(count(3, 1));
 const name = process.argv[4] ?? "one-ini";
 const id = process.env.THEIRS
   ? resolve(process.env.THEIRS)
@@ -183,7 +192,8 @@ for (const polluted of [["inherited"], "inherited"])
 for (const input of ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
   check(`parse_to_json ${JSON.stringify(input)} with setters on Object.prototype`, (lib) =>
     restoreBuiltIns(() => {
-      const log: string[] = [];
+      // A string, since a push would call the setters below.
+      let log = "";
       for (const key of ["body", "type", "key", "value", "name", "indicator", "version"])
         Object.defineProperty(
           Object.prototype,
@@ -191,7 +201,29 @@ for (const input of ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
           Object.assign(Object.create(null), {
             configurable: true,
             set(this: object, v: unknown) {
-              log.push(`${key}=${Array.isArray(v) ? `[${v.length}]` : String(v)}`);
+              log += ` ${key}=${Array.isArray(v) ? `[${v.length}]` : String(v)}`;
+              Object.defineProperty(
+                this,
+                key,
+                Object.assign(Object.create(null), {
+                  value: v,
+                  writable: true,
+                  enumerable: true,
+                  configurable: true,
+                }),
+              );
+            },
+          }),
+        );
+      // And the first indexes on Array.prototype, which see every array write.
+      for (const key of ["0", "1", "2"])
+        Object.defineProperty(
+          Array.prototype,
+          key,
+          Object.assign(Object.create(null), {
+            configurable: true,
+            set(this: object, v: unknown) {
+              log += ` [${key}]=${Array.isArray(v) ? "array" : typeof v}`;
               Object.defineProperty(
                 this,
                 key,
@@ -206,7 +238,8 @@ for (const input of ["a=b\n;c\n[s]\nk=v\n[t]\n", "[a]\n[b]\nx=1", ""])
           }),
         );
       const ast = lib.parse_to_json(input);
-      return `${log.join(" ")} ${JSON.stringify(ast)}`;
+      const tokens = lib.parse_to_uint32array(new TextEncoder().encode(input));
+      return `${log} ${JSON.stringify(ast)} ${tokens.join()}`;
     }),
   );
 check("version()", (lib) => lib.version());

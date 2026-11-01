@@ -146,6 +146,14 @@ export async function engine(name = "ini"): Promise<Engine> {
 }
 
 /** mulberry32: a 32-bit PRNG with a period of 2^32, in [0, 1). */
+/** Command-line argument i as a whole number, or `fallback` when it's missing. */
+export function count(i: number, fallback: number): number {
+  const n = Number(process.argv[i] ?? fallback);
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new Error(`Argument ${i - 1} must be a whole number, not ${process.argv[i]}`);
+  return n;
+}
+
 export function seeded(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
