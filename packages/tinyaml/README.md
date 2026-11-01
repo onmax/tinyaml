@@ -6,7 +6,7 @@
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
-**YAML for JavaScript in 8.2 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
+**YAML for JavaScript in 8.1 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
 
 Already on another YAML library? Change one import and keep your code:
 
@@ -18,7 +18,7 @@ Already on another YAML library? Change one import and keep your code:
 | Replace     | With                 | Smaller, gzip | Faster    |
 | ----------- | -------------------- | ------------- | --------- |
 | `js-yaml` 4 | `tinyaml/js-yaml`    | 18%           | 1.5–1.6×  |
-| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 6%            | 1.5–2.0×  |
+| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 5%            | 1.5–2.0×  |
 | `yaml`      | `tinyaml/yaml`       | 43%           | 2.8–12.6× |
 | `yamljs`    | `tinyaml/yamljs`     | 3%            | 1.1–5.0×  |
 | `@std/yaml` | `tinyaml/std`        | 3%            | 1.6–2.1×  |

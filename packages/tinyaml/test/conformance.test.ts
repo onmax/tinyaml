@@ -18,3 +18,9 @@ describe.skipIf(missing(".cache/yaml-test-suite"))("yaml-test-suite", () => {
     );
   });
 });
+
+describe("the drop-ins' dumpers", () => {
+  it("read lengths, keys and values in their originals' order and count", () => {
+    expect(run("scripts/dump-reads.ts", "3000", "3").match(/ 0 differ$/gm)).toHaveLength(5);
+  });
+});

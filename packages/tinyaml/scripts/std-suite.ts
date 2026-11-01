@@ -70,7 +70,7 @@ function run(fn: () => unknown, type: ErrorClass): Outcome {
     return { ok: true, value: fn() };
   } catch (error) {
     const crash = !onPurpose(error, [type]);
-    return { ok: false, error: String((error as Error).message).split("\n")[0]!, crash };
+    return { ok: false, error: String((error as Error).message), crash };
   }
 }
 

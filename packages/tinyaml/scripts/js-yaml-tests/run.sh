@@ -5,7 +5,7 @@
 # exit status. Run `pnpm fixtures` first.
 # Each run writes its logs to a directory of its own, so two runs at once
 # don't read each other's calls; a failed run keeps it.
-# Usage: scripts/js-yaml-tests/run.sh [-v]
+# Usage: scripts/js-yaml-tests/run.sh [-v] [--update]
 set -e
 root=$(cd "$(dirname "$0")/../.." && pwd)
 here="$root/scripts/js-yaml-tests"

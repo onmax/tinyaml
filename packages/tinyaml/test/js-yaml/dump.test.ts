@@ -112,6 +112,40 @@ describe("dump", () => {
     expect(dump(twice, { noRefs: true })).toBe(jsYaml.dump(twice, { noRefs: true }));
   });
 
+  it("reads its input in js-yaml 4's order and count", () => {
+    // Without refs, only the dump reads the first item, which pushes a second
+    // one that js-yaml's snapshot of the length leaves out.
+    const array = () => {
+      const v: unknown[] = [];
+      Object.defineProperty(v, 0, {
+        enumerable: true,
+        get: () => (v.length === 1 && v.push("later"), "first"),
+      });
+      return v;
+    };
+    expect(dump(array(), { noRefs: true })).toBe(jsYaml.dump(array(), { noRefs: true }));
+    expect(dump(array(), { noRefs: true })).toBe("- first\n");
+    // Looking for refs, js-yaml reads a value's children before the next value.
+    const reads = (run: (value: unknown) => string) => {
+      const log: string[] = [];
+      const inner = {
+        get x() {
+          return log.push("a.x");
+        },
+      };
+      const value = {
+        get a() {
+          return (log.push("a"), inner);
+        },
+        get b() {
+          return log.push("b");
+        },
+      };
+      return [run(value), ...log];
+    };
+    expect(reads(dump)).toEqual(reads(jsYaml.dump));
+  });
+
   it("supports sortKeys and skipInvalid, and rejects invalid values", () => {
     const input = { b: 1, a: { d: () => 1, c: 2 }, u: undefined };
     expect(dump(input, { sortKeys: true, skipInvalid: true })).toBe(

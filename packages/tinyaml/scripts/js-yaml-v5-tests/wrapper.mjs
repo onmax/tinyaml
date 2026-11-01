@@ -73,10 +73,7 @@ function show(result) {
 // A call's identity, for summary.ts to count each distinct call once: the
 // function, the whole input, and the options as inspect shows them.
 const identity = (fn, subject, options) =>
-  createHash("sha256")
-    .update(`${fn}\0${subject}\0${inspect(options, { depth: 4, breakLength: Infinity })}`)
-    .digest("hex")
-    .slice(0, 16);
+  createHash("sha256").update(`${fn}\0${subject}\0${options}`).digest("hex").slice(0, 16);
 
 function compare(fn, input, options, run) {
   try {
@@ -95,10 +92,15 @@ function compare(fn, input, options, run) {
     else status = expected.mark === actual.mark ? "pass" : "pass-message";
     const subject =
       typeof input === "string" ? input : inspect(input, { depth: 4, breakLength: Infinity });
+    // Without this checkout's path, which a `filename` option may hold.
+    const opts = inspect(options, { depth: 4, breakLength: Infinity }).replaceAll(
+      process.cwd(),
+      ".",
+    );
     if (out)
       appendFileSync(
         out,
-        `${JSON.stringify({ fn, status, call: identity(fn, subject, options), input: subject.slice(0, 2000), expected: show(expected), actual: show(actual) })}\n`,
+        `${JSON.stringify({ fn, status, call: identity(fn, subject, opts), input: subject, options: opts, expected: show(expected), actual: show(actual) })}\n`,
       );
   } catch (error) {
     if (out)

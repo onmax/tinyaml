@@ -402,8 +402,13 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
   const uses: Use[] = [];
   const named = new Map<string, Use>();
   const used = new Map<unknown, Use>();
+  // Each use counted, with where it was read.
+  const counts: [Use, number][] = [];
   const use = (u: Use | undefined) => {
-    if (u && limit >= 0) u[1]++;
+    if (u && limit >= 0) {
+      u[1]++;
+      counts.push([u, at()]);
+    }
   };
   // Whether a mapping has `written` pairs yet, the last one that merges, and
   // how many sources of its `<<` are left to merge.
@@ -419,6 +424,9 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
     }
     return pairs;
   };
+  // Whether the pair being stored has no value at all, which yaml's node
+  // holds as null.
+  let bare = false;
   // The anchors of a plain scalar a tag may still read as a key.
   let keyAnchors: string[] = [];
   const [count, check, reads, drop] = aliasCounter(limit);
@@ -468,6 +476,7 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       const container = (input as Collection).toJSON();
       for (let i = uses.length; i-- && uses[i]![3] > from;)
         if (uses[i]![0] !== container) uses.splice(i, 1);
+      while (counts.length && counts.at(-1)![1] > from) counts.pop()![0][1]--;
       drop(from);
       later = later.filter((l) => l[1] <= from);
     }
@@ -529,11 +538,14 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       track(name, depth, value, starts);
     },
     merge(source, anchors, map, value) {
+      bare = false;
       if (!left--) {
         pairsOf(map).push([MERGE, value, "<<"]);
-        left = (Array.isArray(value) ? value.length : 1) - 1;
+        left = ((Array.isArray(value) && value.length) || 1) - 1;
       }
       merging = map;
+      // A `<<` of an empty sequence merges nothing.
+      if (Array.isArray(value) && !value.length) return;
       return merge(source, anchors, map, value);
     },
     duplicate(map, key, name, value) {
@@ -546,6 +558,7 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       if (
         (specials && written.has(map)) ||
         !fresh ||
+        bare ||
         typeof key !== "string" ||
         (key.charCodeAt(0) ^ 48) < 10
       ) {
@@ -555,7 +568,8 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
           // A key a merge copied in.
           if (!seen.length) seen = [name];
         }
-        pairs.push([key, value, name]);
+        pairs.push(bare ? [key, value, name, true] : [key, value, name]);
+        bare = false;
       }
       if (typeof unique === "function") {
         const keys = earlier.get(map) ?? [];
@@ -571,7 +585,10 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
     // null whatever the schema.
     implicit(text, node) {
       if (text === null) {
-        if (!node) return null;
+        if (!node) {
+          bare = true;
+          return null;
+        }
         text = "";
       }
       // The first tag that reads it, and one before that which would as a key.

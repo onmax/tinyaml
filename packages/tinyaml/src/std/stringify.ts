@@ -185,8 +185,8 @@ export function stringify(data: unknown, options: StringifyOptions = {}): string
   };
 
   const mapping = (object: any, level: number, block: boolean, compact: boolean) => {
-    const keys = Object.keys(object);
-    if (block)
+    const keys = block ? Object.keys(object) : null;
+    if (keys)
       if (sortKeys === true) keys.sort();
       else if (typeof sortKeys === "function") keys.sort((a, b) => sortKeys(a, b, level));
       else if (sortKeys)
@@ -194,11 +194,14 @@ export function stringify(data: unknown, options: StringifyOptions = {}): string
           `"sortKeys" must be a boolean or a function: received ${typeof sortKeys}`,
         );
     const items: string[] = [];
-    for (const key of keys) {
+    // std reads a flow mapping's values all at once, with Object.entries.
+    for (const entry of keys ?? Object.entries(object)) {
+      const key = keys ? (entry as string) : entry[0]!;
+      const value = keys ? object[key] : entry[1];
       const k = node(key, block ? level + 1 : level, block, block, block);
       if (k === null) continue;
       const explicit = k.length > 1024;
-      const v = node(object[key], block ? level + 1 : level, block, explicit, false);
+      const v = node(value, block ? level + 1 : level, block, explicit, false);
       if (v === null) continue;
       items.push(
         block

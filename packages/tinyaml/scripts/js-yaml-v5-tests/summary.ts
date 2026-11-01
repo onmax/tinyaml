@@ -3,16 +3,12 @@
 // tinyaml/js-yaml-v5; `diff` reads the calls the wrapper recorded. `-v` lists
 // what differs.
 import { readFileSync } from "node:fs";
-import { expectCount, expectList } from "../support.ts";
+import { Baseline, shorten } from "../baseline.ts";
+import { expectCount } from "../support.ts";
 
-// Inputs of the replayed calls whose value differs: an empty `!!merge` key
-// is {} in js-yaml 5 and a `<<` key in tinyaml.
-const DIFFERENT = ["? !!merge\n: []"];
-// Distinct replayed calls (by function, whole input and options) where both
-// throw, with the same message at another position, or with another
-// message. The rest must match exactly.
-const POSITION_ONLY = 20;
-const OTHER_MESSAGE = 22;
+// Tests that pass, and tests that call the events/AST API tinyaml leaves out.
+const PASSING = 1023;
+const UNSUPPORTED = 610;
 
 const [mode, file, flag] = process.argv.slice(2);
 const verbose = flag === "-v";
@@ -56,7 +52,8 @@ if (mode === "direct") {
     `js-yaml 5 tests on tinyaml: ${counts.pass} pass, ${counts.fail} fail, ${counts.unsupported} use the unsupported events/AST API, ${counts.skip} skipped`,
   );
   expectCount("failing tests", counts.fail, 0);
-  expectCount("tests run", counts.pass, 1, Infinity);
+  expectCount("passing tests", counts.pass, PASSING);
+  expectCount("tests on the unsupported API", counts.unsupported, UNSUPPORTED);
   if (verbose || process.env.SHOW_FAILS)
     for (const failure of failures) console.log(`  ${failure}`);
 } else {
@@ -66,6 +63,7 @@ if (mode === "direct") {
     /** A hash of the function, the whole input and the options. */
     call: string;
     input?: string;
+    options?: string;
     expected?: string;
     actual?: string;
   }
@@ -98,14 +96,21 @@ if (mode === "direct") {
         console.log(
           `\n--- ${entry.fn} ${entry.status}\n${entry.input}\n  js-yaml 5: ${entry.expected}\n  tinyaml:   ${entry.actual}`,
         );
-  const all = [...unique.values()];
-  const by = (status: string) => all.filter((entry) => entry.status === status);
-  const known = /^pass(?:-message|-error)?$/;
-  expectList(
-    "calls that differ",
-    all.filter((entry) => !known.test(entry.status)).map((entry) => entry.input!),
-    DIFFERENT,
-  );
-  expectCount("errors at another position", by("pass-message").length, POSITION_ONLY);
-  expectCount("errors with another message", by("pass-error").length, OTHER_MESSAGE);
+  // Each distinct call that doesn't match exactly is a record in
+  // scripts/baselines/js-yaml-v5-tests.json with its function, options and
+  // both outcomes, so any change to one fails, as does a call that differs
+  // anew. (The one `fail`: an empty `!!merge` key is {} in js-yaml 5 and a
+  // `<<` key in tinyaml.) Calls run in no fixed order, so each is at 0,
+  // sorted by identity.
+  const baseline = new Baseline("js-yaml-v5-tests", "replay", unique.size);
+  for (const entry of [...unique.values()].sort((a, b) => (a.call < b.call ? -1 : 1)))
+    if (entry.status !== "pass")
+      baseline.add(
+        0,
+        entry.status,
+        entry.input ?? "",
+        { fn: entry.fn, options: shorten(entry.options ?? "") },
+        { "js-yaml 5": shorten(entry.expected ?? ""), tinyaml: shorten(entry.actual ?? "") },
+      );
+  baseline.finish();
 }

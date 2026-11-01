@@ -48,12 +48,16 @@ export type TagId = keyof typeof byName;
 export type Tags = (ScalarTag | CollectionTag | TagId)[];
 
 export const Y = "tag:yaml.org,2002:";
-/** A pair as written: its key, its value, and the name it's stored under. */
-export type Written = [key: unknown, value: unknown, name: string];
+/**
+ * A pair as written: its key, its value, the name it's stored under, and
+ * whether it has no value at all.
+ */
+export type Written = [key: unknown, value: unknown, name: string, bare?: true];
 /**
  * The pairs of each mapping as written, where they're not just its entries:
  * where a key isn't a string, or shares a name, or may be an array index,
- * which a JS object puts first, and with each `<<`, as MERGE, and its value.
+ * which a JS object puts first, or has no value, and with each `<<`, as
+ * MERGE, and its value.
  * Tags tell 1 from "1" by them, and merges copy what yaml copies.
  */
 export const written = new WeakMap<object, Written[]>();
@@ -153,11 +157,11 @@ export function toNode(value: unknown, nodes = new Map<unknown, Scalar | Collect
   out.items = seq
     ? value.map((v) => toNode(v, nodes))
     : (written.get(value as object) ?? Object.entries(value as object)).map(
-        ([k, v, name = k as string]) =>
+        ([k, v, name = k as string, bare]) =>
           // yaml's merge key is a new symbol each time.
           new Pair(
             k === MERGE ? new Scalar(Symbol("<<")) : toNode(k, nodes),
-            toNode(v, nodes),
+            bare ? null : toNode(v, nodes),
             name,
           ),
       );
@@ -272,7 +276,11 @@ const set = tag(
   "set",
   undefined,
   (map: YAMLMap, onError) => {
-    if (map.items.some((p: Pair) => !(p.value instanceof Scalar) || p.value.value != null))
+    if (
+      map.items.some(
+        (p: Pair) => p.value && (!(p.value instanceof Scalar) || p.value.value != null),
+      )
+    )
       onError("Set items must all have null values");
     return new Set(map.items.map((p: Pair) => p.key.toJSON()));
   },
@@ -284,10 +292,16 @@ export const known: Tag[] = [
   binary,
   merge,
   omap,
-  tag("pairs", undefined, (seq, onError) => pairs(seq, onError).map((pair) => pair.toJSON()), {
-    default: false,
-    collection: "seq",
-  }),
+  tag(
+    "pairs",
+    undefined,
+    // A `<<` merges as it did in the mapping it was read in.
+    (seq, onError) =>
+      pairs(seq, onError).map((pair, i) =>
+        typeof pair.key.value === "symbol" ? seq.items[i].toJSON() : pair.toJSON(),
+      ),
+    { default: false, collection: "seq" },
+  ),
   set,
   timestamp,
 ];

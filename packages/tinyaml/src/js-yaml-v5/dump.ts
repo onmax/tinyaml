@@ -225,7 +225,7 @@ function toAst(input: unknown, schema: Schema, noRefs: boolean, skipInvalid: boo
         items: [],
       };
       if (!noRefs) refs.set(object, node);
-      for (let i = 0; i < list.length; i++) {
+      for (let i = 0, n = list.length; i < n; i++) {
         let item = build(list[i]);
         // An undefined item becomes null; an invalid null is then skipped.
         if (item === INVALID && list[i] === undefined) item = build(null);
@@ -233,18 +233,21 @@ function toAst(input: unknown, schema: Schema, noRefs: boolean, skipInvalid: boo
       }
       return node;
     }
-    // A plain object's own keys, without the Map `represent` wraps it in.
+    // A plain object's keys and values without the Map `represent` wraps them
+    // in, but read all before any is built, as `represent` reads them.
     const map = tag.represent === mapTag.represent ? null : tag.represent(object);
+    const keys = map ? null : Object.keys(object as object);
+    const values = keys?.map((key) => (object as any)[key]);
     const node: MappingNode = { kind: "mapping", tag: nodeTag, tagged, style: BLOCK, items: [] };
     if (!noRefs) refs.set(object, node);
-    for (const entry of map ?? Object.keys(object as object)) {
-      const key = build(map ? (entry as [unknown, unknown])[0] : entry);
-      if (key === INVALID) continue;
-      const value = build(
-        map ? (entry as [unknown, unknown])[1] : (object as any)[entry as string],
-      );
+    const add = (k: unknown, v: unknown) => {
+      const key = build(k);
+      if (key === INVALID) return;
+      const value = build(v);
       if (value !== INVALID) node.items.push({ key, value });
-    }
+    };
+    if (keys) for (let i = 0; i < keys.length; i++) add(keys[i], values![i]);
+    else for (const [k, v] of map!) add(k, v);
     return node;
   };
 

@@ -268,6 +268,17 @@ describe("parse", () => {
     }
     same("a: !t\n\tb");
   });
+
+  it("rejects a tab before a later entry, which leaves its spaces short, as std does", () => {
+    for (const input of [
+      "a:\n  - b\n \t- c",
+      "a:\n  ? b\n \t: c",
+      "- - a\n \t- b",
+      "  - b\n \t- c",
+    ])
+      same(input);
+    same('a: "x\\\ny"');
+  });
 });
 
 // std's parser is js-yaml 3's, and tinyaml/std doesn't copy these of its

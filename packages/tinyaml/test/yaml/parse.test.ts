@@ -714,6 +714,58 @@ describe("parse", () => {
         ["a: &c !x [&a 1, *a]\nb: *c\nd: *c", drop()],
         ["!x [{<<: 1}]", drop({ merge: true })],
         ["a: !x [&a 1, *a]", tag("seq", (node) => node)],
+        ["a: &a [1]\nb: !x [*a]", drop()],
+        ["a: &a {k: 1}\nb: !x [{<<: *a}, *a]\nc: *a", drop({ merge: true })],
+      ]);
+    });
+
+    it("merges in a !!pairs item as in a mapping", () => {
+      const merge = { merge: true };
+      agree([
+        ['!!pairs [<<: {1: first, "1": second}]', merge],
+        ["!!pairs [<<: [{a: 1}, {b: 2}]]", merge],
+        ["a: &a {x: 1}\nb: !!pairs [<<: [*a, {x: 2, y: 3}], c]", merge],
+        ["!!pairs [<<: []]", merge],
+      ]);
+      // A merge copies what it reads.
+      const shared = (parse: Parse) => {
+        const { base, copy } = parse("base: &b {x: {v: 1}}\ncopy: !!pairs [<<: *b]", merge);
+        return base.x === copy[0].x;
+      };
+      expect(shared(parse)).toBe(shared(yaml.parse));
+    });
+
+    it("checks a merge of nothing against a collection tag", () => {
+      const merge = { merge: true };
+      agree([
+        ["!!set {<<: []}", merge],
+        ["!!omap [{x: 1, <<: []}]", merge],
+        ["!!omap [<<: []]", merge],
+        ["{<<: [], c: 3, <<: [{a: 1}, {b: 2}]}", merge],
+        ["!x {<<: [], a: 1}", tag("map", pairs, merge)],
+      ]);
+    });
+
+    it("gives a collection tag null for a pair without a value", () => {
+      const nulls = (node: any) =>
+        node.items.map((p: any) =>
+          (p.items ?? [p]).map((q: any) => [q.key === null, q.value === null]),
+        );
+      agree([
+        ...["!x {a}", "!x {a: }", "!x {: a}", "!x {? : x}", "!x\n? : x", "!x {a, b: , c}"].map(
+          (input): [string, any] => [input, tag("map", nulls)],
+        ),
+        ["!x\n? a\n? b\n: 1", tag("map", nulls)],
+        ["!x {? }", tag("map", nulls)],
+        ...["!x [a: ]", "!x [? a]", "!x [{a}]", "!x [a]"].map((input): [string, any] => [
+          input,
+          tag("seq", nulls),
+        ]),
+        ["!x {a, b: }", tag("map", (node) => [node.get("a"), node.has("a"), node.get("a", true)])],
+        ["!!set {a, b}", {}],
+        ["!!set\n? a\n? b: \n", {}],
+        ["!!omap [{a}, ? b]", {}],
+        ["!!pairs [{a}, ? b, c: ]", {}],
       ]);
     });
 
@@ -728,6 +780,12 @@ describe("parse", () => {
         ['a: &a {"1": y, <<: {1: x}}\nc: {<<: *a}', merge],
         ['copy: {<<: {1: first, "1": second}}', merge],
       ]);
+    });
+
+    it("merges nothing from a !!set, where yaml splits each member", () => {
+      const input = "{<<: !!set {abc}}";
+      expect(parse(input, { merge: true })).toEqual({});
+      expect(yaml.parse(input, { merge: true })).toEqual({ a: "b" });
     });
 
     it("gets null from a sequence, and undefined from a mapping", () => {
@@ -772,6 +830,27 @@ describe("parse", () => {
       return typeof value === "number" ? value + 1 : value;
     };
     expect(parse("a: 1\nb: 2\n", remover)).toEqual(yaml.parse("a: 1\nb: 2\n", remover));
+  });
+
+  it("rejects a tab that indents a later entry, as yaml does", () => {
+    const error = (read: Parse, text: string) => {
+      try {
+        return read(text, {});
+      } catch (e) {
+        const { name, code, linePos } = e as YAMLParseError;
+        return { name, code, linePos };
+      }
+    };
+    for (const text of ["a:\n  - b\n \t- c", "a:\n  ? b\n \t: c", "- - a\n \t- b", "  a:\n \t- b"])
+      expect(error(parse, text), JSON.stringify(text)).toEqual(error(yaml.parse, text));
+  });
+
+  it("rejects too little indentation after an escaped line break, as yaml does", () => {
+    for (const text of ['a: "x\\\ny"', '- "x\\\ny"']) {
+      expect(() => yaml.parse(text), text).toThrow(yaml.YAMLParseError);
+      expect(() => parse(text), text).toThrow(YAMLParseError);
+    }
+    expect(parse('a: "x\\\n y"')).toEqual(yaml.parse('a: "x\\\n y"'));
   });
 
   it("agrees with yaml on assorted documents", () => {

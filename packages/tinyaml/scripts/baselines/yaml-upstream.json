@@ -1,0 +1,32 @@
+{
+  "tinyaml": {
+    "iterations": 531,
+    "differences": [
+      {"at":0,"id":"78845f7a96f4","kind":"fail","sides":{"tinyaml":"AssertionError: expected { x: [ { k0: 'v1', k1: 'v1' }, { k1: 'v2', k2: 'v2' } ]… #5ef405c70939"},"input":"\"anchors.ts > merge << merge multiple tim\"…"},
+      {"at":0,"id":"200b5479ed7d","kind":"fail","sides":{"tinyaml":"AssertionError: expected { x: [ { k0: 'v1', k1: 'v1' }, { k1: 'v2', k2: 'v2' } ]… #5ef405c70939"},"input":"\"anchors.ts > merge << merge multiple tim\"…"},
+      {"at":0,"id":"3a149bb81b8d","kind":"fail","sides":{"tinyaml":"AssertionError: expected [Function] to throw error including 'Tags and anchors m… #b7ad1661dc17"},"input":"\"anchors.ts > merge << parse errors missi\"…"},
+      {"at":0,"id":"ae15b9f13d43","kind":"fail","sides":{"tinyaml":"TypeError: The \"warning\" argument must be of type string or an instance of Error… #2ce9f061dbe9"},"input":"\"errors.ts > logLevel by default, warn fo\"…"},
+      {"at":0,"id":"34a9f120b19c","kind":"fail","sides":{"tinyaml":"YAMLParseError: bad indentation of a mapping entry at line 1, column 9:\n\nfoo: bar: baz\n        ^\n\n"},"input":"\"errors.ts > logLevel silence errors with\"…"},
+      {"at":0,"id":"52e423737139","kind":"fail","sides":{"tinyaml":"TypeError: The \"warning\" argument must be of type string or an instance of Error… #2ce9f061dbe9"},"input":"\"errors.ts > logLevel silence warnings wi\"…"},
+      {"at":0,"id":"f871e8c8ca64","kind":"fail","sides":{"tinyaml":"TypeError: The \"warning\" argument must be of type string or an instance of Error… #2ce9f061dbe9"},"input":"\"errors.ts > logLevel silence warnings wi\"…"},
+      {"at":0,"id":"7b7d76053d9c","kind":"fail","sides":{"tinyaml":"AssertionError: expected '[\\n  [\\n      &a53 [\\n          &a51 [\\n              … #30198d37fbdf"},"input":"\"parse.ts > Resource exhaustion attacks E\"…"},
+      {"at":0,"id":"3c2fa40fce0e","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'a b\\nc\\nd\\n\\ne\\n\\nf' to be 'a b \\rc\\nd\\n\\re\\n\\nf' // Object.is equality\n"},"input":"\"parse.ts > scalars carriage returns in d\"…"},
+      {"at":0,"id":"c03f4409dec9","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n  - 1\\nmap:\\n  foo: bar\\n  seq:\\n    - a\\n' to… #0edab728fde7"},"input":"\"stringify.ts > YAML node inside object (\"…"},
+      {"at":0,"id":"cf005c9e53cb","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'a: 1\\n' to be 'a: 1\\n\\n# c\\n' // Object.is equality\n"},"input":"\"stringify.ts > YAML.stringify on ast Doc\"…"},
+      {"at":0,"id":"345eb0b44f2c","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n - a: 1\\n   b: 2\\nmap:\\n foo: bar\\n seq:\\n  - … #791d56bf3f03"},"input":"\"stringify.ts > custom indent indent: 1\""},
+      {"at":0,"id":"c0357c7e6b98","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n    - a: 1\\n      b: 2\\nmap:\\n    foo: bar\\n  … #dff84c7cf879"},"input":"\"stringify.ts > custom indent indent: 4\""},
+      {"at":0,"id":"6759d8547502","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n - a: 1\\n   b: 2\\nmap:\\n seq:\\n  - a\\n' to be … #70da3d5911dc"},"input":"\"stringify.ts > indentSeq: false indent: \"…"},
+      {"at":0,"id":"f1bbf7f20a27","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n- a: 1\\n  b: 2\\nmap:\\n  seq:\\n  - a\\n' to be '… #81e3d2cdf857"},"input":"\"stringify.ts > indentSeq: false indent: \"…"},
+      {"at":0,"id":"984dcfd94462","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'array:\\n  - a: 1\\n    b: 2\\nmap:\\n    seq:\\n      - a\\… #979b9335af78"},"input":"\"stringify.ts > indentSeq: false indent: \"…"},
+      {"at":0,"id":"c3f9d7167fde","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'a: 1\\nb: 2\\nc: 3\\n' to be '!!omap\\n- a: 1\\n- b: 2\\n- c… #b087421ba8a1"},"input":"\"types.ts > YAML 1.1 schema !!omap string\"…"},
+      {"at":0,"id":"7a1539d2751d","kind":"fail","sides":{"tinyaml":"AssertionError: expected '- a\\n- b\\n- c\\n' to be '!!set\\n? a\\n? b\\n? c\\n' // Object.is equality\n"},"input":"\"types.ts > YAML 1.1 schema !!set stringi\"…"},
+      {"at":0,"id":"ecf097c99df6","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'set:\\n  - a\\n  - b\\n  - c\\n' to be 'set: !!set\\n  ? a\\… #0a2ae3e866c9"},"input":"\"types.ts > YAML 1.1 schema !!set stringi\"…"},
+      {"at":0,"id":"2350245769cb","kind":"fail","sides":{"tinyaml":"AssertionError: expected '{}\\n' to be '!re /re/g\\n' // Object.is equality\n"},"input":"\"types.ts > custom tags RegExp stringify \"…"},
+      {"at":0,"id":"b8d1717df952","kind":"fail","sides":{"tinyaml":"AssertionError: expected '{}\\n' to be '!re \"/re: /g\"\\n' // Object.is equality\n"},"input":"\"types.ts > custom tags RegExp stringify \"…"},
+      {"at":0,"id":"7e1c4abeb0d7","kind":"fail","sides":{"tinyaml":"Error: Tag not resolved for Symbol value\n"},"input":"\"types.ts > custom tags Symbol stringify \"…"},
+      {"at":0,"id":"50f7e15fda1c","kind":"fail","sides":{"tinyaml":"Error: Tag not resolved for Symbol value\n"},"input":"\"types.ts > custom tags Symbol stringify \"…"},
+      {"at":0,"id":"74e5e4cdd3a9","kind":"fail","sides":{"tinyaml":"Error: Tag not resolved for Symbol value\n"},"input":"\"types.ts > custom tags array within cust\"…"},
+      {"at":0,"id":"c2e8efd1b5a8","kind":"fail","sides":{"tinyaml":"AssertionError: expected 'x: y\\nz: 1\\n' to be '!nullobject\\nx: y\\nz: 1\\n' // Object.is equality\n"},"input":"\"types.ts > custom tags null prototyped o\"…"}
+    ]
+  }
+}

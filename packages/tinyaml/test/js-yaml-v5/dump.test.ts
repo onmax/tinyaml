@@ -25,6 +25,40 @@ describe("dump", () => {
     );
   });
 
+  it("reads its input in js-yaml 5's order and count", () => {
+    // js-yaml 5 reads all of a mapping's values before its children, and
+    // reads a key by name even after an earlier getter hid it.
+    const log: string[] = [];
+    const inner = {
+      get x() {
+        return (log.push("a.x"), 1);
+      },
+    };
+    const value = {
+      get a() {
+        log.push("a");
+        Object.defineProperty(value, "b", { enumerable: false });
+        return inner;
+      },
+      get b() {
+        return (log.push("b"), 2);
+      },
+    };
+    expect(dump(value)).toBe("a:\n  x: 1\nb: 2\n");
+    expect(log).toEqual(["a", "b", "a.x"]);
+    // An item's getter pushes another, which js-yaml's snapshot of the length leaves out.
+    const array = () => {
+      const v: unknown[] = [];
+      Object.defineProperty(v, 0, {
+        enumerable: true,
+        get: () => (v.length === 1 && v.push("later"), "first"),
+      });
+      return v;
+    };
+    expect(dump(array())).toBe("- first\n");
+    expect(dump(array(), { flowLevel: 0 })).toBe("[first]\n");
+  });
+
   it("folds long strings at 80 columns", () => {
     expect(dump({ text: "word ".repeat(30).trim() })).toBe(
       `text: >-\n  ${"word ".repeat(15).trim()}\n  ${"word ".repeat(15).trim()}\n`,

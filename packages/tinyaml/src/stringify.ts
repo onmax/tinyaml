@@ -23,21 +23,20 @@ const BLOCK = /^[\t\n\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD\u{10000}
 const INVISIBLE = /[\t\x7F-\xA0\u2028\u2029\uFEFF\uFFFE\uFFFF]/;
 const ESCAPE = /["\\\x00-\x1F\x7F-\xA0\u2028\u2029\uD800-\uDFFF\uFEFF\uFFFE\uFFFF]/gu;
 
-// Plain strings js-yaml's dump schema (YAML 1.1 plus core) would read back as
-// something other than a string.
+// Plain strings that the core schema, js-yaml's default schema or yaml's YAML
+// 1.1 one would read back as something other than a string, NaN and dates
+// that don't exist included.
 const NULL_OR_BOOL =
   /^(?:~|null|Null|NULL|[yYnN]|yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF|<<)?$/;
-const INT =
-  /^(?:[-+]?0b[01_]+|[-+]?0[0-7_]+|[-+]?0x[\da-fA-F_]+|[-+]?(?:0|[1-9][\d_]*)|0o[0-7]+|0x[\da-fA-F]+|[-+]?\d+)$/;
+const NUMBER =
+  /^[-+]?(?:0b[01_]+|0o[0-7_]+|0x[\da-fA-F_]+|(?=[\d.eE])(?:\d[\d_]*)?(?:\.[\d_]*)?(?:[eE][-+]?\d+)?)$/;
 const SEXAGESIMAL = /^[-+]?\d[\d_]*(?::[0-5]?\d)+(?:\.[\d_]*)?$/;
-const FLOAT =
-  /^(?:[-+]?(?:[\d][\d_]*)?\.[\d_]*(?:[eE][-+]\d+)?|[-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|[-+]?\.\d+(?:[eE][-+]?\d+)?)$/;
 const SPECIAL_FLOAT = /^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/;
 const DATE =
-  /^(\d{4})-(\d\d?)-(\d\d?)(?:(?:[Tt]|[ \t]+)(\d\d?):(\d\d):(\d\d)(?:\.\d*)?(?:[ \t]*(?:Z|[-+](\d\d?)(?::(\d\d))?))?)?$/;
+  /^\d{4}-\d\d?-\d\d?(?:(?:[Tt]|[ \t]+)\d\d?:\d\d?:\d\d?(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d\d?(?::\d\d)?))?)?$/;
 // Printable ASCII from a letter to anything but `:` is plain, unless it reads
-// as a null or a bool. Most keys and values are.
-const WORD = /^[a-z](?:[!-~]*[!-9;-~])?$/i;
+// as a null, a bool or, like `e5`, a float. Most keys and values are.
+const WORD = /^(?![eE][-+]?\d+$)[a-z](?:[!-~]*[!-9;-~])?$/i;
 const FORBIDDEN_START = /^(?:---|\.\.\.)(?=$|[ \t\n\r])/;
 
 let indent = 2;
@@ -196,24 +195,9 @@ function writeNumber(value: number): string {
 function isAmbiguous(text: string): boolean {
   if (NULL_OR_BOOL.test(text)) return true;
   const ch = text.charCodeAt(0);
-  if (ch !== 43 && ch !== 45 && ch !== 46 && (ch < 48 || ch > 57)) return false;
-  if (SPECIAL_FLOAT.test(text) || SEXAGESIMAL.test(text)) return true;
-  // Numbers too big for a double still read as one, Infinity.
-  if (INT.test(text) && !isNaN(Number(text.replace(/^[-+]|_/g, "")))) return true;
-  if (FLOAT.test(text) && !isNaN(Number.parseFloat(text.replace(/_/g, "")))) return true;
-  const date = DATE.exec(text);
-  if (!date) return false;
-  const [, y, m, d, h, min, s, offH, offM] = date;
-  if (
-    h === undefined
-      ? m!.length < 2 || d!.length < 2
-      : +h > 23 || +min! > 59 || +s! > 59 || +(offH ?? 0) > 23 || +(offM ?? 0) > 59
-  ) {
+  if (ch !== 43 && ch !== 45 && ch !== 46 && (ch < 48 || ch > 57) && (ch | 32) !== 101)
     return false;
-  }
-  const utc = new Date(0);
-  utc.setUTCFullYear(+y!, +m! - 1, +d!);
-  return utc.getUTCMonth() === +m! - 1 && utc.getUTCDate() === +d!;
+  return NUMBER.test(text) || SPECIAL_FLOAT.test(text) || SEXAGESIMAL.test(text) || DATE.test(text);
 }
 
 function writeString(text: string, level: number, isKey: boolean, flow: boolean): string {

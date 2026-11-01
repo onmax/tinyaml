@@ -2,13 +2,15 @@
 // resolved to shim.ts, which swaps in tinyaml's parse and stringify, and
 // reports how many of the tests that called tinyaml pass. The other tests
 // exercise yaml's own Document API and only check the harness. Each run's
-// failures must be exactly the ones listed below. Each run writes Vitest's
+// failures must be exactly the ones listed below, each failing with the
+// message scripts/baselines/yaml-upstream.json records. Each run writes Vitest's
 // reports to a directory of its own, so runs at once don't read each
 // other's. Run `pnpm fixtures` first.
-// Usage: node scripts/yaml-upstream/run.ts [-v]
+// Usage: node scripts/yaml-upstream/run.ts [-v] [--update]
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { basename } from "node:path";
+import { Baseline, shorten } from "../baseline.ts";
 import { expectCount, expectList } from "../support.ts";
 
 // yaml's logLevel tests spy on process.emitWarning in a way Vitest doesn't
@@ -57,6 +59,8 @@ interface Test {
   passed: boolean;
   tinyaml: boolean;
   message: string;
+  /** The whole failure message, without the stack and this checkout's path. */
+  detail: string;
 }
 
 const out = mkdtempSync(".cache/yaml-upstream-");
@@ -99,6 +103,9 @@ function run(baseline: boolean): Test[] {
       passed: test.status === "passed",
       tinyaml: !!test.meta?.tinyaml,
       message: test.failureMessages[0]?.split("\n")[0] ?? "",
+      detail: (test.failureMessages[0] ?? "")
+        .replace(/^ +at .*\n?/gm, "")
+        .replaceAll(process.cwd(), "."),
     })),
   );
 }
@@ -110,7 +117,7 @@ const failed = (list: Test[]) => list.filter((test) => !test.passed);
 console.log(
   `yaml's tests on tinyaml: ${calls.length - failed(calls).length}/${calls.length} of the tests that call parse or stringify pass (${tests.length - failed(tests).length}/${tests.length} in all)`,
 );
-for (const test of failed(tests))
+for (const test of failed(tests).sort((a, b) => (a.name < b.name ? -1 : 1)))
   if (verbose || !FAILING.includes(test.name)) console.log(`  ${test.name}: ${test.message}`);
 expectCount("tests", tests.length, 531);
 expectList(
@@ -118,6 +125,13 @@ expectList(
   failed(calls).map((test) => test.name),
   FAILING,
 );
+// Each failing test's whole message is a record in
+// scripts/baselines/yaml-upstream.json, so a known failure that fails
+// another way fails the run.
+const records = new Baseline("yaml-upstream", "tinyaml", tests.length);
+for (const test of failed(tests).sort((a, b) => (a.name < b.name ? -1 : 1)))
+  records.add(0, "fail", test.name, undefined, { tinyaml: shorten(test.detail) });
+records.finish();
 expectList(
   "failing tests that don't call tinyaml",
   failed(tests.filter((test) => !test.tinyaml)).map((test) => test.name),

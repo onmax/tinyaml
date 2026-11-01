@@ -1,6 +1,7 @@
 // Runs @std/yaml 1.3.0's own tests (shipped in its package) against
 // tinyaml/std under Node, with small stand-ins for @std/assert, the spy from
-// @std/testing and Deno.test. Every test must pass but the three in OUT_OF_SCOPE.
+// @std/testing and Deno.test. Every test must pass but the three in OUT_OF_SCOPE,
+// which must fail as listed.
 // The rewritten test files go to a directory of each run's own.
 // Usage: node scripts/std-tests.ts [-v]
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -9,10 +10,11 @@ import { equal, expectList } from "./support.ts";
 
 // Two test `unstable_parse` and `unstable_stringify`, which tinyaml/std
 // doesn't include; one runs Deno itself in a subprocess.
+// Each fails before it calls tinyaml, with the message after the colon.
 const OUT_OF_SCOPE = [
-  "parse_test.ts > parse() handles __proto__",
-  "parse_test.ts > unstableParse() handles custom types",
-  "stringify_test.ts > unstableStringify() handles custom types",
+  "parse_test.ts > parse() handles __proto__: Deno.execPath is not a function",
+  "parse_test.ts > unstableParse() handles custom types: unstable is out of scope",
+  "stringify_test.ts > unstableStringify() handles custom types: unstable is out of scope",
 ];
 
 const tests: { name: string; fn: () => unknown; file: string }[] = [];
@@ -100,8 +102,8 @@ for (const test of tests) {
     passed++;
   } catch (error: any) {
     const name = `${test.file} > ${test.name}`;
-    failed.push(name);
-    if (verbose || !OUT_OF_SCOPE.includes(name))
+    failed.push(`${name}: ${String(error?.message ?? error)}`);
+    if (verbose || !OUT_OF_SCOPE.includes(failed.at(-1)!))
       console.log(
         `${name}\n  ${String(error?.message ?? error)
           .split("\n")

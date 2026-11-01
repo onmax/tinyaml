@@ -65,7 +65,8 @@ export interface Engine {
   /**
    * What a `<<` merges the keys of in place of `source`, outside `lenient`
    * mode, called on each source of the `<<` in `map` whose value is `value`.
-   * `anchors` are the current document's.
+   * `anchors` are the current document's. In `spec` mode, a `<<` without
+   * sources calls it once, its return ignored.
    */
   merge?:
     | ((source: unknown, anchors: Map<string, unknown>, map: object, value: unknown) => unknown)
@@ -107,6 +108,8 @@ export interface Engine {
   printable?: boolean | undefined;
   /** In `spec` mode, called on each verbatim tag, as written. Throw with `fail`. */
   verbatim?: ((tag: string) => void) | undefined;
+  /** In `spec` mode, what a %TAG prefix must match, as written. */
+  prefix?: RegExp | undefined;
   maxDepth?: number | undefined;
   /**
    * In `spec` mode, report nesting deep enough to overflow the call stack
@@ -509,7 +512,8 @@ export function parse(input: string, use: Engine): unknown[] {
           if (args.length !== 2) fail(E.TAG_ARGS);
           if (!TAG_HANDLE.test(handle!)) fail(E.TAG_HANDLE);
           if (declared.has(handle!)) fail(E.TAG_REDECLARED, handle);
-          if (!spec && !TAG_PREFIX.test(prefix!)) fail(E.TAG_PREFIX);
+          if (spec ? engine.prefix && !engine.prefix.test(prefix!) : !TAG_PREFIX.test(prefix!))
+            fail(E.TAG_PREFIX);
           declared.add(handle!);
           handles.set(handle!, decode(prefix!, E.PREFIX_ENCODING));
         } else warn(E.DIRECTIVE_UNKNOWN, name);
@@ -768,8 +772,7 @@ function parseValue(indent: number, inSeq: boolean, compact = inSeq, outer?: Pro
         leadingSpaces() <= indent
       ) {
         if (lenient) finish(null, merged);
-        pos = lineStart + leadingSpaces();
-        fail(E.TAB_INDENT);
+        tabIndent();
       }
       if (js5 && !inSeq && indent >= 0) return splitProps(indent, next, merged);
       return parseBlockNode(
@@ -779,7 +782,16 @@ function parseValue(indent: number, inSeq: boolean, compact = inSeq, outer?: Pro
         merged,
       );
     }
-    if (next === indent && !inSeq && indicator(DASH) && !isDocMarker()) {
+    // js-yaml 4 measures a tabbed line in spaces, which leave it short of
+    // the mapping, so the value is empty.
+    if (
+      next === indent &&
+      !inSeq &&
+      indicator(DASH) &&
+      !isDocMarker() &&
+      !(lenient && engine.lines && tabbed)
+    ) {
+      if (spec && tabbed) tabIndent();
       if (js5 && tabbed) {
         pos = lineStart + indent;
         fail(E.TAB_INDENT);
@@ -969,6 +981,12 @@ function tabbedCollection(indent: number, col: number): null {
   return finish(null) as null;
 }
 
+// Fails at the first tab of the current line's indentation.
+function tabIndent(): never {
+  pos = lineStart + leadingSpaces();
+  return fail(E.TAB_INDENT);
+}
+
 // Properties and aliases end their names at the same separators, or with
 // `blank`, at white space only.
 function readName(blank?: boolean): string {
@@ -1015,6 +1033,8 @@ function setKey(
     if ((js5 || (lenient && engine.mergeSize)) && sources.length > 100) fail(E.MERGE_SIZE);
     let keys = overridable.get(map);
     if (!keys) overridable.set(map, (keys = new Set()));
+    // yaml's collection tags still see a `<<` that merges nothing.
+    if (spec && !sources.length) engine.merge?.(MERGE, anchors, map, value);
     for (let source of sources) {
       if (!lenient && engine.merge) source = engine.merge(source, anchors, map, value);
       if (typeof source !== "object" || source === null || (!lenient && Array.isArray(source)))
@@ -1099,6 +1119,7 @@ function parseBlockMap(col: number, key: unknown, indent: number): Record<string
       // and js-yaml 4 reads it mid-line after a key that ends on a later line
       // indented like the mapping.
       const next = skipLines(!spec);
+      if (spec && tabbed && next === col) tabIndent();
       if (
         (next === col || (lenient && engine.lines && lineStart > at && leadingSpaces() === col)) &&
         indicator(COLON)
@@ -1227,6 +1248,12 @@ function parseBlockSeq(col: number): unknown[] {
     // where the next node starts on it.
     if (lenient && engine.lines && next > col && lineStart > line && !tabbed)
       next = leadingSpaces();
+    // A tab may not indent the next entry. js-yaml measures it in spaces,
+    // which leave it short of the sequence; yamljs reads on.
+    if ((!lenient || engine.lines) && tabbed && next === col) {
+      if (spec) tabIndent();
+      next = leadingSpaces();
+    }
     if (next !== col || !indicator(DASH) || isDocMarker()) {
       if (next > col) fail(E.SEQ_INDENT);
       break;
@@ -1366,10 +1393,12 @@ function foldBreaks(): string {
   return breaks === 1 ? " " : "\n".repeat(breaks - 1);
 }
 
-// A quoted scalar can't hold a document marker, even after an escaped break.
-function quotedBreaks(kind: string): string {
+// A quoted scalar can't hold a document marker, even after an escaped break,
+// and goes on past the indentation of the block it's in.
+function quotedBreaks(kind: string, indent: number): string {
   const breaks = foldBreaks();
   if (isDocMarker()) fail(E.QUOTED_DOCUMENT_END, kind);
+  if ((!spec || pos < len) && leadingSpaces() <= indent) bend(E.DEFICIENT_INDENT);
   return breaks;
 }
 
@@ -1404,8 +1433,7 @@ function parseQuoted(indent: number): string {
     } else if (spec && ch > 126) odd = true;
     if (ch === LF) {
       out += src.slice(start, pos).replace(/[ \t]+$/, "");
-      out += quotedBreaks(kind);
-      if ((!spec || pos < len) && leadingSpaces() <= indent) bend(E.DEFICIENT_INDENT);
+      out += quotedBreaks(kind, indent);
       start = pos;
       continue;
     }
@@ -1416,8 +1444,8 @@ function parseQuoted(indent: number): string {
       if (e === "\n") {
         // Escaped line break: join without a space, keep empty lines. js-yaml
         // 5 drops those too.
-        if (js5) quotedBreaks(kind);
-        else out += quotedBreaks(kind).replace(" ", "");
+        if (js5) quotedBreaks(kind, indent);
+        else out += quotedBreaks(kind, indent).replace(" ", "");
       } else if (e === "x" || e === "u" || e === "U") {
         // 2, 4 or 8 hex digits.
         const size = 2 << "xuU".indexOf(e);

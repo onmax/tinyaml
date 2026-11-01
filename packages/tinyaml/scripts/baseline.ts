@@ -77,10 +77,18 @@ function repeated(value: unknown): Set<object> {
   return shared;
 }
 
-/** Text for an error: its first line, cut as describe cuts. */
-export const describeError = (message: string): string => shorten(`! ${message.split("\n")[0]}`);
+/**
+ * Text for an error: its first line, cut as describe cuts, and for a message
+ * of more lines, a hash of the whole, so a change to any line shows.
+ */
+export function describeError(message: string): string {
+  const first = message.split("\n")[0]!;
+  const text = shorten(`! ${first}`);
+  return first === message ? text : `${text} ¶${hash(message).slice(0, 12)}`;
+}
 
-function shorten(text: string): string {
+/** `text`, or longer than 100 characters, its first 80 and a hash of the whole. */
+export function shorten(text: string): string {
   return text.length > 100 ? `${text.slice(0, 80)}… #${hash(text).slice(0, 12)}` : text;
 }
 
