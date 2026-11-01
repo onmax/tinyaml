@@ -5,7 +5,7 @@
 // ROUNDTRIP=100000 runs more.
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vite-plus/test";
-import { CR_VALUES } from "../scripts/support.ts";
+import { CR_VALUES, iterationsArg } from "../scripts/support.ts";
 import { parse, stringify, type StringifyOptions } from "../src/index.ts";
 import * as jsYaml from "../src/js-yaml/index.ts";
 import * as jsYaml5 from "../src/js-yaml-v5/index.ts";
@@ -13,7 +13,7 @@ import * as std from "../src/std/index.ts";
 import * as yaml from "../src/yaml/index.ts";
 import yamljs from "../src/yamljs/index.ts";
 
-const COUNT = Number(process.env.ROUNDTRIP) || 20000;
+const COUNT = iterationsArg(process.env.ROUNDTRIP, 20000);
 
 // xorshift32, so a failure reproduces from its seed.
 function random(seed: number): () => number {
