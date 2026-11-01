@@ -2,10 +2,13 @@
 // yaml-test-suite input, with default options and with each schema and a few
 // option sets: the same value, or both throwing the same kind of error, a
 // YAMLParseError with the same code. The differences are listed below,
-// exactly; a new one, or a listed one that's gone, fails the run.
-// Usage: node --no-warnings scripts/yaml-suite.ts [-v]
+// exactly; a new one, or a listed one that's gone, fails the run. Each
+// side's outcome on them is recorded in scripts/baselines/yaml-suite.json
+// (see baseline.ts), per option set, and one that changes fails the run too.
+// Usage: node --no-warnings scripts/yaml-suite.ts [-v] [--update]
 import * as yaml from "yaml";
 import { parse, YAMLError, type ParseOptions } from "../src/yaml/index.ts";
+import { Baseline, describe, describeError } from "./baseline.ts";
 import { equal, expectList, suiteCases, yamlOnPurpose } from "./support.ts";
 
 const optionSets: Record<string, ParseOptions> = {
@@ -81,15 +84,23 @@ const JSON_KNOWN = [
 // With uniqueKeys: false, X38W's colliding keys load, to another value.
 const UNIQUE_KEYS = ["X38W: different value"];
 
-type Outcome = { ok: true; value: unknown } | { ok: false; error: string; crash: boolean };
+type Outcome =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string; message: string; crash: boolean };
 function outcome(f: () => unknown, type: typeof YAMLError | typeof yaml.YAMLError): Outcome {
   try {
     return { ok: true, value: f() };
   } catch (e) {
-    const { name, code } = e as { name?: string; code?: string };
-    return { ok: false, error: `${name} ${code ?? ""}`, crash: !yamlOnPurpose(e, type) };
+    const { name, code, message } = e as { name?: string; code?: string; message?: string };
+    return {
+      ok: false,
+      error: `${name} ${code ?? ""}`,
+      message: `${name} ${code ?? ""}: ${message ?? String(e)}`,
+      crash: !yamlOnPurpose(e, type),
+    };
   }
 }
+const record = (o: Outcome) => (o.ok ? describe(o.value) : describeError(o.message));
 
 const show = (o: Outcome) =>
   o.ok
@@ -104,7 +115,8 @@ let same = 0;
 for (const [label, options] of Object.entries(optionSets)) {
   const cats: Record<string, number> = {};
   const found: string[] = [];
-  for (const { id, input } of cases) {
+  const baseline = new Baseline("yaml-suite", label, cases.length);
+  for (const [i, { id, input }] of cases.entries()) {
     const expected = outcome(() => yaml.parse(input, options as yaml.ParseOptions), yaml.YAMLError);
     const actual = outcome(() => parse(input, options), YAMLError);
     const k =
@@ -126,6 +138,10 @@ for (const [label, options] of Object.entries(optionSets)) {
       continue;
     }
     found.push(`${id}: ${k}`);
+    baseline.add(i, `${id} ${k}`, input, undefined, {
+      yaml: record(expected),
+      tinyaml: record(actual),
+    });
     if (process.argv[2] === "-v") console.log(label, id, show(expected), "|", show(actual));
   }
   console.log(label.padEnd(18), JSON.stringify(cats));
@@ -139,5 +155,6 @@ for (const [label, options] of Object.entries(optionSets)) {
           ]
         : KNOWN;
   expectList(`${label}: cases that differ from yaml`, found, known);
+  baseline.finish();
 }
 console.log(`${same}/${total} agree`);

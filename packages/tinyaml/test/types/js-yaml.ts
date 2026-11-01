@@ -136,6 +136,12 @@ try {
 function report(mark: Mark): string {
   return `${mark.line}:${mark.column}`;
 }
+// @types/js-yaml types the file name and snippet as strings.
+function where(e: YAMLException): string {
+  const snippet: string = e.mark.snippet;
+  return `${e.mark.name}${snippet}`;
+}
+void where;
 new YAMLException("bad", { name: "f", buffer: "", position: 0, line: 0, column: 0, snippet: "" });
 new YAMLException();
 const error = new yaml.YAMLException("bad");

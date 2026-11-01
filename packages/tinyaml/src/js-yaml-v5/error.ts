@@ -1,30 +1,37 @@
-import { snippet, type Mark } from "../js-yaml/error.ts";
+import { snippet } from "../js-yaml/error.ts";
 
-export type { Mark };
+/** Where a YAMLException points, as js-yaml 5's SnippetMark has it. */
+export interface Mark {
+  name?: string | null;
+  buffer: string;
+  position: number;
+  line: number;
+  column: number;
+  snippet?: string | null;
+}
+
+function format({ reason, mark }: YAMLException, compact?: boolean): string {
+  if (!mark) return reason;
+  const where = `${mark.name ? `in "${mark.name}" ` : ""}(${mark.line + 1}:${mark.column + 1})`;
+  return `${reason} ${where}${!compact && mark.snippet ? `\n\n${mark.snippet}` : ""}`;
+}
 
 // js-yaml 5's error: `reason` is the bare message and `mark` the 0-based
 // position, which `message` appends as "(line:column)" plus a source snippet.
 export class YAMLException extends Error {
   declare reason: string;
-  declare mark: Mark | undefined;
+  declare mark?: Mark;
 
   constructor(reason: string, mark?: Mark) {
     super();
     this.reason = reason;
     this.mark = mark;
     this.name = "YAMLException";
-    this.message = this.format();
-  }
-
-  private format(compact?: boolean): string {
-    const mark = this.mark;
-    if (!mark) return this.reason;
-    const where = `${mark.name ? `in "${mark.name}" ` : ""}(${mark.line + 1}:${mark.column + 1})`;
-    return `${this.reason} ${where}${!compact && mark.snippet ? `\n\n${mark.snippet}` : ""}`;
+    this.message = format(this);
   }
 
   override toString(compact?: boolean): string {
-    return `${this.name}: ${this.format(compact)}`;
+    return `${this.name}: ${format(this, compact)}`;
   }
 
   /** Throws a YAMLException pointing at `position` in `source`. */

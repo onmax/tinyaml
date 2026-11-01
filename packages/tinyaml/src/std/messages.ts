@@ -24,7 +24,7 @@ Cannot read anchor property: name of an anchor node must contain at least one ch
 Cannot read anchor property: duplicate anchor property
 Cannot read tag property: named tag handle contains invalid characters
 Cannot read tag property: undeclared tag handle "%s"
-tag suffix cannot contain such characters
+Cannot read tag property: invalid characters in tag name "%s"
 Cannot read block: a whitespace character is expected after a node property
 tag prefix is malformed: %s
 tag name is malformed: %s
@@ -63,4 +63,5 @@ Cannot read flow collection: missing comma between flow collection entries
 
 Cannot read tag property: tag suffix cannot contain flow indicator characters
 Cannot read an implicit mapping pair: missing colon
-`.split("\n");
+
+non-ASCII line breaks are interpreted as content`.split("\n");

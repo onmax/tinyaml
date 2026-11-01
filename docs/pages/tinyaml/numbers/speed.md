@@ -5,7 +5,7 @@ description: Parse and stringify timings of each tinyaml entry against the libra
 
 ![Times faster than the original, 268 KiB file](/charts/speed.svg)
 
-Median time per call over 7 rounds, from [`bench/index.ts`](https://github.com/onmax/tinyaml/blob/main/bench/index.ts), on an Apple M4 with Node 26.13. Each library and the tinyaml entry that replaces it run with default options. The inputs are a 7-line frontmatter block and js-yaml's `package-lock.json` written as YAML, 268 KiB. The last four rows compare tinyaml's root API with yaml, the library closest to its rules.
+Median time per call over 7 rounds, from [`bench/index.ts`](https://github.com/onmax/tiny/blob/main/packages/tinyaml/bench/index.ts), on an Apple M4 with Node 26.13. Each library and the tinyaml entry that replaces it run with default options. The inputs are a 7-line frontmatter block and js-yaml's `package-lock.json` written as YAML, 268 KiB. The last four rows compare tinyaml's root API with yaml, the library closest to its rules.
 
 ## All timings
 

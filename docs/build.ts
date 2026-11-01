@@ -33,7 +33,7 @@ const sections: Section[] = [
     slug: "tinyaml",
     icon: "file-code",
     blurb:
-      "Replaces js-yaml 4 and 5, yaml, yamljs and @std/yaml, one subpath each. 1.5× faster and 21% smaller than js-yaml.",
+      "Replaces js-yaml 4 and 5, yaml, yamljs and @std/yaml, one subpath each. 1.5× faster and 18% smaller than js-yaml.",
     lists: [
       { title: "Guide", slugs: ["guide/getting-started", "guide/switching", "guide/api"] },
       {

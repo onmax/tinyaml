@@ -1350,6 +1350,10 @@ nav > .nav-group:first-child {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .top > .search-open {
+    display: none;
+  }
+
   .search-open {
     width: 2.5rem;
     height: 2.5rem;

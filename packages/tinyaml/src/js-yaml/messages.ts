@@ -23,7 +23,7 @@ name of an anchor node must contain at least one character
 duplication of an anchor property
 named tag handle cannot contain such characters
 undeclared tag handle "%s"
-tag suffix cannot contain such characters
+tag name cannot contain such characters: %s
 a whitespace character is expected after a node property
 tag prefix is malformed: %s
 tag name is malformed: %s
@@ -62,4 +62,5 @@ missed comma between flow collection entries
 
 tag suffix cannot contain flow indicator characters
 can not read an implicit mapping pair; a colon is missed
-`.split("\n");
+
+non-ASCII line breaks are interpreted as content`.split("\n");

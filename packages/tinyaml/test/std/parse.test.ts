@@ -124,6 +124,13 @@ describe("parse", () => {
     same("__proto__: 1");
   });
 
+  it("merges any number of mappings", () => {
+    const sources = Array(101).fill("{}").join(",");
+    same(`{<<: [${sources}]}\n`);
+    same(`<<: [${sources}]\n`);
+    expect(parse(`<<: [${sources}]\n`)).toEqual({});
+  });
+
   it("throws YamlSyntaxError with std's message, position and snippet", () => {
     let error: unknown;
     try {
@@ -208,12 +215,58 @@ describe("parse", () => {
     expect(where(parse, "a\r\n...\r\n#c\r\nb")).toMatchObject([{ offset: 12, line: 4 }]);
   });
 
+  it("warns about line breaks YAML 1.2 reads as text in each YAML 1.1 document", () => {
+    const warnings = (fn: typeof parseAll, input: string) => {
+      const found: string[] = [];
+      fn(input, { onWarning: (w) => found.push(w.message) });
+      return found;
+    };
+    for (const input of [
+      "%YAML 1.1\n---\nhello: world\r\nfoo: bar\x85",
+      "%YAML 1.1\n---\na: x\u0085y\n---\nb: 1\n",
+      "%YAML 1.1\n---\na: 1\n---\nb: x\u2029\n",
+      "%YAML 1.1\n---\na: x\u2028\n...\n%YAML 1.1\n---\nb: x\u2029\n",
+      "%YAML 1.2\n---\na: x\u0085y\n",
+      "a: x\u0085y\n",
+    ])
+      expect(warnings(parseAll, input), JSON.stringify(input)).toEqual(
+        warnings(std.parseAll as typeof parseAll, input),
+      );
+  });
+
   it("reports warnings as YamlSyntaxError", () => {
     const warnings: YamlSyntaxError[] = [];
     parse("%YAML 1.3\n---\na: 1", { onWarning: (w) => warnings.push(w) });
     expect(warnings.map((w) => w.message)).toEqual([
       "Cannot handle YAML directive: unsupported YAML version at line 2, column 1:\n    ---\n    ^",
     ]);
+  });
+
+  it("checks tags as std does, and keeps them as written", () => {
+    for (const input of [
+      "!<bad|tag> x",
+      "!<!bad|tag> x",
+      "[!<{x}> x]",
+      "!<>> x",
+      "!a|b x",
+      "!<tag:yaml.org,2002:%69nt> 12",
+      "!!%69nt 12",
+      "%TAG !e! tag:yaml.org,2002:\n---\n!e!%69nt 12",
+    ])
+      same(input);
+    // std points at the end of the input from the line the tag starts on.
+    for (const input of ["!<> x", "!<a x"]) {
+      expect(() => std.parse(input)).toThrow("Cannot read tag property: unexpected end of stream");
+      expect(() => parse(input)).toThrow("Cannot read tag property: unexpected end of stream");
+    }
+  });
+
+  it("rejects a block value that a tab indents no deeper than its parent", () => {
+    for (const input of ["a:\n\tb", "a:\n\t b", "-\n\ta", "? a\n:\n\tb", "a:\n\t[b]", "?\n\ta"]) {
+      expect(() => std.parse(input), JSON.stringify(input)).toThrow(SyntaxError);
+      expect(() => parse(input), JSON.stringify(input)).toThrow(YamlSyntaxError);
+    }
+    same("a: !t\n\tb");
   });
 });
 

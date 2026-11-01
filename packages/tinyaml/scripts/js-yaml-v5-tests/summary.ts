@@ -11,8 +11,8 @@ const DIFFERENT = ["? !!merge\n: []"];
 // Distinct replayed calls (by function, whole input and options) where both
 // throw, with the same message at another position, or with another
 // message. The rest must match exactly.
-const POSITION_ONLY = 31;
-const OTHER_MESSAGE = 25;
+const POSITION_ONLY = 20;
+const OTHER_MESSAGE = 22;
 
 const [mode, file, flag] = process.argv.slice(2);
 const verbose = flag === "-v";

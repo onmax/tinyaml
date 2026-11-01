@@ -17,6 +17,6 @@ description: Schema, merge keys, tags, documents, errors, dependencies and size,
 | TypeScript types       | ✅ built in      | `@types/js-yaml`    | ✅ built in                    | ✅ built in            | `@types/yamljs`      | ✅ built in                    |
 | Browser and edge       | ✅               | ✅                  | ✅                             | ✅                     | ✅                   | ✅                             |
 | yaml-test-suite, valid | 279 of 279       | 244 of 264          | 263 of 263                     | 276 of 279             | 97 of 256            | 217 of 264                     |
-| Size, gzip             | 7.9 KiB          | 14.4 KiB            | 17.1 KiB                       | 29.9 KiB               | 8.8 KiB              | 11.3 KiB                       |
+| Size, gzip             | 8.2 KiB          | 14.4 KiB            | 17.1 KiB                       | 29.9 KiB               | 8.8 KiB              | 11.3 KiB                       |
 
 The schema, merge, tag, document and error rows come from parsing the same inputs with each library's default options. A cell that names an option, like `mergeTag` or `merge: true`, needs that option. The others are defaults. The suite row is the first column of the [correctness table](/tinyaml/numbers/correctness/), which leaves out cases refused for an unknown tag and, for yamljs, streams without exactly one document. yaml's size is `parse` and `stringify` only, and js-yaml 5's is `load`, `loadAll`, `dump`, `Schema` and `YAMLException`.

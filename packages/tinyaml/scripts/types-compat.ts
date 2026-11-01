@@ -7,7 +7,9 @@
 // declarations too. Last, it typechecks an import of every entry and of
 // tinyaml/package.json under TypeScript 5's legacy `moduleResolution: node`,
 // which ignores `exports` and reads `typesVersions` instead (TypeScript 7
-// dropped it). This builds dist/ first if it's stale.
+// dropped it). test/types/two-way.ts, where an original's types and
+// tinyaml's must each be assignable to the other, goes through the source
+// and packed checks too. This builds dist/ first if it's stale.
 // Usage: node scripts/types-compat.ts
 import { execFile, execFileSync } from "node:child_process";
 import {
@@ -87,6 +89,14 @@ async function check(lib: string, specifier: string, subpath?: string) {
   };
 }
 
+// The two-way file imports tinyaml's source by path, and the originals.
+const TWO_WAY = "two-way";
+const twoWayImports: [string, string][] = [
+  ["../../src/js-yaml/index.ts", "tinyaml/js-yaml"],
+  ["../../src/js-yaml-v5/index.ts", "tinyaml/js-yaml-v5"],
+];
+const twoWay = check(TWO_WAY, "");
+
 const results = await Promise.all(
   pairs.map(async ([lib, specifier, subpath]) => ({
     lib,
@@ -123,14 +133,19 @@ const resolutions = {
 };
 mkdirSync(resolve(consumer, "usage"));
 writeFileSync(resolve(consumer, "usage/assert.ts"), readFileSync("test/types/assert.ts"));
-async function installed(lib: string, specifier: string, resolution: keyof typeof resolutions) {
+// `imports` maps each import to rewrite to tinyaml's subpath for it.
+async function installed(
+  lib: string,
+  imports: [string, string][],
+  resolution: keyof typeof resolutions,
+) {
   const file = `usage/${lib}.ts`;
-  const code = readFileSync(`test/types/${lib}.ts`, "utf8").replaceAll(
-    `from "${specifier}"`,
-    `from "tinyaml/${lib}"`,
-  );
-  if (new RegExp(`(?:from|import\\()\\s*["']${specifier}["']`).test(code))
-    throw new Error(`${file} still imports ${specifier}`);
+  let code = readFileSync(`test/types/${lib}.ts`, "utf8");
+  for (const [from, to] of imports) {
+    code = code.replaceAll(`from "${from}"`, `from "${to}"`);
+    if (new RegExp(`(?:from|import\\()\\s*["']${from}["']`).test(code))
+      throw new Error(`${file} still imports ${from}`);
+  }
   writeFileSync(resolve(consumer, file), code);
   const config = `${lib}.${resolution}.json`;
   writeFileSync(
@@ -145,11 +160,17 @@ async function installed(lib: string, specifier: string, resolution: keyof typeo
   return { errors: errors.filter(ours), ignored: errors.filter((line) => !ours(line)).length };
 }
 const packedResults = await Promise.all(
-  pairs.flatMap(([lib, specifier]) =>
+  [
+    ...pairs.map(([lib, specifier]): [string, [string, string][]] => [
+      lib,
+      [[specifier, `tinyaml/${lib}`]],
+    ]),
+    [TWO_WAY, twoWayImports] as [string, [string, string][]],
+  ].flatMap(([lib, imports]) =>
     (Object.keys(resolutions) as (keyof typeof resolutions)[]).map(async (resolution) => ({
       lib,
       resolution,
-      ...(await installed(lib, specifier, resolution)),
+      ...(await installed(lib, imports, resolution)),
     })),
   ),
 );
@@ -215,6 +236,12 @@ for (const { lib, specifier, subpath, original, tinyaml } of results) {
   for (const line of [...original.errors, ...tinyaml.errors]) console.log(`  ${line}`);
   failed ||= original.errors.length + tinyaml.errors.length > 0;
 }
+const { errors: twoWayErrors } = await twoWay;
+console.log(
+  `${TWO_WAY.padEnd(10)} original and tinyaml/js-yaml, js-yaml-v5 ${status({ errors: twoWayErrors })}`,
+);
+for (const line of twoWayErrors) console.log(`  ${line}`);
+failed ||= twoWayErrors.length > 0;
 for (const { lib, resolution, errors, ignored } of packedResults) {
   console.log(
     `packed tinyaml/${lib.padEnd(10)} ${resolution.padEnd(8)} ${status({ errors })}${ignored ? ` (${ignored} outside tinyaml's declarations not counted)` : ""}`,

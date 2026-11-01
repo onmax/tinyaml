@@ -1,10 +1,12 @@
+// Typed as @types/js-yaml has it, though `name` is null without a filename,
+// and `snippet` null for empty input.
 export interface Mark {
-  name: string | null;
+  name: string;
   buffer: string;
   position: number;
   line: number;
   column: number;
-  snippet: string | null;
+  snippet: string;
 }
 
 const format = ({ reason, mark }: YAMLException, compact?: boolean) =>

@@ -5,16 +5,17 @@ description: Download the upstream suites and rerun every size, speed, correctne
 ---
 
 ```sh
+cd packages/tinyaml                              # from the repository root
 pnpm fixtures                                    # download the upstream suites and fixtures
 pnpm compare                                     # every parity check, one line each, then the size table
 DIST=1 pnpm compare                              # the same against the built dist, after pnpm build
 pnpm size                                        # bundle sizes
 pnpm bench                                       # speed
 node --no-warnings scripts/correctness.ts        # the correctness table; add --failures for the case IDs
-node --no-warnings scripts/charts.ts             # redraw the three charts in docs/public/charts
+node --no-warnings scripts/charts.ts             # redraw the three charts in .github
 ```
 
-[`scripts/fixtures.sh`](https://github.com/onmax/tinyaml/blob/main/scripts/fixtures.sh) clones the suite and the libraries at the versions listed in [Switching](/tinyaml/guide/switching/). [`scripts/compare.sh`](https://github.com/onmax/tinyaml/blob/main/scripts/compare.sh) runs every check: the suite against each library, mutation fuzzing of parse and stringify, and each library's own tests. The suite runs and the own-test runs list the differences they expect. The parse fuzzers record each difference they expect in [`scripts/baselines/`](https://github.com/onmax/tinyaml/blob/main/scripts/baselines), including errors both sides throw that differ in message, position or snippet, and other warnings, and the stringify fuzzers expect none. `pnpm compare` fails on a difference that isn't expected, on an expected one that's gone, and on a crash. Fuzz runs use 5,000 cases with seed 1, and some inputs get CRLF or lone CR line breaks. Set `N` for another count. The records cover the first 5,000 cases of seed 1, so a smaller `N` checks part of them, and a larger one finds differences they don't have: `N=40000 UPDATE=1 pnpm compare` records those, and `git diff scripts/baselines` shows them. Each script takes a count and a seed, and the parse fuzzers also take `--update`, as in `node --no-warnings scripts/fuzz.ts 40000 3 --update`.
+[`scripts/fixtures.sh`](https://github.com/onmax/tiny/blob/main/packages/tinyaml/scripts/fixtures.sh) clones the suite and the libraries at the versions listed in [Switching](/tinyaml/guide/switching/). [`scripts/compare.sh`](https://github.com/onmax/tiny/blob/main/packages/tinyaml/scripts/compare.sh) runs every check: the suite against each library, mutation fuzzing of parse and stringify, and each library's own tests. The suite runs record the outcome of each case that differs, on both sides, and the own-test runs list the differences they expect. The parse fuzzers record each difference they expect in [`scripts/baselines/`](https://github.com/onmax/tiny/blob/main/packages/tinyaml/scripts/baselines), including errors both sides throw that differ in message, position or snippet, and other warnings, and the stringify fuzzers expect none. `pnpm compare` fails on a difference that isn't expected, on an expected one that's gone, and on a crash. Fuzz runs use 5,000 cases with seed 1, and some inputs get CRLF or lone CR line breaks. Set `N` for another count. The records cover the first 5,000 cases of seed 1, so a smaller `N` checks part of them, and a larger one finds differences they don't have: `N=40000 UPDATE=1 pnpm compare` records those, and `git diff scripts/baselines` shows them. Each script takes a count and a seed, and the parse fuzzers also take `--update`, as in `node --no-warnings scripts/fuzz.ts 40000 3 --update`.
 
 The own-test runs one by one:
 

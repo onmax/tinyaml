@@ -2,7 +2,16 @@
 // become a small node tree, as in yaml, so repeated objects get their
 // anchors in creation order; then the tree is written with yaml's rules for
 // string styles, line folding, flow and block collections.
-import { getTags, merge, timestamp, Y, type CustomTags, type Tag } from "./tags.ts";
+import {
+  checkVersion,
+  getTags,
+  merge,
+  timestamp,
+  Y,
+  type CustomTags,
+  type Tag,
+  type Tags,
+} from "./tags.ts";
 
 type Replacer = ((this: unknown, key: any, value: any) => unknown) | (string | number)[];
 
@@ -20,6 +29,8 @@ export interface StringifyOptions {
   /** Schema whose plain scalars get quoted when they're strings. Default "core". */
   schema?: string;
   customTags?: CustomTags;
+  /** Also quote strings this schema, or these tags, would read as another type. */
+  compat?: string | Tags | null;
   merge?: boolean;
   version?: "1.1" | "1.2" | "next";
   blockQuote?: boolean | "folded" | "literal";
@@ -79,6 +90,7 @@ interface Context {
   flowCollectionPadding: string;
   options: StringifyOptions & typeof DEFAULTS;
   tags: Tag[];
+  compat: Tag[] | undefined;
   implicitKey?: boolean;
   indentAtStart?: number;
 }
@@ -211,7 +223,7 @@ function builder(options: StringifyOptions, tags: Tag[], replacer?: Replacer): B
   };
 }
 
-function context(options: StringifyOptions, tags: Tag[]): Context {
+function context(options: StringifyOptions, tags: Tag[], compat?: Tag[]): Context {
   const opt: Context["options"] = { ...DEFAULTS, ...options.toStringDefaults, ...options } as never;
   const style = opt.collectionStyle;
   return {
@@ -222,6 +234,7 @@ function context(options: StringifyOptions, tags: Tag[]): Context {
     flowCollectionPadding: opt.flowCollectionPadding ? " " : "",
     options: opt,
     tags,
+    compat,
   };
 }
 
@@ -512,8 +525,8 @@ function plainString(value: string, ctx: Context): string {
   }
   const str = multiline ? value.replace(/\n+/g, `$&\n${indent}`) : value;
   // Strings that would be read back as something else, like `true` or `42`.
-  if (ctx.tags.some((t) => t.default && t.tag !== STR && t.test?.test(str)))
-    return quoted(value, ctx);
+  const test = (t: Tag) => t.default && t.tag !== STR && t.test?.test(str);
+  if (ctx.tags.some(test) || ctx.compat?.some(test)) return quoted(value, ctx);
   return implicitKey ? str : fold(str, indent, FOLD_FLOW, ctx);
 }
 
@@ -542,8 +555,9 @@ function stringifyString(value: string, ctx: Context): string {
 // `literal`, a line it can't fit returns "" for a literal block instead.
 function fold(text: string, indent: string, mode: number, ctx: Context, literal?: boolean): string {
   const indentAtStart = mode === FOLD_BLOCK ? ctx.indent.length : ctx.indentAtStart;
-  const { lineWidth } = ctx.options;
-  let { minContentWidth } = ctx.options;
+  // Set to undefined, these two still fold at their defaults.
+  const { lineWidth = 80 } = ctx.options as StringifyOptions;
+  let { minContentWidth = 20 } = ctx.options as StringifyOptions;
   if (!lineWidth || lineWidth < 0) return text;
   if (lineWidth < minContentWidth) minContentWidth = 0;
   const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent.length);
@@ -672,8 +686,12 @@ export function stringify(
     if (!keepUndefined) return undefined as never;
   }
   const opt: StringifyOptions = options ?? {};
-  const v11 = opt.version === "1.1";
-  const tags = getTags(opt.customTags, opt.schema ?? (v11 ? "yaml-1.1" : "core"), opt.merge);
+  // yaml reads the options over defaults, which an option set to undefined
+  // still replaces.
+  const v11 = checkVersion({ version: "1.2", ...opt }.version) === "1.1";
+  const { schema, compat: c } = { schema: v11 ? "yaml-1.1" : "core", ...opt };
+  const tags = getTags(opt.customTags, (typeof schema === "string" && schema) || "core", opt.merge);
+  const compat = c ? (Array.isArray(c) ? getTags(c, "compat") : getTags(null, c)) : undefined;
   if (Array.isArray(fn)) {
     const strings = fn
       .filter((v: unknown) => typeof v === "number" || v instanceof String || v instanceof Number)
@@ -691,7 +709,7 @@ export function stringify(
     throw new Error(
       `"indent" option must be a positive integer, not ${JSON.stringify(opt.indent)}`,
     );
-  const ctx = context(opt, tags);
+  const ctx = context(opt, tags, compat);
   const body = write(node, ctx);
   return `${ctx.options.directives === true ? `---${/^[|>]/.test(body) ? " " : "\n"}` : ""}${body}\n`;
 }

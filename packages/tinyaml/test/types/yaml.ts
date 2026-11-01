@@ -6,19 +6,23 @@
 // and node classes, which tinyaml doesn't have. That covers parseDocument,
 // parseAllDocuments, Document, Scalar, YAMLMap, YAMLSeq, Pair, Alias, Schema,
 // visit, Lexer, Parser, Composer, LineCounter and CST, and the options that
-// take them: `schema` as a Schema instance, `lineCounter`, `onAnchor`,
-// `onTagObj`, `commentString` and a `uniqueKeys` function.
+// take them: `schema` as a Schema instance, `lineCounter`, `onTagObj`,
+// `commentString` and a `uniqueKeys` function.
 import YAML, {
   parse,
   stringify,
   YAMLError,
   YAMLParseError,
   YAMLWarning,
+  type CollectionTag,
   type CreateNodeOptions,
   type DocumentOptions,
   type ErrorCode,
   type ParseOptions,
+  type ScalarTag,
   type SchemaOptions,
+  type TagId,
+  type Tags,
   type ToJSOptions,
   type ToStringOptions,
 } from "yaml";
@@ -37,6 +41,21 @@ parse(src, { version: "1.1", logLevel: "error", intAsBigInt: true, maxAliasCount
 parse(src, { customTags: ["timestamp"], resolveKnownTags: false, mapAsMap: false });
 parse(src, (key, value) => (key === "date" ? new Date(value as string) : value));
 parse(src, (_key, value) => value, { merge: true });
+// Tag objects, typed as yaml types them.
+const re: ScalarTag = { tag: "!re", resolve: (str) => new RegExp(str.toUpperCase()) };
+const join: CollectionTag = {
+  tag: "!join",
+  collection: "seq",
+  resolve: (node, onError) => {
+    if (!node.items.length) onError("empty");
+    return node.toJSON();
+  },
+};
+const ids: TagId[] = ["timestamp", "binary"];
+const tags: Tags = [re, join, ...ids];
+parse(src, { customTags: tags });
+parse(src, { customTags: (base) => [...base, re] });
+parse(src, { compat: "yaml-1.1", onAnchor: (anchored, count) => console.log(anchored, count) });
 const typed: { name: string } = YAML.parse(src);
 void typed;
 yaml.parse(src);
@@ -78,6 +97,7 @@ stringify(
     version: "1.1",
   },
 );
+stringify({ a: "yes" }, { compat: "yaml-1.1" });
 stringify({ b: 1, a: 2 }, { sortMapEntries: (a, b) => (String(a.key) < String(b.key) ? -1 : 1) });
 const toString: ToStringOptions & CreateNodeOptions = { lineWidth: 120, flow: true };
 YAML.stringify({ a: 1 }, toString);

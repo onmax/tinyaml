@@ -3,7 +3,6 @@
 // `lineWidth: -1`, and strings that YAML 1.1 readers would take for
 // something else (`yes`, `0777`, `1:30`) are quoted too.
 import { ESCAPED, ESCAPES } from "./core/parse.ts";
-import { findRefs } from "./core/refs.ts";
 
 export interface StringifyOptions {
   /** Spaces per indentation level. Default 2. */
@@ -43,7 +42,12 @@ const FORBIDDEN_START = /^(?:---|\.\.\.)(?=$|[ \t\n\r])/;
 
 let indent = 2;
 let sortKeys: StringifyOptions["sortKeys"] = false;
+// Objects reached more than once, named `ref_N` in the order their second
+// visit happens, as js-yaml numbers its anchors.
 let refs: Map<object, string> | undefined;
+// Each object reached, after `toJSON`, to what it holds, each read once: an
+// array's items, or a mapping's keys and values in turn.
+let held = new Map<object, unknown[]>();
 let emitted = new Set<object>();
 let openEnded = false;
 // The text write returned last starts on a new line. Reading its first
@@ -63,19 +67,50 @@ export function stringify(value: unknown, options: StringifyOptions = {}): strin
   const sort = options.sortKeys ?? false;
   const shared = options.refs !== false;
   // A `toJSON` may stringify something else in the middle of this.
-  const outer = [indent, sortKeys, refs, emitted, openEnded] as const;
+  const outer = [indent, sortKeys, refs, held, emitted, openEnded] as const;
   try {
     indent = width;
     sortKeys = sort;
     emitted = new Set();
     openEnded = false;
-    refs = shared ? findRefs(value) : undefined;
-    const body = write(value, 0, true, true);
+    refs = shared ? new Map() : undefined;
+    held = new Map();
+    const body = write(read(value), 0, true, true);
     if (body === undefined) return "";
     return openEnded ? `${body}\n...\n` : `${body}\n`;
   } finally {
-    [indent, sortKeys, refs, emitted, openEnded] = outer;
+    [indent, sortKeys, refs, held, emitted, openEnded] = outer;
   }
+}
+
+// `value` after its `toJSON`, with what it holds read into `held`, depth
+// first.
+function read(value: unknown): unknown {
+  const toJSON = (value as { toJSON?: unknown })?.toJSON;
+  if (typeof toJSON === "function") value = toJSON.call(value);
+  if (value === null || typeof value !== "object") return value;
+  if (held.has(value)) {
+    if (refs && !refs.has(value)) refs.set(value, `ref_${refs.size}`);
+    return value;
+  }
+  const items: unknown[] = [];
+  held.set(value, items);
+  // By index up to the length it starts with, so holes become null too.
+  if (Array.isArray(value))
+    for (let i = 0, n = value.length; i < n; i++) items.push(read(value[i]));
+  else
+    for (const key of Object.keys(value))
+      items.push(key, read((value as Record<string, unknown>)[key]));
+  return value;
+}
+
+// A mapping's keys and values from `held`, by key.
+function sorted(items: unknown[]): unknown[] {
+  const pairs: [string, unknown][] = [];
+  for (let i = 0; i < items.length; i += 2) pairs.push([items[i] as string, items[i + 1]]);
+  return pairs
+    .sort(([a], [b]) => (typeof sortKeys === "function" ? sortKeys(a, b) : a < b ? -1 : +(a > b)))
+    .flat();
 }
 
 // What JSON.stringify leaves out: undefined, functions and symbols. BigInt
@@ -92,8 +127,6 @@ function write(
   block: boolean,
   compact: boolean,
 ): string | undefined {
-  if (typeof (value as { toJSON?: unknown })?.toJSON === "function")
-    value = (value as { toJSON(): unknown }).toJSON();
   lead = false;
   if (!isValid(value)) return undefined;
   // Keys don't touch this, so a value that's left out leaves it as it was.
@@ -113,29 +146,28 @@ function write(
   let body = "";
   let flowBody = false;
   const newline = `\n${" ".repeat(indent * level)}`;
+  let items = held.get(value)!;
   if (Array.isArray(value)) {
-    flowBody = !block || !value.length;
+    flowBody = !block || !items.length;
     if (flowBody) body = "[]";
     else {
-      // By index, so holes become null too.
-      for (let i = 0; i < value.length; i++) {
-        const text = write(value[i], level + 1, true, true) ?? "null";
+      for (const item of items) {
+        const text = write(item, level + 1, true, true) ?? "null";
         if (!compact || body) body += newline;
         body += lead ? "-" : "- ";
         body += text;
       }
     }
   } else {
-    const map = value as Record<string, unknown>;
-    const keys = Object.keys(map);
-    if (sortKeys) keys.sort(sortKeys === true ? undefined : sortKeys);
+    if (sortKeys) items = sorted(items);
     if (block)
-      for (const key of keys) {
+      for (let i = 0; i < items.length; i += 2) {
+        const key = items[i] as string;
         const keyText = writeString(key, level + 1, true, false);
         const explicit =
           key.includes("\n") || (keyText.length > 1024 && /^[\s\S]{1025}/u.test(keyText));
         // Left out, as is a `toJSON` that returns undefined.
-        const text = write(map[key], level + 1, true, explicit);
+        const text = write(items[i + 1], level + 1, true, explicit);
         if (text === undefined) continue;
         if (!compact || body) body += newline;
         body += explicit ? `? ${keyText}${newline}` : keyText;

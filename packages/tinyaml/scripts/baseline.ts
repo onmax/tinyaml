@@ -1,11 +1,11 @@
-// The differences a fuzzer is known to find, kept one by one in
-// scripts/baselines/<fuzzer>.json. Each record names an input and its
-// options by a hash, the iteration that first generated it, the kind of
-// difference, and each side's outcome. A run fails on a difference that has
-// no record, on a record whose outcome changed, and on a record within the
-// run's iterations that no longer turns up. Records are kept per seed (and
-// mode), and a shorter run checks the records its iterations reach, since
-// a seed's first N inputs are the same however many follow.
+// The differences a fuzzer is known to find, or a suite check accepts, kept
+// one by one in scripts/baselines/<check>.json. Each record names an input
+// and its options by a hash, the iteration that first generated it, the
+// kind of difference, and each side's outcome. A run fails on a difference
+// that has no record, on a record whose outcome changed, and on a record
+// within the run's iterations that no longer turns up. Records are kept per
+// seed (and mode), and a shorter run checks the records its iterations
+// reach, since a seed's first N inputs are the same however many follow.
 //
 // A run with --update rewrites its seed's records to what it found, and
 // prints what it added, removed and changed; `git diff scripts/baselines`
@@ -125,7 +125,8 @@ function serialize(value: unknown, depth: number, refs: Refs): string {
 
 /**
  * The known differences of one fuzzer's run: `name` is its baseline file,
- * `run` its seed and mode, as in "seed 1" or "seed 1, schemas".
+ * `run` its seed and mode, as in "seed 1" or "seed 1, schemas". A suite
+ * check counts its cases as iterations.
  */
 export class Baseline {
   readonly found = new Map<string, Difference>();

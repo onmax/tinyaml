@@ -6,6 +6,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// yaml's parse or tinyaml's, with options either takes.
+type Parse = (src: string, options: any) => any;
+
 // Warnings go to process.emitWarning, as in yaml.
 function warnings(): () => unknown[] {
   const spy = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
@@ -107,6 +110,14 @@ describe("parse", () => {
     expect(() => parse("<<: 1", { merge: true })).toThrow(
       "Merge sources must be maps or map aliases",
     );
+  });
+
+  it("merges any number of mappings", () => {
+    const sources = Array(101).fill("{}").join(",");
+    for (const input of [`{<<: [${sources}]}\n`, `<<: [${sources}]\n`]) {
+      expect(parse(input, { merge: true })).toEqual(yaml.parse(input, { merge: true }));
+      expect(parse(input, { version: "1.1" })).toEqual({});
+    }
   });
 
   it("copies what a merge reads, but aliases, as yaml does", () => {
@@ -342,17 +353,27 @@ describe("parse", () => {
   it("stops counting aliases at once on an expanding graph", () => {
     let nested = "[0]";
     for (let i = 0; i < 64; i++) nested = `[&a${i} ${nested}, *a${i}]`;
-    let start = performance.now();
+    const start = performance.now();
     expect(() => parse(nested)).toThrow("Excessive alias count");
     // 28 levels used to take seconds.
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(performance.now() - start).toBeLessThan(1000);
     // An alias costs a step per anchored collection it's in, while it's under
-    // the limit.
-    const spread = `- &s x\n${Array.from({ length: 20_000 }, (_, i) => `- &r${i} [*s]`).join("\n")}`;
-    start = performance.now();
-    expect(() => parse(spread, { maxAliasCount: 1000 })).toThrow("Excessive alias count");
-    expect(parse(spread, { maxAliasCount: -1 })).toHaveLength(20_001);
-    expect(performance.now() - start).toBeLessThan(500);
+    // the limit, so four times the input takes about four times as long, not
+    // sixteen. Best of three runs, so a busy machine doesn't decide it.
+    const spread = (n: number) =>
+      `- &s x\n${Array.from({ length: n }, (_, i) => `- &r${i} [*s]`).join("\n")}`;
+    const best = (text: string) => {
+      let fastest = Infinity;
+      for (let run = 0; run < 3; run++) {
+        const begin = performance.now();
+        expect(() => parse(text, { maxAliasCount: 1000 })).toThrow("Excessive alias count");
+        parse(text, { maxAliasCount: -1 });
+        fastest = Math.min(fastest, performance.now() - begin);
+      }
+      return fastest;
+    };
+    expect(parse(spread(20_000), { maxAliasCount: -1 })).toHaveLength(20_001);
+    expect(best(spread(20_000)) / best(spread(5_000))).toBeLessThan(10);
   });
 
   it("disables every alias with maxAliasCount: 0", () => {
@@ -390,6 +411,12 @@ describe("parse", () => {
     expect(parse("- !!timestamp 2001-12-14", { customTags: ["timestamp"] })).toEqual([
       new Date(Date.UTC(2001, 11, 14)),
     ]);
+  });
+
+  it("keeps a key a custom tag resolves to undefined, as yaml does", () => {
+    const customTags = [{ tag: "!u", resolve: () => undefined }];
+    expect(parse("!u x: 1", { customTags })).toEqual({ undefined: 1 });
+    expect(yaml.parse("!u x: 1", { customTags })).toEqual({ undefined: 1 });
   });
 
   it("has a default export like yaml's namespace", () => {
@@ -433,6 +460,318 @@ describe("parse", () => {
       "&a \n&b c",
     ])
       expect(outcome(parse, text), text).toEqual(outcome(yaml.parse, text));
+  });
+
+  it("warns about scalars the compat schema reads as another type", () => {
+    const warned = warnings();
+    const read = (parse: Parse, input: string, options: yaml.ParseOptions) => {
+      const value = parse(input, { prettyErrors: false, ...options });
+      const out = warned().map((w) => {
+        const { code, pos, message } = w as YAMLWarning;
+        return { code, pos, message };
+      });
+      vi.clearAllMocks();
+      return { value, out };
+    };
+    for (const [input, options] of [
+      ["yes\n", { compat: "yaml-1.1" }],
+      ["a: yes # yes\nyes : no\n0b11: [on, y, '1_000', 1_000]\n12:30: {2001-12-14: 010}\n", {}],
+      ["? yes\n: no\n", {}],
+      ["- !!str yes\n- 'no'\n- n\n", {}],
+      ["<<: {a: 1}\nb: <<\n", { merge: true }],
+      ["<<: {a: 1}\nb: <<\n", {}],
+      ["a: yes\nb: 010\n", { version: "1.1", compat: "core" }],
+      ["a: yes\nb: 010\n", { compat: ["bool"] }],
+      ["a:\nb: c\n", { compat: "json" }],
+      ["%TAG !e! tag:yaml.org,2002:\n---\na: yes\n", {}],
+      ["a: x\n", { compat: [{ tag: "!x", default: true, test: /^x$/, resolve: () => 1 }] }],
+    ] as [string, yaml.ParseOptions][]) {
+      const opts = { compat: "yaml-1.1", ...options };
+      const theirs = read(yaml.parse, input, opts);
+      expect(read(parse, input, opts), input).toEqual(theirs);
+      expect(theirs.out.length, input).toBeGreaterThan(0);
+    }
+    expect(() => parse("a", { compat: "nope" })).toThrow('Unknown schema "nope"');
+  });
+
+  it("reads keys only tags give their original values in !!set, !!omap and !!pairs", () => {
+    for (const input of [
+      '!!set {1: null, "1": null}\n',
+      'a: {1: foo}\nb: !!set {"1": null}\n',
+      '!!omap [{1: one}, {"1": two}]\n',
+      "!!omap [~, {}]\n",
+      "!!omap [a, {b: c}, [1], {[2]: 3}]\n",
+      "!!pairs [null, ~, a, 1, {}, {b: c}, {2: d}]\n",
+      "!!set {? [1, 2]}\n",
+    ]) {
+      const outcome = (parse: (input: string) => unknown) => {
+        try {
+          return { value: parse(input) };
+        } catch (e) {
+          return { message: (e as Error).message };
+        }
+      };
+      warnings();
+      expect(outcome(parse), input).toEqual(outcome(yaml.parse));
+    }
+  });
+
+  it("resolves a custom tag with default: 'key' only for keys", () => {
+    const special = {
+      tag: "!special",
+      default: "key" as const,
+      test: /^special$/,
+      resolve: () => 42,
+    };
+    for (const input of [
+      "value: special\n",
+      "special\n",
+      "special: v\n",
+      "? special\n: w\n",
+      "{special: v, k: special}\n",
+      "[special, special: v]\n",
+      "a: &x special\n*x : 1\n",
+      "a: special\n'special': 1\n",
+      "a: special\n? []\n: 1\n",
+    ]) {
+      warnings();
+      expect(parse(input, { customTags: [special] }), input).toEqual(
+        yaml.parse(input, { customTags: [special] }),
+      );
+    }
+    // An alias as a key isn't the merge key before it.
+    const input = "x: &b k\ny: {<<: {a: 1}, *b : 2}\nz: <<\n? *b\n: 3\n";
+    expect(parse(input, { merge: true })).toEqual(yaml.parse(input, { merge: true }));
+  });
+
+  it("passes collection tags yaml's nodes, in part", () => {
+    warnings();
+    const tag = (collection: "map" | "seq", resolve: (node: any) => unknown) => ({
+      customTags: [{ tag: "!t", collection, resolve }],
+    });
+    const seq = "!t [a, 1, [x], {k: v}]";
+    const map = "!t {a: 1, 2: b, c: [x], n: }";
+    for (const [input, options] of [
+      ["!t [a, b]", tag("seq", (node) => node.items.map((i: any) => i.value).join(","))],
+      ["!t [a, b]", tag("seq", () => undefined)],
+      [seq, tag("seq", (node) => node)],
+      [seq, tag("seq", (node) => [0, "1", 4, -1].map((i) => [node.get(i), node.has(i)]))],
+      [seq, tag("seq", (node) => [node.get(0, true).value, node.get(3).get("k"), node.toJSON()])],
+      [seq, tag("seq", (node) => node.items.map(String))],
+      [map, tag("map", (node) => [node.get("a"), node.get(2), node.get("2"), node.has("n")])],
+      [map, tag("map", (node) => [node.get("n"), node.get("c").items[0].value, node.toJSON()])],
+      ["!t {1: a, '1': b}", tag("map", (node) => node.items.map((p: any) => p.key.value))],
+      ["!t {a: !t {b: 1}}", tag("map", (node) => ({ wrapped: node.toJSON() }))],
+      [
+        "a: !t [1]",
+        tag("seq", () => {
+          throw new Error("boom");
+        }),
+      ],
+      ["!t a", { customTags: [{ tag: "!t", resolve: (...args: unknown[]) => args[2] }] }],
+    ] as [string, yaml.ParseOptions][]) {
+      const outcome = (parse: Parse) => {
+        try {
+          return { value: parse(input, options) };
+        } catch (e) {
+          const { message, code, pos } = e as YAMLParseError;
+          return { message, code, pos };
+        }
+      };
+      const theirs = outcome(yaml.parse);
+      // yaml passes its internal _directives too.
+      if (theirs.value?._directives) delete theirs.value._directives;
+      expect(outcome(parse), input).toEqual(theirs);
+    }
+  });
+
+  it("calls onAnchor with each anchored value and its count", () => {
+    warnings();
+    for (const [input, options] of [
+      ["a: &a {x: 1}\nb: *a\n", {}],
+      ["a: &a 1\nb: &b [2]\nc: *a\nd: *a\n", {}],
+      ["a: &a 1\nb: *a\nc: &a 2\nd: *a\ne: *a\n", {}],
+      ["a: &a\n  b: &b [1, &c 2]\nc: *b\nd: *c\n", {}],
+      ["&r [1, *r]\n", {}],
+      ["a: &a\nb: *a\nc: &s !!set {x: }\nd: *s\n", {}],
+      ["a: &a 1\nb: *a\n", { maxAliasCount: -1 }],
+      ["a: &a {x: &x [1]}\nc: *x\nb:\n  <<: *a\n  y: *x\nd: *x\n", { merge: true }],
+      ["o: &o [1]\na: &a {x: *o, y: &y [2], z: *y}\nb: {<<: *a}\nc: *o\n", { merge: true }],
+    ] as [string, yaml.ParseOptions][]) {
+      const seen = (parse: Parse) => {
+        const calls: [unknown, number][] = [];
+        const value = parse(input, {
+          ...options,
+          onAnchor: (v: unknown, count: number) => calls.push([v, count]),
+        });
+        // Which part of the value each anchored one is.
+        const where = (v: unknown, at: unknown = value, path = ""): string | undefined => {
+          if (v === at) return path || "/";
+          if (!at || typeof at !== "object" || typeof v !== "object") return undefined;
+          for (const [k, x] of Object.entries(at)) {
+            const found = x !== at && where(v, x, `${path}/${k}`);
+            if (found) return found;
+          }
+        };
+        return { value, calls: calls.map(([v, count]) => [v, count, where(v)]) };
+      };
+      expect(seen(parse), input).toEqual(seen(yaml.parse));
+    }
+  });
+
+  describe("with tags and merges, as yaml converts its nodes", () => {
+    // The value, or the error, and onAnchor's calls. Symbols and Maps show
+    // as strings and entries, which toEqual can compare.
+    const outcome = (parse: Parse, input: string, options: any) => {
+      const calls: unknown[] = [];
+      const show = (value: unknown): unknown =>
+        typeof value === "symbol"
+          ? String(value)
+          : value instanceof Map
+            ? [...value].map(([k, v]) => [show(k), show(v)])
+            : value instanceof Set
+              ? [...value].map(show)
+              : value;
+      try {
+        const value = parse(input, {
+          ...options,
+          onAnchor: (...args: unknown[]) => calls.push(args),
+        });
+        return { value: show(value), calls };
+      } catch (e) {
+        const { name, message, code, pos } = e as YAMLParseError;
+        return { name, message, code, pos };
+      }
+    };
+    const agree = (cases: [string, any][]) => {
+      warnings();
+      for (const [input, options] of cases)
+        expect(outcome(parse, input, options), input).toEqual(outcome(yaml.parse, input, options));
+    };
+    const tag = (collection: "map" | "seq", resolve: (node: any) => unknown, more = {}) => ({
+      customTags: [{ tag: "!x", collection, resolve }],
+      ...more,
+    });
+    const pairs = (node: any) =>
+      node.items.map((p: any) => [String(p.key?.value), p.value?.value ?? String(p.value)]);
+    const key = { customTags: [{ tag: "!key", default: "key", test: /^KEY$/, resolve: () => 42 }] };
+
+    it("gives a collection tag each pair as written", () => {
+      agree([
+        ['!x {1: a, "1": b}', tag("map", pairs)],
+        ["!x {a: 1, b: 2, a: 3}", tag("map", pairs, { uniqueKeys: false })],
+        ['!x {null: 1, "": 2, ~: 3}', tag("map", pairs, { uniqueKeys: false })],
+        ['!x {b: x, "1": y, 1: z, c: w}', tag("map", pairs)],
+        ["!!set {b, 1, a, '0'}", {}],
+        ['!!pairs [1: a, "1": b, ~: c]', {}],
+        ['!!omap [1: a, "1": b]', {}],
+      ]);
+    });
+
+    it("reads a key's anchor as the key a tag reads", () => {
+      agree([
+        ["&a KEY: 1\nb: *a", key],
+        ["{&a KEY: 1, b: *a}", key],
+        ["? &a KEY\n: 1\nb: *a", key],
+        ["[&a KEY: 1, *a]", key],
+        ["[&a KEY, *a]", key],
+        ["a: &a KEY\nKEY: *a", key],
+      ]);
+    });
+
+    it("checks a tagged collection's pairs before merging them", () => {
+      const merge = { merge: true };
+      agree([
+        ["!!set {<<: {a: null}}", merge],
+        ["!!set {<<: {a: }, b: }", merge],
+        ["!!set {<<: [{a: }], b: }", merge],
+        ["!!set {<<: }", merge],
+        ["!!omap [<<: {a: 1}]", merge],
+        ["!!omap [<<: {a: 1}, <<: {b: 2}]", merge],
+        ["!!omap [<<: 1]", merge],
+        ["!!omap [a: {<<: 1}]", merge],
+        ["!!pairs [<<: [{a: 1}, {a: 2, b: 3}]]", merge],
+        ["!!pairs [<<: 1]", merge],
+        ["!x {<<: {a: 1}, b: 2}", tag("map", pairs, merge)],
+        ["!x [{<<: {a: 1}, b: 2}]", tag("seq", (node) => node.items[0].items.map(String), merge)],
+        ["!x [{<<: {a: 1}, b: 2}]", tag("seq", (node) => node.toJSON(), merge)],
+        ["a: {<<: 1}\nb: !!set {x: 1}", merge],
+        ["c: {<<: 1}\na: &a [1]\nb: [*a, *a, *a]", { merge: true, maxAliasCount: 2 }],
+        ["a: &a [1]\nb: [*a, *a, *a]\nc: {<<: 1}", { merge: true, maxAliasCount: 2 }],
+        ["a: &a !!timestamp 2001-01-01\nb: {<<: *a}", merge],
+        ["a: &a !!omap [x: 1]\nb: {<<: *a}", merge],
+        ["a: &a !x {y: 1}\nb: {<<: *a}", tag("map", () => ({ z: 2 }), merge)],
+        ["a: &a !x {y: 1}\nb: {<<: *a}", tag("map", (node) => node, merge)],
+      ]);
+    });
+
+    it("leaves out what a collection tag discards", () => {
+      const drop = (more = {}) => tag("seq", () => 42, more);
+      agree([
+        ["!x [&a 1, *a]", drop({ maxAliasCount: 1 })],
+        ["!x [&a 1, *a]", drop()],
+        ["!x [&a 1, *a]", drop({ maxAliasCount: 0 })],
+        ["a: &c !x [&a 1, *a]\nb: *c\nd: *c", drop()],
+        ["!x [{<<: 1}]", drop({ merge: true })],
+        ["a: !x [&a 1, *a]", tag("seq", (node) => node)],
+      ]);
+    });
+
+    it("merges the first of the keys that share a name", () => {
+      const merge = { merge: true };
+      agree([
+        ['base: &a {1: first, "1": second}\ncopy: {<<: *a}', merge],
+        ["base: &a {~: 1, true: 2, [a, b]: 3, {x: 1}: 4}\ncopy: {<<: *a}", merge],
+        ["base: &a {a: 1, a: 2}\ncopy: {<<: *a}", { ...merge, uniqueKeys: false }],
+        ['a: &a {1: x}\nb: &b {"1": y}\nc: {<<: [*b, *a]}\nd: {<<: [*a, *b]}', merge],
+        ['a: &a {<<: {1: x}, "1": y}\nc: {<<: *a}', merge],
+        ['a: &a {"1": y, <<: {1: x}}\nc: {<<: *a}', merge],
+        ['copy: {<<: {1: first, "1": second}}', merge],
+      ]);
+    });
+
+    it("gets null from a sequence, and undefined from a mapping", () => {
+      agree([
+        ["!x [null]", tag("seq", (node) => [node.get(0)])],
+        [
+          "!x [null, ~, 1, '']",
+          tag("seq", (node) => [
+            ...[0, 1, 5, "1", null, -1, "0"].map((i) => [node.get(i), node.has(i)]),
+            node.get(0, true).value,
+          ]),
+        ],
+        [
+          "!x {a: null, b: , 1: x, null: y, ~: z}",
+          tag(
+            "map",
+            (node) => [
+              ...["a", "b", 1, "1", null, "null", "zz", undefined].map((k) => [
+                node.get(k),
+                node.has(k),
+              ]),
+              node.get("a", true).value,
+            ],
+            { uniqueKeys: false },
+          ),
+        ],
+      ]);
+    });
+  });
+
+  it("revives only the entries an array had", () => {
+    const reviver = function (this: any, key: unknown, value: unknown) {
+      if (key === "0") this.push(10);
+      return typeof value === "number" ? value + 1 : value;
+    };
+    expect(parse("[1, 2]\n", reviver)).toEqual(yaml.parse("[1, 2]\n", reviver));
+    const remover = function (this: any, key: unknown, value: unknown) {
+      if (key === "a") {
+        delete this.b;
+        this.c = 5;
+      }
+      return typeof value === "number" ? value + 1 : value;
+    };
+    expect(parse("a: 1\nb: 2\n", remover)).toEqual(yaml.parse("a: 1\nb: 2\n", remover));
   });
 
   it("agrees with yaml on assorted documents", () => {

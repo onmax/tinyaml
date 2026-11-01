@@ -1,6 +1,7 @@
 // The `yaml` package's schemas as lists of tag objects in its own shape, so
 // `customTags` can add to or rewrite them. Only what parsing and string
 // quoting need is here: `tag`, `default`, `test`, `collection`, `resolve`.
+import type { ParseOptions } from "./parse.ts";
 
 export interface Tag {
   tag: string;
@@ -17,14 +18,151 @@ export interface ParseFlags {
   intAsBigInt?: boolean;
 }
 
+type TagBase = {
+  tag: string;
+  default?: boolean | "key";
+  format?: string;
+  identify?: (value: unknown) => boolean;
+};
+
+/** yaml's type of a scalar tag object. */
+export type ScalarTag = TagBase & {
+  collection?: never;
+  resolve(value: string, onError: (message: string) => void, options: ParseOptions): unknown;
+  stringify?: (...args: any[]) => string;
+  test?: RegExp;
+};
+
+/** yaml's type of a collection tag object. Its `resolve` gets a node as below. */
+export type CollectionTag = TagBase & {
+  collection: "map" | "seq";
+  test?: never;
+  resolve?: (
+    value: YAMLMap | YAMLSeq,
+    onError: (message: string) => void,
+    options: ParseOptions,
+  ) => unknown;
+};
+
+export type TagId = keyof typeof byName;
+export type Tags = (ScalarTag | CollectionTag | TagId)[];
+
 export const Y = "tag:yaml.org,2002:";
+/** A pair as written: its key, its value, and the name it's stored under. */
+export type Written = [key: unknown, value: unknown, name: string];
 /**
- * Mapping keys that weren't strings, by the string the parser stored them
- * under, so !!set and !!omap can return the original values.
+ * The pairs of each mapping as written, where they're not just its entries:
+ * where a key isn't a string, or shares a name, or may be an array index,
+ * which a JS object puts first, and with each `<<`, as MERGE, and its value.
+ * Tags tell 1 from "1" by them, and merges copy what yaml copies.
  */
-export const keys = new Map<string, unknown>();
-const original = (key: string) => (keys.has(key) ? keys.get(key) : key);
+export const written = new WeakMap<object, Written[]>();
 export const MERGE = Symbol("<<");
+
+// What a collection tag's `resolve` gets: the parsed value as yaml's node,
+// in part. Its `items` are Scalar, Pair and collection nodes, and `get`,
+// `has` and `toJSON` work as in yaml, though `toJSON` returns the value as
+// parsed.
+export class Scalar {
+  value: unknown;
+  constructor(value: unknown) {
+    this.value = value;
+  }
+  toJSON(): unknown {
+    return this.value;
+  }
+  toString(): string {
+    return String(this.value);
+  }
+}
+
+export class Pair {
+  key: any;
+  value: any;
+  /** The name tinyaml stored the key under. */
+  name: string | undefined;
+  constructor(key: unknown, value: unknown, name?: string) {
+    this.key = key;
+    this.value = value;
+    this.name = name;
+  }
+  toJSON(): object {
+    const k = this.key.toJSON();
+    const v = this.value?.toJSON() ?? null;
+    // A `<<` merges its mappings, the first one's keys winning.
+    return typeof k === "symbol"
+      ? Object.assign({}, ...[v].flat().reverse())
+      : { [this.name ?? (k === null ? "" : String(k))]: v };
+  }
+  toString(): string {
+    return JSON.stringify(this);
+  }
+}
+
+export abstract class Collection {
+  items: any[] = [];
+  #value: object;
+  constructor(value: object) {
+    this.#value = value;
+  }
+  abstract find(key: unknown): any;
+  get(key: unknown, keepScalar?: boolean): any {
+    const node = this.find(key);
+    return !keepScalar && node instanceof Scalar ? node.value : node;
+  }
+  has(key: unknown): boolean {
+    return this.find(key) !== undefined;
+  }
+  toJSON(): any {
+    return this.#value;
+  }
+  toString(): string {
+    return JSON.stringify(this);
+  }
+}
+
+export class YAMLSeq extends Collection {
+  find(key: unknown): any {
+    let i = key instanceof Scalar ? key.value : key;
+    if (i && typeof i === "string") i = Number(i);
+    return Number.isInteger(i) && (i as number) >= 0 ? this.items[i as number] : undefined;
+  }
+}
+
+export class YAMLMap extends Collection {
+  // yaml's map, unlike its sequence, gives undefined for a null value.
+  override get(key: unknown, keepScalar?: boolean): any {
+    return super.get(key, keepScalar) ?? undefined;
+  }
+  find(key: unknown): any {
+    const k = key instanceof Scalar ? key.value : key;
+    return this.items.find(
+      (p: Pair) => p.key === key || p.key === k || (p.key instanceof Scalar && p.key.value === k),
+    )?.value;
+  }
+}
+
+/** `value` as a node, with each object in it as one node. */
+export function toNode(value: unknown, nodes = new Map<unknown, Scalar | Collection>()): any {
+  let node = nodes.get(value);
+  if (node) return node;
+  const seq = Array.isArray(value);
+  if (!seq && Object.getPrototypeOf(value ?? 0) !== Object.prototype) return new Scalar(value);
+  const out = seq ? new YAMLSeq(value) : new YAMLMap(value as object);
+  nodes.set(value, out);
+  out.items = seq
+    ? value.map((v) => toNode(v, nodes))
+    : (written.get(value as object) ?? Object.entries(value as object)).map(
+        ([k, v, name = k as string]) =>
+          // yaml's merge key is a new symbol each time.
+          new Pair(
+            k === MERGE ? new Scalar(Symbol("<<")) : toNode(k, nodes),
+            toNode(v, nodes),
+            name,
+          ),
+      );
+  return out;
+}
 
 const tag = (
   name: string,
@@ -104,30 +242,27 @@ export const binary = tag(
 
 export const merge = tag("merge", /^<<$/, () => MERGE, { default: "key" });
 
-// A YAML 1.1 !!pairs sequence: every item a mapping with one entry.
-function pairs(seq: unknown, onError: (message: string) => void): unknown[] {
-  if (!Array.isArray(seq)) onError("Expected a sequence for this tag");
-  return (seq as unknown[]).map((item) => {
-    if (item && typeof item === "object" && !Array.isArray(item)) {
-      const size = Object.keys(item).length;
-      if (size > 1) onError("Each pair must have its own sequence indicator");
-      return size ? item : { "": null };
-    }
-    return { [String(item)]: null };
+// A YAML 1.1 !!pairs sequence: every item a mapping with one entry, or a
+// key on its own.
+function pairs(seq: YAMLSeq, onError: (message: string) => void): Pair[] {
+  if (!(seq instanceof YAMLSeq)) onError("Expected a sequence for this tag");
+  return seq.items.map((item) => {
+    if (!(item instanceof YAMLMap)) return new Pair(item, null);
+    if (item.items.length > 1) onError("Each pair must have its own sequence indicator");
+    return item.items[0] ?? new Pair(new Scalar(null), null);
   });
 }
 
-const omap = tag(
+export const omap = tag(
   "omap",
   undefined,
   (seq, onError) => {
     const result = new Map<unknown, unknown>();
-    for (const item of pairs(seq, onError) as Record<string, unknown>[])
-      for (const key in item) {
-        if (result.has(original(key)))
-          onError(`Ordered maps must not include duplicate keys: ${key}`);
-        result.set(original(key), item[key]);
-      }
+    for (const { key, value } of pairs(seq, onError)) {
+      if (key instanceof Scalar && result.has(key.value))
+        onError(`Ordered maps must not include duplicate keys: ${String(key.value)}`);
+      result.set(key.toJSON(), value?.toJSON() ?? null);
+    }
     return result;
   },
   { default: false, collection: "seq" },
@@ -136,9 +271,10 @@ const omap = tag(
 const set = tag(
   "set",
   undefined,
-  (map: Record<string, unknown>, onError) => {
-    if (Object.values(map).some((v) => v !== null)) onError("Set items must all have null values");
-    return new Set(Object.keys(map).map(original));
+  (map: YAMLMap, onError) => {
+    if (map.items.some((p: Pair) => !(p.value instanceof Scalar) || p.value.value != null))
+      onError("Set items must all have null values");
+    return new Set(map.items.map((p: Pair) => p.key.toJSON()));
   },
   { default: false, collection: "map" },
 );
@@ -148,7 +284,10 @@ export const known: Tag[] = [
   binary,
   merge,
   omap,
-  tag("pairs", undefined, pairs, { default: false, collection: "seq" }),
+  tag("pairs", undefined, (seq, onError) => pairs(seq, onError).map((pair) => pair.toJSON()), {
+    default: false,
+    collection: "seq",
+  }),
   set,
   timestamp,
 ];
@@ -220,7 +359,7 @@ export const schemas: Record<string, Tag[]> = {
   "yaml-1.1": yaml11,
 };
 
-const byName: Record<string, Tag> = {
+const byName = {
   binary,
   bool: core[4]!,
   float: core[10]!,
@@ -241,7 +380,19 @@ const byName: Record<string, Tag> = {
   timestamp,
 };
 
-export type CustomTags = (Tag | string)[] | ((tags: Tag[]) => (Tag | string)[]) | null;
+/** A version yaml takes, as a string; throws for others. */
+export function checkVersion(version: unknown): "1.1" | "1.2" | "next" {
+  if (typeof version === "number") version = String(version);
+  if (version !== "1.1" && version !== "1.2" && version !== "next")
+    throw new Error(
+      version === null
+        ? "With a null YAML version, the { schema: Schema } option is required"
+        : `Expected '1.1', '1.2' or null as first argument, but found: ${JSON.stringify(version)}`,
+    );
+  return version;
+}
+
+export type CustomTags = Tags | ((tags: Tags) => Tags) | null;
 
 // yaml's getTags: the named schema's tags, plus or rewritten by `custom`,
 // plus the merge tag when asked for.
@@ -256,11 +407,11 @@ export function getTags(custom: CustomTags | undefined, name: string, addMerge?:
       );
     tags = [];
   }
-  tags = Array.isArray(custom) ? tags.concat(custom) : custom!(tags as Tag[]);
+  tags = Array.isArray(custom) ? tags.concat(custom as Tag[]) : (custom!(tags as Tags) as Tag[]);
   if (addMerge) tags = tags.concat(merge);
   const out: Tag[] = [];
   for (const t of tags) {
-    const obj = typeof t === "string" ? byName[t] : t;
+    const obj = typeof t === "string" ? byName[t as TagId] : t;
     if (!obj)
       throw new Error(
         `Unknown custom tag ${JSON.stringify(t)}; use one of ${Object.keys(byName)

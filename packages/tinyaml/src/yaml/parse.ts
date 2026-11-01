@@ -3,6 +3,7 @@
 // codes.
 import * as E from "../core/codes.ts";
 import {
+  at,
   define,
   fail,
   MERGE_TAG,
@@ -15,14 +16,20 @@ import { prettify, YAMLParseError, YAMLWarning, type ErrorCode, type YAMLError }
 import { MESSAGES } from "./messages.ts";
 import { stringifyKey } from "./stringify.ts";
 import {
+  checkVersion,
+  Collection,
   getTags,
-  keys,
   known,
   MERGE,
+  omap,
+  Scalar,
+  toNode,
+  written,
   Y,
   type CustomTags,
-  type ParseFlags,
   type Tag,
+  type Tags,
+  type Written,
 } from "./tags.ts";
 
 export type Reviver = (this: unknown, key: unknown, value: unknown) => unknown;
@@ -34,6 +41,8 @@ export interface ParseOptions {
   schema?: string;
   /** Extra tags, or a function rewriting the schema's tag list. */
   customTags?: CustomTags;
+  /** Warn about plain scalars this schema, or these tags, would read as another type. */
+  compat?: string | Tags | null;
   /** Merge `<<` keys. Default false, true for YAML 1.1. */
   merge?: boolean;
   /** Resolve !!binary, !!omap, !!pairs, !!set and !!timestamp with the core schema. Default true. */
@@ -55,6 +64,8 @@ export interface ParseOptions {
   version?: "1.1" | "1.2" | "next";
   /** Used over the reviver argument when set. */
   reviver?: Reviver;
+  /** Called with each anchored value and how many times it's used, before the reviver runs. */
+  onAnchor?: (value: unknown, count: number) => void;
   /** Other yaml options are accepted and ignored. */
   [option: string]: unknown;
 }
@@ -63,13 +74,25 @@ let warnings: YAMLWarning[] = [];
 let source = "";
 let pretty = true;
 let keyWarned: string | false = false;
-// Why to throw from the alias count, once the aliases read so far are
-// counted.
-let excess: (() => string | undefined) | undefined;
-const counted = () => {
-  const why = excess?.();
+// Why to throw from the alias count, once the aliases read so far, or the
+// first `upTo` of them, are counted.
+let excess: ((upTo?: number) => string | undefined) | undefined;
+const counted = (upTo?: number) => {
+  const why = excess?.(upTo);
   if (why) throw new ReferenceError(why);
 };
+// Each anchored value, how many times it's used, its collection's depth
+// while it's open, and where it was read.
+type Use = [value: unknown, count: number, depth: number, at: number];
+let anchored: Use[] = [];
+// Errors yaml throws as it converts the document, after any it finds as it
+// reads it: each with where it was read, how many aliases were read before
+// it, and the mapping it merges into.
+type Later = [error: Error, at: number, aliases: number, map?: object];
+let later: Later[] = [];
+const STR = `${Y}str`;
+// The engine's tag after a plain scalar that a tag would read only as a key.
+const KEY = "key";
 
 // Points `error` at `mark`, or at the span from there to `end` in the same
 // copy of the input, which holds no line break or byte order mark the parser
@@ -91,7 +114,6 @@ function report<T extends YAMLError>(error: T, mark: Pos | undefined, end?: numb
 // `reason` is yaml's code and message, from the table.
 function toError(reason: string, mark: Mark, code: number): Error {
   if (code === E.ALIAS_UNKNOWN) return new ReferenceError(reason);
-  if (code === E.MERGE_SOURCE) return new Error(reason);
   const space = reason.indexOf(" ");
   // `@` and `` ` `` are reserved, so a plain scalar starting with them has
   // its own code.
@@ -129,6 +151,22 @@ function here(code: ErrorCode, message: string, warning?: boolean, span?: Span):
   warnings.push(error);
 }
 
+// Where the plain scalar `text` the parser has just read is: it ends before
+// any white space the parser has passed. An empty one is where the parser is,
+// and an empty document's, read after the parser is done, nowhere.
+function plain(text: string): Span | undefined {
+  const mark = where();
+  if (!mark) return undefined;
+  const { buffer, position } = mark;
+  let end = position;
+  while (text && (buffer[end - 1] === " " || buffer[end - 1] === "\t")) end--;
+  return [end - text.length, end];
+}
+
+// How yaml writes a tag in its messages.
+const short = (tag: string) =>
+  tag.startsWith(Y) ? `!!${tag.slice(Y.length)}` : tag[0] === "!" ? tag : `!<${tag}>`;
+
 // yaml's guard against alias expansion, which it runs as it converts the
 // document, in order: each alias adds one to its anchor's count and weighs
 // that count times the anchor's weight, taken at its first alias that finds
@@ -142,18 +180,25 @@ interface Anchor {
   weight: number;
   // A scalar or pair in the node, outside its aliases and anchored collections.
   leaf: boolean;
-  // The anchors of the aliases, and the anchored collections, right in it.
-  aliases: Anchor[];
+  // The anchors of the aliases, with where each was read, and the anchored
+  // collections, right in it.
+  aliases: Read[];
   kids: Anchor[];
   parent: Anchor | undefined;
   // Its collection's depth while it's open.
   depth: number;
+  at: number;
 }
+type Read = [anchor: Anchor, at: number];
 
-function aliasCounter(max: number): [Engine["anchor"], () => string | undefined] {
+// Also returns how many aliases are read, and a function that forgets those
+// read after `from`, where a collection a tag discards starts.
+function aliasCounter(
+  max: number,
+): [Engine["anchor"], (upTo?: number) => string | undefined, () => number, (from: number) => void] {
   const anchors = new Map<string, Anchor>();
   const nodes = new Set<unknown>();
-  const read: Anchor[] = [];
+  const read: Read[] = [];
   let done = 0;
   let why: string | undefined;
   let open: Anchor | undefined;
@@ -165,15 +210,18 @@ function aliasCounter(max: number): [Engine["anchor"], () => string | undefined]
       : Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).length > 0;
   const weigh = (anchor: Anchor): number =>
     anchor.aliases.reduce(
-      (most, a) => Math.max(most, a.count * a.weight),
+      (most, [a]) => Math.max(most, a.count * a.weight),
       anchor.kids.reduce((most, a) => Math.max(most, weigh(a)), +anchor.leaf),
     );
-  const check = () => {
-    while (!why && done < read.length) {
-      const anchor = read[done++]!;
-      anchor.weight ||= weigh(anchor);
-      if (++anchor.count * anchor.weight > max)
-        why = "Excessive alias count indicates a resource exhaustion attack";
+  const check = (upTo = read.length) => {
+    while (!why && done < upTo) {
+      const [anchor] = read[done++]!;
+      if (!max) why = "Alias resolution is disabled";
+      else {
+        anchor.weight ||= weigh(anchor);
+        if (++anchor.count * anchor.weight > max)
+          why = "Excessive alias count indicates a resource exhaustion attack";
+      }
     }
     return why;
   };
@@ -182,10 +230,9 @@ function aliasCounter(max: number): [Engine["anchor"], () => string | undefined]
       ? undefined
       : (name, depth, value, starts) => {
           if (starts === undefined) {
-            if (!max) why ||= "Alias resolution is disabled";
-            const anchor = anchors.get(name)!;
-            read.push(anchor);
-            open?.aliases.push(anchor);
+            const r: Read = [anchors.get(name)!, at()];
+            read.push(r);
+            open?.aliases.push(r);
           } else if (!starts && open?.depth === depth + 1) {
             open.leaf = leafIn(value as object);
             open = open.parent;
@@ -198,6 +245,7 @@ function aliasCounter(max: number): [Engine["anchor"], () => string | undefined]
               kids: [],
               parent: open,
               depth,
+              at: at(),
             };
             anchors.set(name, anchor);
             if (starts) {
@@ -208,18 +256,59 @@ function aliasCounter(max: number): [Engine["anchor"], () => string | undefined]
           }
         },
     check,
+    () => read.length,
+    (from) => {
+      while (read.length > done && read.at(-1)![1] > from) read.pop();
+      if (open) {
+        open.aliases = open.aliases.filter((r) => r[1] <= from);
+        open.kids = open.kids.filter((a) => a.at <= from);
+      }
+    },
   ];
+}
+
+// The pairs yaml merges from `map`, which it converts to a JS Map: by key as
+// written, a later one taking an earlier one's value, and a merge adding the
+// keys not there yet.
+function entries(
+  map: object,
+  mergeable: (source: unknown) => boolean,
+  seen = new Set<object>(),
+): Iterable<[unknown, unknown]> {
+  const pairs = written.get(map);
+  if (!pairs) return Object.entries(map);
+  seen.add(map);
+  const out = new Map<unknown, unknown>();
+  for (const [key, value] of pairs)
+    if (key !== MERGE) out.set(key, value);
+    else
+      for (const source of Array.isArray(value) ? value : [value])
+        if (mergeable(source) && !seen.has(source))
+          for (const [k, v] of entries(source, mergeable, seen)) if (!out.has(k)) out.set(k, v);
+  return out;
 }
 
 // yaml merges a mapping by converting it to JS again, so what's in it is
 // copied, except for aliases and scalars, and each anchor in it names the
 // copy from then on. A node anchored after the mapping opened and before it
-// closed is in it; one anchored outside it is an alias.
-function merger(): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>, WeakSet<object>] {
+// closed is in it; one anchored outside it is an alias. `note` hears of each
+// alias in it, and of each anchored node it copies, and `reject` of each
+// source that isn't a mapping, which then merges nothing.
+function merger(
+  note: (value: object, copy?: object) => void,
+  reject: () => void,
+): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>, WeakSet<object>] {
   // When each anchored node opened and closed, and its anchor, which names
   // the node's latest copy.
   const nodes = new WeakMap<object, [number, number, { name: string; value: unknown }?]>();
   const scalars = new WeakSet<object>();
+  // yaml's !!omap is a sequence.
+  const mergeable = (source: unknown) =>
+    !!source &&
+    typeof source === "object" &&
+    !Array.isArray(source) &&
+    !scalars.has(source) &&
+    !(source instanceof Map);
   let clock = 0;
   return [
     (name, _, value, starts) => {
@@ -230,15 +319,26 @@ function merger(): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>,
         );
     },
     (source, anchors) => {
+      if (!mergeable(source)) {
+        reject();
+        return {};
+      }
       const [from, to] = nodes.get(source as object) ?? [];
-      if (from === undefined) return source;
+      if (from === undefined && !written.has(source as object)) return source;
       const copies = new Map<object, any>();
       const copy = (value: unknown): unknown => {
-        if (!value || typeof value !== "object" || scalars.has(value)) return value;
+        if (from === undefined || !value || typeof value !== "object" || scalars.has(value))
+          return value;
         const [, at, anchor] = nodes.get(value) ?? [];
-        if (anchor && !(at! > from && at! < to!)) return anchor.value;
+        if (anchor && !(at! > from && at! < to!)) {
+          note(anchor.value as object);
+          return anchor.value;
+        }
         let out = copies.get(value);
-        if (out) return out;
+        if (out) {
+          note(out);
+          return out;
+        }
         const set = value instanceof Set;
         const map = value instanceof Map;
         out = Array.isArray(value)
@@ -255,6 +355,7 @@ function merger(): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>,
         // hold aliases to it.
         if (anchor) {
           if (anchors.get(anchor.name) === anchor.value) anchors.set(anchor.name, out);
+          note(anchor.value as object, out);
           anchor.value = out;
           nodes.set(out, span);
         }
@@ -264,7 +365,13 @@ function merger(): [NonNullable<Engine["anchor"]>, NonNullable<Engine["merge"]>,
         span[1] = clock++;
         return out;
       };
-      return Object.fromEntries(Object.entries(source as object).map(([k, v]) => [k, copy(v)]));
+      // Where keys share a name, as 1 and "1" do, the first one wins.
+      const out = {};
+      for (const [k, v] of entries(source as object, mergeable)) {
+        const value = copy(v);
+        if (!Object.hasOwn(out, String(k))) define(out, String(k), value);
+      }
+      return out;
     },
     scalars,
   ];
@@ -285,40 +392,116 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
     options.merge,
   );
   const knownTags = resolveKnownTags ? known : [];
-  const flags: ParseFlags = options;
-  const [track, merge, scalars] = merger();
-  const resolve = (type: Tag, text: unknown, span?: Span): unknown => {
+  const c = options.compat;
+  const compat = c ? (Array.isArray(c) ? getTags(c, "compat") : getTags(null, c)) : undefined;
+  const max = options.maxAliasCount;
+  const limit = typeof max === "number" ? max : 100;
+  // Each anchored value and how many times it's used, for onAnchor, by the
+  // anchor's name and by the value. yaml counts uses only with a limit on
+  // them, and starts again for each anchored node a merge copies.
+  const uses: Use[] = [];
+  const named = new Map<string, Use>();
+  const used = new Map<unknown, Use>();
+  const use = (u: Use | undefined) => {
+    if (u && limit >= 0) u[1]++;
+  };
+  // Whether a mapping has `written` pairs yet, the last one that merges, and
+  // how many sources of its `<<` are left to merge.
+  let specials = false;
+  let merging: object | undefined;
+  let left = 0;
+  // A mapping's `written` pairs, which start as its entries so far.
+  const pairsOf = (map: object): Written[] => {
+    let pairs = written.get(map);
+    if (!pairs) {
+      specials = true;
+      written.set(map, (pairs = Object.entries(map).map(([k, v]): Written => [k, v, k])));
+    }
+    return pairs;
+  };
+  // The anchors of a plain scalar a tag may still read as a key.
+  let keyAnchors: string[] = [];
+  const [count, check, reads, drop] = aliasCounter(limit);
+  const [track, merge, scalars] = merger(
+    (value, copy) => {
+      const u = used.get(value);
+      if (!copy) use(u);
+      else if (u) used.set(copy, Object.assign(u, [copy, 1]));
+    },
+    () => later.push([new Error(MESSAGES[E.MERGE_SOURCE]), at(), reads(), merging]),
+  );
+  // yaml reports a tag's error on the tag, or on a plain scalar without one.
+  const resolve = (type: Tag, input: unknown, span?: Span): unknown => {
+    const onError = (message: string) =>
+      here("TAG_RESOLVE_FAILED", message, false, span ?? plain(input as string));
     let value: unknown;
     try {
-      value = type.resolve
-        ? type.resolve(text, (message) => here("TAG_RESOLVE_FAILED", message, false, span), flags)
-        : text;
+      value = type.resolve ? type.resolve(input, onError, options) : input;
     } catch (error) {
       if (error instanceof YAMLParseError) throw error;
-      here(
-        "TAG_RESOLVE_FAILED",
-        error instanceof Error ? error.message : String(error),
-        false,
-        span,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      if (!type.collection) onError(message);
+      // yaml reads an empty node with the tag where the collection was, and
+      // reports the error at the collection.
+      self.explicit(null, type.tag, "fallback", undefined, span);
+      const { buffer } = where();
+      const at = span![1] + /^(?:\s|#.*|&\S*)*/.exec(buffer.slice(span![1]))![0].length;
+      throw report(new YAMLParseError([0, 0], "RESOURCE_EXHAUSTION", message), {
+        buffer,
+        position: at,
+      });
     }
+    // A collection tag may return the node it was given, or nothing for it.
+    if (type.collection) value ??= input;
+    const node = value instanceof Scalar || value instanceof Collection;
+    if (node) value = (value as Scalar).toJSON();
     if (value === MERGE) {
       self.tag = MERGE_TAG;
       return "<<";
     }
-    if (value && typeof value === "object" && !type.collection) scalars.add(value);
+    // yaml's own collection tags give nodes. Another value is a scalar, and
+    // what the collection held is gone before yaml converts it: its anchors,
+    // aliases and merges count for nothing.
+    const kept = node || known.includes(type);
+    if (type.collection && !kept) {
+      const from = span![0];
+      const container = (input as Collection).toJSON();
+      for (let i = uses.length; i-- && uses[i]![3] > from;)
+        if (uses[i]![0] !== container) uses.splice(i, 1);
+      drop(from);
+      later = later.filter((l) => l[1] <= from);
+    }
+    // yaml's !!omap reads its mappings' pairs without merging them.
+    if (type === omap) {
+      const items = (input as Collection).toJSON() as unknown[];
+      later = later.filter((l) => !items.includes(l[3]));
+    }
+    if (value && typeof value === "object" && !(type.collection && kept)) scalars.add(value);
     return value;
   };
-  // The keys under each name in a mapping, where a key that isn't a string
-  // went: yaml tells scalar keys apart by their values, so 1 and "1", or null
-  // and "", go under one name, the last winning.
-  const typed = new WeakMap<object, Map<string, unknown[]>>();
+  // Warns when the compat schema reads the plain scalar `text` with another
+  // tag than `type`, and returns where the warning went, or -1.
+  const differs = (type: Tag | undefined, text: string, span?: Span): number => {
+    const a = type?.tag ?? STR;
+    const b = compat!.find((t) => t.default && t.test?.test(text))?.tag ?? STR;
+    if (a === b) return -1;
+    here(
+      "TAG_RESOLVE_FAILED",
+      `Value may be parsed as either ${short(a)} or ${short(b)}`,
+      true,
+      span,
+    );
+    return warnings.length - 1;
+  };
+  // A plain scalar a tag only reads as a key: the tag, the text, the compat
+  // warning given for it as a value, and where it is.
+  let pending: [Tag, string, number, Span | undefined] | undefined;
   // With a uniqueKeys function, every key in a mapping so far.
   const unique = options.uniqueKeys;
   const earlier = new WeakMap<object, { value: unknown }[]>();
-  const max = options.maxAliasCount;
-  const [count, check] = aliasCounter(typeof max === "number" ? max : 100);
   excess = check;
+  anchored = uses;
+  later = [];
   const self: Engine = {
     tag: "",
     messages: MESSAGES,
@@ -327,23 +510,59 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
     maxMergeKeys: -1,
     spec: true,
     anchor(name, depth, value, starts) {
-      if (starts === undefined && name.endsWith(":")) colon("Alias", where());
+      let u = named.get(name);
+      if (starts === undefined) {
+        if (name.endsWith(":")) colon("Alias", where());
+        // An alias as a key isn't the scalar read before it.
+        self.tag = "";
+        use(u);
+      } else {
+        // A collection's anchor comes again as it ends, with its value now.
+        if (starts || u?.[2] !== depth + 1) {
+          uses.push((u = [value, 1, starts ? depth : -1, at()]));
+          named.set(name, u);
+        }
+        used.set((u[0] = value), u);
+        if (self.tag === KEY) keyAnchors.push(name);
+      }
       count?.(name, depth, value, starts);
       track(name, depth, value, starts);
     },
-    merge,
-    duplicate(map, key, name) {
+    merge(source, anchors, map, value) {
+      if (!left--) {
+        pairsOf(map).push([MERGE, value, "<<"]);
+        left = (Array.isArray(value) ? value.length : 1) - 1;
+      }
+      merging = map;
+      return merge(source, anchors, map, value);
+    },
+    duplicate(map, key, name, value) {
+      // yaml tells scalar keys apart by their values, so 1 and "1", or null
+      // and "", go under one name, the last winning. Until a mapping has
+      // `written` pairs, its keys are strings with names of their own, none
+      // an array index.
+      const fresh = !Object.hasOwn(map, name);
+      let seen: unknown[] = [];
+      if (
+        (specials && written.has(map)) ||
+        !fresh ||
+        typeof key !== "string" ||
+        (key.charCodeAt(0) ^ 48) < 10
+      ) {
+        const pairs = pairsOf(map);
+        if (!fresh) {
+          for (const [k, , n] of pairs) if (n === name && k !== MERGE) seen.push(k);
+          // A key a merge copied in.
+          if (!seen.length) seen = [name];
+        }
+        pairs.push([key, value, name]);
+      }
       if (typeof unique === "function") {
         const keys = earlier.get(map) ?? [];
         const node = { value: key };
         earlier.set(map, keys);
         return keys.some((k) => unique(k, node)) || !keys.push(node);
       }
-      const fresh = !Object.hasOwn(map, name);
-      if (fresh && typeof key === "string") return false;
-      const names = typed.get(map) ?? new Map<string, unknown[]>();
-      const seen = names.get(name) ?? (fresh ? [] : [name]);
-      typed.set(map, names.set(name, [...seen, key]));
       // NaN is a key of its own. yaml's collection keys are too, but tinyaml
       // tells them apart only by how they're written out.
       return !!seen.length && (key === Object(key) || seen.indexOf(key) >= 0);
@@ -355,10 +574,35 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
         if (!node) return null;
         text = "";
       }
+      // The first tag that reads it, and one before that which would as a key.
+      let key: Tag | undefined;
       const type = tags.find(
-        (t) => (t.default === true || t.default === "key") && t.test?.test(text),
+        (t) => t.default && t.test?.test(text) && (t.default === true || !(key ??= t)),
       );
-      return type ? resolve(type, text) : text;
+      const span = compat ? plain(text) : undefined;
+      const warned = compat ? differs(type, text, span) : -1;
+      const value = type ? resolve(type, text) : text;
+      if (key) {
+        pending = [key, text, warned, span];
+        keyAnchors = [];
+        self.tag = KEY;
+      }
+      return value;
+    },
+    atKey(key, anchors) {
+      if (self.tag !== KEY) return key;
+      const [type, text, warned, span] = pending!;
+      self.tag = "";
+      if (warned >= 0) warnings.splice(warned, 1);
+      if (compat) differs(type, text, span);
+      const value = resolve(type, text);
+      // Its anchors name it as a key.
+      for (const name of keyAnchors) {
+        const u = named.get(name)!;
+        anchors.set(name, value);
+        used.set((u[0] = value), u);
+      }
+      return value;
     },
     explicit(value, name, kind, _, span) {
       if (kind === "sequence" || kind === "mapping") {
@@ -380,7 +624,7 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
             return value;
           }
         }
-        return resolve(found, value, span);
+        return resolve(found, toNode(value), span);
       }
       const text = (value ?? "") as string;
       const named = tags.filter((t) => !t.collection && t.tag === name);
@@ -389,15 +633,13 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
         named.find((t) => t.test!.test(text)) ??
         knownTags.find((t) => !t.collection && t.tag === name);
       if (found) return resolve(found, text, span);
-      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, name !== `${Y}str`, span);
+      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, name !== STR, span);
       return text;
     },
     key(key) {
       if (key === null) return "";
       if (typeof key !== "object") {
-        const text = String(key as string | number | boolean | bigint);
-        keys.set(text, key);
-        return text;
+        return String(key as string | number | boolean | bigint);
       }
       // Writing it out expands its aliases.
       counted();
@@ -451,17 +693,26 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
   const prettyErrors = options.prettyErrors;
   // yaml reads its own copy of the options over defaults, which an option
   // set to undefined still replaces.
-  options = { logLevel: "warn", version: "1.2", ...options };
+  options = {
+    intAsBigInt: false,
+    keepSourceTokens: false,
+    logLevel: "warn",
+    prettyErrors: true,
+    strict: true,
+    stringKeys: false,
+    uniqueKeys: true,
+    version: "1.2",
+    ...options,
+  };
   if ("reviver" in options) fn = options.reviver;
   const level = options.logLevel;
   // A custom tag may parse another document in the middle of this one.
-  const outer = [warnings, source, pretty, keyWarned, excess, [...keys]] as const;
+  const outer = [warnings, source, pretty, keyWarned, excess, anchored, later] as const;
   try {
     source = src;
     pretty = prettyErrors !== false;
     warnings = [];
     keyWarned = false;
-    keys.clear();
     excess = undefined;
     const directive = /^(?:[ \t]*(?:#.*)?\r?\n|%.*\r?\n)*%YAML[ \t]+(\S+)/.exec(src)?.[1];
     // Where yaml sees documents start. Unlike the shared parser, it counts an
@@ -486,19 +737,13 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
     try {
       // A %YAML directive yaml supports sets the version. Another one leaves
       // it to the option, or 1.2 when that's unset.
-      let version: unknown =
+      const version = checkVersion(
         directive === "1.1" || directive === "1.2"
           ? directive
           : directive
             ? options.version || "1.2"
-            : options.version;
-      if (typeof version === "number") version = String(version);
-      if (version !== "1.1" && version !== "1.2" && version !== "next")
-        throw new Error(
-          version === null
-            ? "With a null YAML version, the { schema: Schema } option is required"
-            : `Expected '1.1', '1.2' or null as first argument, but found: ${JSON.stringify(version)}`,
-        );
+            : options.version,
+      );
       const use = engine(options, version, directive);
       try {
         docs = parseDocs(src, use);
@@ -526,14 +771,20 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
       if (pretty) prettify(src, error);
       throw error;
     }
+    // yaml converts the document in order, counting aliases as it goes.
+    const first = later[0];
+    if (first) {
+      counted(first[2]);
+      throw first[0];
+    }
     if (keyWarned) emit(level, keyWarned);
     counted();
     const value = docs.length ? docs[0] : null;
+    const { onAnchor } = options;
+    if (typeof onAnchor === "function") for (const [res, count] of anchored) onAnchor(res, count);
     return fn ? revive(fn, { "": value }, "", value) : value;
   } finally {
-    [warnings, source, pretty, keyWarned, excess] = outer;
-    keys.clear();
-    for (const [key, value] of outer[5]) keys.set(key, value);
+    [warnings, source, pretty, keyWarned, excess, anchored, later] = outer;
   }
 }
 
@@ -541,7 +792,8 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
 function revive(fn: Reviver, holder: unknown, key: unknown, value: any): unknown {
   if (value && typeof value === "object") {
     if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) {
+      // Entries the reviver adds aren't visited.
+      for (let i = 0, length = value.length; i < length; i++) {
         const v0 = value[i];
         const v1 = revive(fn, value, String(i), v0);
         // oxlint-disable-next-line no-array-delete

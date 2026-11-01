@@ -7,7 +7,6 @@
 // Some lines yamljs takes are not YAML, such as `title: Foo: Bar`, `a: @x` or
 // a Windows path in double quotes. When the parser rejects the input, those
 // lines get quoted the way yamljs reads them and the parser tries again.
-import { DUPLICATE_KEY } from "../core/codes.ts";
 import { MESSAGES } from "../core/messages.ts";
 import { MERGE_TAG, parse as parseDocs, type Engine, type Mark } from "../core/parse.ts";
 
@@ -31,11 +30,9 @@ export class ParseException extends Error {
 // What the parser reports, before it becomes a ParseException.
 class Problem extends Error {
   declare mark: Mark;
-  declare code: number | undefined;
-  constructor(reason: string, mark: Mark, code?: number) {
+  constructor(reason: string, mark: Mark) {
     super(reason);
     this.mark = mark;
-    this.code = code;
   }
 }
 
@@ -99,6 +96,9 @@ function engine(exceptionOnInvalidType: unknown, objectDecoder: ObjectDecoder | 
     tag: "",
     messages: MESSAGES,
     lenient: true,
+    // yamljs keeps the first value of a key.
+    json: true,
+    first: true,
     maxDepth: Infinity,
     maxMergeKeys: -1,
     implicit(text) {
@@ -135,7 +135,7 @@ function engine(exceptionOnInvalidType: unknown, objectDecoder: ObjectDecoder | 
       return null;
     },
     key: String,
-    error: (reason, mark, code) => new Problem(reason, mark, code),
+    error: (reason, mark) => new Problem(reason, mark),
   };
   return self;
 }
@@ -155,54 +155,21 @@ export function parse(
   let text = input.replace(/\r\n?/g, "\n").replace(/^(?:%YAML[: ][\d.]+|#).*\n/gm, "");
   if (/^---.*\n/m.test(text)) text = text.replace(/^---.*\n/gm, "").replace(/^\.\.\.\s*$/gm, "");
   const use = engine(exceptionOnInvalidType, objectDecoder);
-  let first: Problem | undefined;
-  let quoted = false;
-  for (;;) {
+  try {
+    return parseDocs(text, use)[0] ?? null;
+  } catch (error) {
+    if (!(error instanceof Problem)) throw error;
     try {
-      return parseDocs(text, use)[0] ?? null;
-    } catch (error) {
-      if (!(error instanceof Problem)) throw error;
-      if (error.code === DUPLICATE_KEY) {
-        // yamljs keeps the first value of a key.
-        const next = dropEntry(text, error.mark.position);
-        if (next === undefined) use.json = true;
-        else text = next;
-      } else if (!quoted) {
-        first = error;
-        quoted = true;
-        text = requote(text);
-      } else {
-        const { message, mark } = first ?? error;
-        throw new ParseException(message, mark.line + 1, mark.buffer.split("\n")[mark.line]);
-      }
+      return parseDocs(requote(text), use)[0] ?? null;
+    } catch (again) {
+      if (!(again instanceof Problem)) throw again;
+      const { message, mark } = error;
+      throw new ParseException(message, mark.line + 1, mark.buffer.split("\n")[mark.line]);
     }
   }
 }
 
 const indentOf = (line: string) => line.length - line.trimStart().length;
-
-// Removes the block mapping entry whose key starts at `position`, with the
-// lines nested under it. Undefined when the key is inside a flow mapping.
-function dropEntry(text: string, position: number): string | undefined {
-  const start = text.lastIndexOf("\n", position - 1) + 1;
-  const column = position - start;
-  if (text.slice(start, position).trim()) return undefined;
-  const lines = text.slice(start).split("\n");
-  let end = 1;
-  for (; end < lines.length; end++) {
-    const line = lines[end]!;
-    const indent = indentOf(line);
-    const body = line.trim();
-    if (
-      body &&
-      body[0] !== "#" &&
-      indent <= column &&
-      !(indent === column && /^-(?: |$)/.test(body))
-    )
-      break;
-  }
-  return text.slice(0, start) + lines.slice(end).join("\n");
-}
 
 // yamljs's named escapes, each letter followed by its character.
 export const NAMED = "0\0a\x07b\bt\tn\nv\vf\fr\re\x1BN\x85_\xA0L\u2028P\u2029";
