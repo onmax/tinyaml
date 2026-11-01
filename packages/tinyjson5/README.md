@@ -2,7 +2,34 @@
   <img src="./.github/banner.svg" alt="tinyjson5" width="100%">
 </h1>
 
-tinyjson5 reads and writes JSON5 the way [json5](https://github.com/json5/json5) 2.2.3 does. It is 3.0 KB gzipped where json5 is 7.5 KB, has no dependencies, parses 8 to 9 times faster, and stringifies 1.3 to 4.8 times faster. I wrote it as a drop-in for json5 2.2.3, the version [confbox](https://github.com/unjs/confbox) bundles.
+<!-- automd:comark-badges name=tinyjson5 size=size-and-speed -->
+
+[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyjson5&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![size](https://comark-ui.onmax.me/badge.svg?label=size&value=3.0+KiB+gzip)](#size-and-speed)
+[![dependencies](https://comark-ui.onmax.me/badge.svg?label=dependencies&value=0)](https://www.npmjs.com/package/tinyjson5?activeTab=dependencies)
+[![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
+[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
+
+<!-- /automd -->
+
+**JSON5 for JavaScript in 3.0 KiB.** No dependencies, reads and writes JSON5 the way [json5](https://github.com/json5/json5) 2.2.3 does, and passes all 160 of json5's own test assertions.
+
+Already on json5? Change one import and keep your code:
+
+```diff
+- import JSON5 from "json5";
++ import JSON5 from "tinyjson5";
+```
+
+<!-- automd:drop-ins package=tinyjson5 -->
+
+| You use     | Switch to   |    Size, gzip |      Parses | Stringifies |
+| ----------- | ----------- | ------------: | ----------: | ----------: |
+| json5 2.2.3 | `tinyjson5` | 7.5 → 3.0 KiB | 8.1× faster | 4.8× faster |
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
+
+<!-- /automd -->
 
 [Get started](#get-started) · [Coming from json5](#coming-from-json5) · [Compatibility](#compatibility-with-json5-223) · [Size and speed](#size-and-speed)
 

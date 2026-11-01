@@ -10,6 +10,8 @@ publicHoistPattern:
 allowBuilds:
   # esbuild's binary comes from its platform package; the postinstall only checks it.
   esbuild: false
+  # automd only needs @parcel/watcher for --watch, which the scripts don't use.
+  "@parcel/watcher": false
   # ViteHub's optional dependencies (zstd, swc, cbor-extract, cpu-features, liblzma, ssh2) are not used by the docs.
   "@mongodb-js/zstd": false
   "@swc/core": false

@@ -2,21 +2,72 @@
   <img src="./.github/assets/banner.svg" alt="tiny" width="100%">
 </h1>
 
-Smaller, faster, dependency-free parsers you can drop in for the libraries you already use. Change one import and keep your code. Each package matches its original on that library's own tests and on tens of thousands to millions of fuzzed inputs, and lists every place it still differs.
+<!-- automd:comark-badges packages=tinyaml,tinyjson5,tinyini -->
 
-![Each drop-in next to the library it replaces: times smaller, gzip, and times faster at parsing](./.github/assets/drop-ins.svg)
+[![tinyaml](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=tinyaml&icon=npm)](https://www.npmjs.com/package/tinyaml)
+[![tinyjson5](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyjson5&label=tinyjson5&icon=npm)](https://www.npmjs.com/package/tinyjson5)
+[![tinyini](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyini&label=tinyini&icon=npm)](https://www.npmjs.com/package/tinyini)
+[![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
+[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
-- **[tinyaml](./packages/tinyaml)** replaces js-yaml 4 and 5, yaml, yamljs and @std/yaml.
-- **[tinyjson5](./packages/tinyjson5)** replaces json5 2.2.3.
-- **[tinyini](./packages/tinyini)** replaces ini 7.0.0. It's faster, not smaller.
+<!-- /automd -->
 
-Docs: [tiny.onmax.me](https://tiny.onmax.me)
+Smaller, faster, dependency-free parsers you can drop in for the libraries you already use. Change one import and keep your code.
+
+[Packages](#packages) · [Switching](#switching) · [Size and speed](#size-and-speed) · [Docs](https://tiny.onmax.me)
+
+## Packages
+
+| Package | Reads and writes | Replaces |
+| --- | --- | --- |
+| [tinyaml](./packages/tinyaml) | YAML | js-yaml 4 and 5, yaml, yamljs, @std/yaml |
+| [tinyjson5](./packages/tinyjson5) | JSON5 | json5 2.2.3 |
+| [tinyini](./packages/tinyini) | INI | ini 7.0.0 |
+
+Each package is published on its own, so install only the ones you use:
 
 ```sh
 pnpm add tinyaml tinyjson5 tinyini
 ```
 
-Each package is published on its own, so install only the ones you use. Each README says how its numbers were measured.
+## Switching
+
+Change the import. The calls, options, output and errors stay the same.
+
+```diff
+- import yaml from "js-yaml";
++ import yaml from "tinyaml/js-yaml";
+
+- import JSON5 from "json5";
++ import JSON5 from "tinyjson5";
+
+- import ini from "ini";
++ import ini from "tinyini";
+```
+
+Each package matches its original on that library's own tests and on tens of thousands to millions of fuzzed inputs, and lists every place it still differs.
+
+## Size and speed
+
+<!-- automd:drop-ins -->
+
+| You use     | Switch to            |      Size, gzip |       Parses | Stringifies |
+| ----------- | -------------------- | --------------: | -----------: | ----------: |
+| js-yaml 4   | `tinyaml/js-yaml`    | 14.4 → 11.9 KiB |  1.5× faster | 1.6× faster |
+| js-yaml 5   | `tinyaml/js-yaml-v5` | 17.1 → 16.2 KiB |  1.5× faster | 1.8× faster |
+| yaml        | `tinyaml/yaml`       | 29.9 → 17.1 KiB | 12.6× faster | 2.8× faster |
+| yamljs      | `tinyaml/yamljs`     |   8.8 → 8.6 KiB |  5.0× faster | 1.1× faster |
+| @std/yaml   | `tinyaml/std`        | 11.3 → 11.0 KiB |  2.0× faster | 1.6× faster |
+| json5 2.2.3 | `tinyjson5`          |   7.5 → 3.0 KiB |  8.1× faster | 4.8× faster |
+| ini 7.0.0   | `tinyini`            |   1.6 → 1.6 KiB |  2.0× faster | 2.9× faster |
+
+Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.1 KiB, 1.8× smaller than js-yaml 4 and 3.7× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify each package's large benchmark file. Measured on Apple M4, Node 26.13.
+
+<!-- /automd -->
+
+tinyini is as small as ini already is, so it only wins on speed. Each package's README has the full results and the inputs they come from.
 
 ## Develop
 
@@ -28,7 +79,8 @@ pnpm build    # every package
 pnpm check    # format, lint and typecheck every package
 pnpm test     # every package's tests
 pnpm fixtures # download what the comparisons and benchmarks run against
-pnpm charts   # fetch fixtures, measure every package again, redraw .github/assets/drop-ins.svg
+pnpm drop-ins # fetch fixtures, measure every package again into .github/drop-ins.json, then pnpm readme
+pnpm readme   # rewrite the badges and drop-in tables in every README with automd
 pnpm brand    # redraw the logo, favicon and banners from .github/scripts/brand.ts
 ```
 
