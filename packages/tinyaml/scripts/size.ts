@@ -34,25 +34,36 @@ const entries: [string, string][] = [
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
-  tinyaml: 8375,
-  "tinyaml/js-yaml": 12255,
-  "tinyaml/js-yaml-v5": 16695,
-  "tinyaml/yaml": 17660,
-  "tinyaml/yamljs": 8875,
-  "tinyaml/std": 11335,
+  tinyaml: 8135,
+  "tinyaml/js-yaml": 12055,
+  "tinyaml/js-yaml-v5": 16350,
+  "tinyaml/yaml": 17180,
+  "tinyaml/yamljs": 8275,
+  "tinyaml/std": 11010,
 };
 
-// Code that only one mode's parser has, as it reads once minified. Each must
-// show up in its own mode's entries, so a marker that goes stale fails
-// too, and in no other.
-const MARKERS: Record<keyof typeof MODES, (string | RegExp)[]> = {
-  // yaml rejects a verbatim tag with a space in it.
-  spec: [/\/\\s\/\.test\([\w$]+\.tag\)/],
-  // js-yaml 4's checks for blank lines, after a tab and in a block scalar.
-  lenient: ["/^[\\t ]*$/", "(?:\\n|$)/"],
+// Code that only some modes' parsers have, as it reads once minified. Each
+// must show up in the entries of each mode that lists it, so a marker that
+// goes stale fails too, and in no other.
+// js-yaml 4's check for a blank line after a tab, which every `lenient` mode keeps.
+const BLANK = "/^[\\t ]*$/";
+// js-yaml's check for the line that ends a block scalar, by the lines it's on.
+const LINES = "(?:#|\\n|$)/";
+// The cap on the mappings a `<<` merges.
+const MERGE_SIZE = ">100";
+const MARKERS: Record<keyof typeof MODES, string[]> = {
+  // tinyaml's own check of a verbatim tag.
+  spec: [".verbatim("],
+  // The hooks only yaml's engine sets.
+  yaml: [".atKey(", ".duplicate("],
+  "js-yaml": [BLANK, LINES, MERGE_SIZE],
+  std: [BLANK, LINES],
+  // yamljs's check for the line that ends a block scalar, which reads on.
+  yamljs: [BLANK, "(?:\\n|$)/"],
   // js-yaml 5's engine hooks, which no other engine sets.
-  js5: [".alias?.(", ".bom", ".allKeys"],
+  js5: [".alias?.(", ".bom", ".allKeys", MERGE_SIZE],
 };
+const ALL_MARKERS = new Set(Object.values(MARKERS).flat());
 const modeOf = (entry: string) =>
   Object.keys(MODES).find((mode) => entry in MODES[mode as keyof typeof MODES]) as
     | keyof typeof MODES
@@ -97,14 +108,13 @@ for (const [name, source] of entries) {
   const own = modeOf(source);
   if (!own) problems.push(`${name} is in no mode's build in vite.config.ts`);
   const text = new TextDecoder().decode(code);
-  for (const [mode, markers] of Object.entries(MARKERS))
-    for (const marker of markers) {
-      const found = typeof marker === "string" ? text.includes(marker) : marker.test(text);
-      if (found !== (mode === own))
-        problems.push(
-          `${name} ${found ? "holds" : "lacks"} ${mode} parser code: ${String(marker)}`,
-        );
-    }
+  for (const marker of ALL_MARKERS) {
+    const found = text.includes(marker);
+    if (found !== (!!own && MARKERS[own].includes(marker)))
+      problems.push(
+        `${name} ${found ? "holds another mode's" : `lacks its ${own} mode's`} parser code: ${marker}`,
+      );
+  }
 }
 if (process.argv.includes("--json")) console.log(JSON.stringify(json, null, 2));
 for (const problem of problems) console.error(problem);

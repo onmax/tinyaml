@@ -13,9 +13,9 @@ export interface StringifyOptions {
   sortKeys?: boolean | ((a: string, b: string) => number);
 }
 
-const NS = "[\\x21-\\x7E\\x85\\xA0-\\uD7FF\\uE000-\\uFEFE\\uFF00-\\uFFFD\\u{10000}-\\u{10FFFF}]";
-const PLAIN_CHAR = `(?:(?![:#])${NS}|:(?=${NS}))#*`;
-const PLAIN_LINE = `(?:(?![-?:,\\[\\]{}#&*!|>'"%@\`])${NS}|[?:-](?=${NS}))#*(?:[ \\t]*${PLAIN_CHAR})*`;
+const NS = /[\x21-\x7E\x85\xA0-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD\u{10000}-\u{10FFFF}]/u.source;
+const PLAIN_CHAR = String.raw`(?:(?![:#])${NS}|:(?=${NS}))#*`;
+const PLAIN_LINE = String.raw`(?:(?![-?:,\[\]{}#&*!|>'"%@\x60])${NS}|[?:-](?=${NS}))#*(?:[ \t]*${PLAIN_CHAR})*`;
 // Multi-line strings never reach the plain check, so one line is enough.
 const PLAIN = new RegExp(`^${PLAIN_LINE}$`, "u");
 const SINGLE = /^[\t\x20-\uD7FF\uE000-\uFFFF\u{10000}-\u{10FFFF}]*$/u;
@@ -28,10 +28,9 @@ const ESCAPE = /["\\\x00-\x1F\x7F-\xA0\u2028\u2029\uD800-\uDFFF\uFEFF\uFFFE\uFFF
 // that don't exist included.
 const NULL_OR_BOOL =
   /^(?:~|null|Null|NULL|[yYnN]|yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF|<<)?$/;
+// Numbers in any base or sexagesimal (`1:30`), with `_` anywhere, and `.inf` and `.nan`.
 const NUMBER =
-  /^[-+]?(?:0b[01_]+|0o[0-7_]+|0x[\da-fA-F_]+|(?=[\d.eE])(?:\d[\d_]*)?(?:\.[\d_]*)?(?:[eE][-+]?\d+)?)$/;
-const SEXAGESIMAL = /^[-+]?\d[\d_]*(?::[0-5]?\d)+(?:\.[\d_]*)?$/;
-const SPECIAL_FLOAT = /^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/;
+  /^(?:[-+]?(?:0b[01_]+|0o[0-7_]+|0x[\da-fA-F_]+|(?=[\d.eE])(?:\d[\d_]*)?(?:\.[\d_]*)?(?:[eE][-+]?\d+)?|\d[\d_]*(?::[0-5]?\d)+(?:\.[\d_]*)?|\.(?:inf|Inf|INF))|\.(?:nan|NaN|NAN))$/;
 const DATE =
   /^\d{4}-\d\d?-\d\d?(?:(?:[Tt]|[ \t]+)\d\d?:\d\d?:\d\d?(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d\d?(?::\d\d)?))?)?$/;
 // Printable ASCII from a letter to anything but `:` is plain, unless it reads
@@ -197,7 +196,7 @@ function isAmbiguous(text: string): boolean {
   const ch = text.charCodeAt(0);
   if (ch !== 43 && ch !== 45 && ch !== 46 && (ch < 48 || ch > 57) && (ch | 32) !== 101)
     return false;
-  return NUMBER.test(text) || SPECIAL_FLOAT.test(text) || SEXAGESIMAL.test(text) || DATE.test(text);
+  return NUMBER.test(text) || DATE.test(text);
 }
 
 function writeString(text: string, level: number, isKey: boolean, flow: boolean): string {

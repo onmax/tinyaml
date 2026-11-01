@@ -1,6 +1,7 @@
 // @std/yaml's `stringify`, byte for byte. Its style rules are js-yaml 3's:
 // `:` and `#` anywhere, or a flow indicator, rule out plain style, and
 // tagged values are written as `!<tag> value`.
+import { COMPAT, fold } from "../shared/fold.ts";
 import { maybeTyped, schemaOf, Y, type StdType } from "./types.ts";
 import type { SchemaType } from "./parse.ts";
 
@@ -46,7 +47,6 @@ const UNPRINTABLE =
   /[^\x20-\x7E\xA1-\u2027\u202A-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD\u{10000}-\u{10FFFF}]/u;
 const ESCAPE = /["\\]|[^\x20-\x7E\xA1-\u2027\u202A-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD]/gu;
 const ESCAPED = '\0\x07\b\t\n\v\f\r\x1B"\\\x85\xA0\u2028\u2029';
-const COMPAT = /^(?:[yYnN]|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF)$/;
 const isObject = (value: unknown): value is any => value !== null && typeof value === "object";
 
 const double = (s: string) =>
@@ -56,42 +56,6 @@ const double = (s: string) =>
     const size = n < 256 ? 2 : n < 65536 ? 4 : 8;
     return `\\${i < 0 ? "_xu_U"[size >> 1] + n.toString(16).toUpperCase().padStart(size, "0") : '0abtnvfre"\\N_LP'[i]}`;
   })}"`;
-
-// Greedy: the longest piece within width, else the shortest one over it.
-// Breaks never leave a line starting with a space, which would read as more-indented.
-function foldLine(line: string, width: number): string {
-  if (!line || line[0] === " ") return line;
-  let start = 0;
-  let curr = 0;
-  let result = "";
-  for (const { index } of line.matchAll(/ [^ ]/g)) {
-    if (index - start > width) {
-      const end = curr > start ? curr : index;
-      result += `${line.slice(start, end)}\n`;
-      start = end + 1;
-    }
-    curr = index;
-  }
-  return (
-    result +
-    (line.length - start > width && curr > start
-      ? `${line.slice(start, curr)}\n${line.slice(curr + 1)}`
-      : line.slice(start))
-  );
-}
-
-// In folded style k line breaks read back as k-1, except next to more-indented
-// lines and at the start, so those get no extra break.
-function fold(s: string, width: number): string {
-  let prevMore = /^[\n ]/.test(s);
-  return s.replace(/(\n+|^)([^\n]*)/g, (_, breaks: string, line: string) => {
-    const more = line[0] === " ";
-    const result =
-      breaks + (breaks && !prevMore && !more && line ? "\n" : "") + foldLine(line, width);
-    prevMore = more;
-    return result;
-  });
-}
 
 // std visits breadth first and numbers objects in the order it sees them twice.
 function duplicates(root: unknown): unknown[] {
@@ -171,20 +135,17 @@ export function stringify(data: unknown, options: StringifyOptions = {}): string
     return `${folded ? ">" : "|"}${lead ? indent : ""}${chomp}\n${body.replace(/\n$/, "")}`;
   };
 
-  const sequence = (array: unknown[], level: number, block: boolean, compact: boolean) => {
+  // A collection's items, each as its style writes it.
+  const sequence = (array: unknown[], level: number, block: boolean) => {
     const items: string[] = [];
     for (const value of array) {
       const out = node(value, block ? level + 1 : level, block, block, false);
       if (out !== null) items.push(block ? (out[0] === "\n" ? "-" : "- ") + out : out);
     }
-    return !block
-      ? `[${items.join(condenseFlow ? "," : ", ")}]`
-      : items.length
-        ? (compact ? "" : pad(level)) + items.join(pad(level))
-        : "[]";
+    return items;
   };
 
-  const mapping = (object: any, level: number, block: boolean, compact: boolean) => {
+  const mapping = (object: any, level: number, block: boolean) => {
     const keys = block ? Object.keys(object) : null;
     if (keys)
       if (sortKeys === true) keys.sort();
@@ -211,11 +172,7 @@ export function stringify(data: unknown, options: StringifyOptions = {}): string
             : `${explicit ? "? " : ""}${k}: ${v}`,
       );
     }
-    return !block
-      ? `{${items.join(", ")}}`
-      : items.length
-        ? (compact ? "" : pad(level)) + items.join(pad(level))
-        : "{}";
+    return items;
   };
 
   const node = (
@@ -253,7 +210,13 @@ export function stringify(data: unknown, options: StringifyOptions = {}): string
     const isArray = Array.isArray(value);
     if (isArray && !arrayIndent && level > 0) level--;
     block &&= (isArray ? value : Object.keys(value)).length !== 0;
-    const out = (isArray ? sequence : mapping)(value, level, block, compact);
+    const items = (isArray ? sequence : mapping)(value, level, block);
+    const brackets = isArray ? "[]" : "{}";
+    const out = !block
+      ? brackets[0] + items.join(isArray && condenseFlow ? "," : ", ") + brackets[1]
+      : items.length
+        ? (compact ? "" : pad(level)) + items.join(pad(level))
+        : brackets;
     return ref < 0 ? out : `&ref_${ref}${block ? "" : " "}${out}`;
   };
 

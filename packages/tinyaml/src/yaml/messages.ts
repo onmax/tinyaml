@@ -2,7 +2,9 @@
 // message, which is js-yaml 4's where yaml's own wording isn't copied. An
 // unidentified alias and a bad merge source are other errors, so they have
 // no code. Directive warnings are worded where they're raised, from the
-// directive's name, and so is the one about an anchor. See core/codes.ts.
+// directive's name, and so is the one about an anchor. A code only js-yaml
+// raises, such as the size of a merge sequence, has an empty line. See
+// core/codes.ts.
 export const MESSAGES = `
 MISSING_CHAR comments must be separated from other tokens by white space characters
 UNEXPECTED_TOKEN end of line expected
@@ -39,7 +41,7 @@ TAB_AS_INDENT Tabs are not allowed as indentation
 ALIAS_PROPS An alias node must not specify any properties
 
 Unresolved alias (the anchor must be set before the alias): %s
-UNEXPECTED_TOKEN abnormal merge sequence size
+
 Merge sources must be maps or map aliases
 DUPLICATE_KEY Map keys must be unique
 

@@ -326,9 +326,7 @@ const json = [
   str,
   tag("null", /^null$/, () => null),
   tag("bool", /^true$|^false$/, (s) => s === "true"),
-  tag("int", /^-?(?:0|[1-9][0-9]*)$/, (s: string, _, { intAsBigInt }) =>
-    intAsBigInt ? BigInt(s) : parseInt(s, 10),
-  ),
+  int(/^-?(?:0|[1-9][0-9]*)$/, 0, 10),
   float(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]*)?(?:[eE][-+]?[0-9]+)?$/),
   {
     tag: "",
@@ -394,8 +392,22 @@ const byName = {
   timestamp,
 };
 
-/** A version yaml takes, as a string; throws for others. */
-export function checkVersion(version: unknown): "1.1" | "1.2" | "next" {
+export type CustomTags = Tags | ((tags: Tags) => Tags) | null;
+
+// The tags of the schema `options` name, whose default their version sets,
+// those of their `compat` schema, and whether to resolve the known tags. yaml
+// reads the options over its version's defaults, which take them even when
+// undefined. Throws for a version yaml doesn't take.
+export function schemaOf(
+  options: {
+    schema?: unknown;
+    customTags?: CustomTags;
+    merge?: boolean;
+    compat?: string | Tags | null;
+    resolveKnownTags?: boolean;
+  },
+  version: unknown,
+): [tags: Tag[], compat: Tag[] | undefined, known?: boolean] {
   if (typeof version === "number") version = String(version);
   if (version !== "1.1" && version !== "1.2" && version !== "next")
     throw new Error(
@@ -403,14 +415,26 @@ export function checkVersion(version: unknown): "1.1" | "1.2" | "next" {
         ? "With a null YAML version, the { schema: Schema } option is required"
         : `Expected '1.1', '1.2' or null as first argument, but found: ${JSON.stringify(version)}`,
     );
-  return version;
+  const v11 = version === "1.1";
+  const { schema, compat, resolveKnownTags } = {
+    schema: v11 ? "yaml-1.1" : "core",
+    resolveKnownTags: !v11,
+    ...options,
+  };
+  return [
+    getTags(options.customTags, (typeof schema === "string" && schema) || "core", options.merge),
+    compat
+      ? Array.isArray(compat)
+        ? getTags(compat, "compat")
+        : getTags(null, compat)
+      : undefined,
+    resolveKnownTags,
+  ];
 }
-
-export type CustomTags = Tags | ((tags: Tags) => Tags) | null;
 
 // yaml's getTags: the named schema's tags, plus or rewritten by `custom`,
 // plus the merge tag when asked for.
-export function getTags(custom: CustomTags | undefined, name: string, addMerge?: boolean): Tag[] {
+function getTags(custom: CustomTags | undefined, name: string, addMerge?: boolean): Tag[] {
   let tags: (Tag | string)[] | undefined = schemas[name]?.slice();
   if (tags && !custom)
     return (addMerge && !tags.includes(merge) ? [...tags, merge] : tags) as Tag[];

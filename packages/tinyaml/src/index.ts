@@ -61,10 +61,8 @@ function engine(options: ParseOptions): Engine {
     tag: "",
     messages: MESSAGES,
     spec: true,
-    printable: true,
     json: options.duplicateKeys,
     maxDepth: options.maxDepth,
-    overflow: true,
     verbatim(tag) {
       if (tag === "!" || !TAG.test(tag)) fail(`bad verbatim tag !<${tag}>`);
     },

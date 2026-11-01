@@ -5,10 +5,10 @@ import * as E from "../core/codes.ts";
 import {
   at,
   define,
-  fail,
   MERGE_TAG,
   original,
   parse as parseDocs,
+  where,
   type Engine,
   type Mark,
 } from "../core/parse.ts";
@@ -16,13 +16,12 @@ import { prettify, YAMLParseError, YAMLWarning, type ErrorCode, type YAMLError }
 import { MESSAGES } from "./messages.ts";
 import { stringifyKey } from "./stringify.ts";
 import {
-  checkVersion,
   Collection,
-  getTags,
   known,
   MERGE,
   omap,
   Scalar,
+  schemaOf,
   toNode,
   written,
   Y,
@@ -94,10 +93,17 @@ const STR = `${Y}str`;
 // The engine's tag after a plain scalar that a tag would read only as a key.
 const KEY = "key";
 
-// Points `error` at `mark`, or at the span from there to `end` in the same
-// copy of the input, which holds no line break or byte order mark the parser
-// dropped.
-function report<T extends YAMLError>(error: T, mark: Pos | undefined, end?: number): T {
+// A YAMLParseError, or a YAMLWarning added to the warnings, pointed at
+// `mark`, or at the span from there to `end` in the same copy of the input,
+// which holds no line break or byte order mark the parser dropped.
+function report(
+  warning: boolean | undefined,
+  code: ErrorCode,
+  message: string,
+  mark?: Pos,
+  end?: number,
+): YAMLError {
+  const error = new (warning ? YAMLWarning : YAMLParseError)([0, 0], code, message);
   if (mark) {
     let from = original(source, mark);
     let to = from + 1;
@@ -108,6 +114,7 @@ function report<T extends YAMLError>(error: T, mark: Pos | undefined, end?: numb
     error.pos = [from, to];
     if (pretty) prettify(source, error);
   }
+  if (warning) warnings.push(error);
   return error;
 }
 
@@ -121,34 +128,22 @@ function toError(reason: string, mark: Mark, code: number): Error {
     code === E.UNEXPECTED_CHAR && /"[@`]"$/.test(reason)
       ? "BAD_SCALAR_START"
       : (reason.slice(0, space) as ErrorCode);
-  return report(new YAMLParseError([0, 0], name, reason.slice(space + 1)), mark);
-}
-
-// Where the parser is now, from inside the engine, which isn't handed a mark.
-function where(): Mark {
-  try {
-    fail("");
-  } catch (error) {
-    return (error as { mark: Mark }).mark;
-  }
+  return report(false, name, reason.slice(space + 1), mark);
 }
 
 // yaml warns about an anchor or alias name ending in `:` at the colon, which
 // the parser has just read.
 function colon(kind: string, { buffer, position }: Pos): void {
-  const warning = new YAMLWarning([0, 0], "BAD_ALIAS", `${kind} ending in : is ambiguous`);
-  warnings.push(report(warning, { buffer, position: position - 1 }));
+  report(true, "BAD_ALIAS", `${kind} ending in : is ambiguous`, { buffer, position: position - 1 });
 }
 
 // A warning or an error raised from inside the engine: on the tag at `span`,
 // else where the parser is now.
 function here(code: ErrorCode, message: string, warning?: boolean, span?: Span): void {
   const mark = where();
-  const at = span && { buffer: mark.buffer, position: span[0] };
-  const error = new (warning ? YAMLWarning : YAMLParseError)([0, 0], code, message);
-  report(error, at ?? mark, span?.[1]);
+  const at = span && { buffer: mark!.buffer, position: span[0] };
+  const error = report(warning, code, message, at ?? mark, span?.[1]);
   if (!warning) throw error;
-  warnings.push(error);
 }
 
 // Where the plain scalar `text` the parser has just read is: it ends before
@@ -330,11 +325,8 @@ function merger(
         if (from === undefined || !value || typeof value !== "object" || scalars.has(value))
           return value;
         const [, at, anchor] = nodes.get(value) ?? [];
-        if (anchor && !(at! > from && at! < to!)) {
-          note(anchor.value as object);
-          return anchor.value;
-        }
-        let out = copies.get(value);
+        // An alias, or what's copied already.
+        let out = anchor && !(at! > from && at! < to!) ? anchor.value : copies.get(value);
         if (out) {
           note(out);
           return out;
@@ -377,23 +369,9 @@ function merger(
   ];
 }
 
-function engine(options: ParseOptions, version: string, directive?: string): Engine {
-  const v11 = version === "1.1";
-  // yaml reads the schema options over its version's defaults, which take
-  // them even when undefined.
-  const { schema, resolveKnownTags } = {
-    schema: v11 ? "yaml-1.1" : "core",
-    resolveKnownTags: !v11,
-    ...options,
-  };
-  const tags = getTags(
-    options.customTags,
-    (typeof schema === "string" && schema) || "core",
-    options.merge,
-  );
+function engine(options: ParseOptions, version: unknown, directive?: string): Engine {
+  const [tags, compat, resolveKnownTags] = schemaOf(options, version);
   const knownTags = resolveKnownTags ? known : [];
-  const c = options.compat;
-  const compat = c ? (Array.isArray(c) ? getTags(c, "compat") : getTags(null, c)) : undefined;
   const max = options.maxAliasCount;
   const limit = typeof max === "number" ? max : 100;
   // Each anchored value and how many times it's used, for onAnchor, by the
@@ -452,12 +430,9 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       // yaml reads an empty node with the tag where the collection was, and
       // reports the error at the collection.
       self.explicit(null, type.tag, "fallback", undefined, span);
-      const { buffer } = where();
+      const { buffer } = where()!;
       const at = span![1] + /^(?:\s|#.*|&\S*)*/.exec(buffer.slice(span![1]))![0].length;
-      throw report(new YAMLParseError([0, 0], "RESOURCE_EXHAUSTION", message), {
-        buffer,
-        position: at,
-      });
+      throw report(false, "RESOURCE_EXHAUSTION", message, { buffer, position: at });
     }
     // A collection tag may return the node it was given, or nothing for it.
     if (type.collection) value ??= input;
@@ -514,14 +489,15 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
   const self: Engine = {
     tag: "",
     messages: MESSAGES,
-    json: options.uniqueKeys === false,
+    json: unique === false,
     maxDepth: Infinity,
     maxMergeKeys: -1,
     spec: true,
+    yaml: true,
     anchor(name, depth, value, starts) {
       let u = named.get(name);
       if (starts === undefined) {
-        if (name.endsWith(":")) colon("Alias", where());
+        if (name.endsWith(":")) colon("Alias", where()!);
         // An alias as a key isn't the scalar read before it.
         self.tag = "";
         use(u);
@@ -622,36 +598,34 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       return value;
     },
     explicit(value, name, kind, _, span) {
-      if (kind === "sequence" || kind === "mapping") {
-        const type = kind === "sequence" ? "seq" : "map";
+      const type = kind === "sequence" ? "seq" : kind === "mapping" ? "map" : "";
+      if (type) {
         if (name === Y + type) return value;
-        let found = tags.find((t) => t.tag === name && t.collection === type);
-        if (!found) {
-          const kt = knownTags.find((t) => t.tag === name);
-          if (kt?.collection === type) found = kt;
-          else {
-            if (kt)
-              here(
-                "BAD_COLLECTION_TYPE",
-                `${name} used for ${type} collection, but expects ${kt.collection ?? "scalar"}`,
-                true,
-                span,
-              );
-            else here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, true, span);
-            return value;
-          }
+        const kt = knownTags.find((t) => t.tag === name);
+        const found =
+          tags.find((t) => t.tag === name && t.collection === type) ??
+          (kt?.collection === type ? kt : undefined);
+        if (found) return resolve(found, toNode(value), span);
+        if (kt) {
+          here(
+            "BAD_COLLECTION_TYPE",
+            `${name} used for ${type} collection, but expects ${kt.collection ?? "scalar"}`,
+            true,
+            span,
+          );
+          return value;
         }
-        return resolve(found, toNode(value), span);
+      } else {
+        value ??= "";
+        const named = tags.filter((t) => !t.collection && t.tag === name);
+        const found =
+          named.find((t) => !(t.default && t.test)) ??
+          named.find((t) => t.test!.test(value as string)) ??
+          knownTags.find((t) => !t.collection && t.tag === name);
+        if (found) return resolve(found, value, span);
       }
-      const text = (value ?? "") as string;
-      const named = tags.filter((t) => !t.collection && t.tag === name);
-      const found =
-        named.find((t) => !(t.default && t.test)) ??
-        named.find((t) => t.test!.test(text)) ??
-        knownTags.find((t) => !t.collection && t.tag === name);
-      if (found) return resolve(found, text, span);
-      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, name !== STR, span);
-      return text;
+      here("TAG_RESOLVE_FAILED", `Unresolved tag: ${name}`, !!type || name !== STR, span);
+      return value;
     },
     key(key) {
       if (key === null) return "";
@@ -668,9 +642,7 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       }
       return text;
     },
-    // The engine's own reason is empty, from `here`, which only wants the position.
-    error: (reason, mark, code) =>
-      code === undefined ? ({ mark } as never) : toError(reason, mark, code),
+    error: (reason, mark, code) => toError(reason, mark, code!),
     // The table words an unknown directive as its name. yaml points from the
     // start of the directive's line, or 6 characters in for the version, to
     // the end of what's before its comment, which the parser has passed.
@@ -684,7 +656,7 @@ function engine(options: ParseOptions, version: string, directive?: string): Eng
       const start = buffer.lastIndexOf("\n", position - 2) + 1;
       const end = start + /^[^\n]*?(?=[ \t]*(?:[ \t]#|\n))/.exec(buffer.slice(start))![0].length;
       const at = { buffer, position: start + (version ? 6 : 0) };
-      warnings.push(report(new YAMLWarning([0, 0], "BAD_DIRECTIVE", message), at, end));
+      report(true, "BAD_DIRECTIVE", message, at, end);
     },
   };
   return self;
@@ -730,7 +702,6 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
     pretty = prettyErrors !== false;
     warnings = [];
     keyWarned = false;
-    excess = undefined;
     const directive = /^(?:[ \t]*(?:#.*)?\r?\n|%.*\r?\n)*%YAML[ \t]+(\S+)/.exec(src)?.[1];
     // Where yaml sees documents start. Unlike the shared parser, it counts an
     // empty one for each `...` with no document open.
@@ -754,20 +725,18 @@ export function parse(src: string, reviver?: Reviver | ParseOptions, options?: P
     try {
       // A %YAML directive yaml supports sets the version. Another one leaves
       // it to the option, or 1.2 when that's unset.
-      const version = checkVersion(
+      const version =
         directive === "1.1" || directive === "1.2"
           ? directive
           : directive
             ? options.version || "1.2"
-            : options.version,
-      );
+            : options.version;
       const use = engine(options, version, directive);
       try {
         docs = parseDocs(src, use);
       } catch (error) {
         // Nesting deep enough to overflow the stack.
-        if (error instanceof RangeError)
-          throw new YAMLParseError([0, 0], "RESOURCE_EXHAUSTION", error.message);
+        if (error instanceof RangeError) throw report(false, "RESOURCE_EXHAUSTION", error.message);
         throw error;
       }
       // An empty document holds an empty node.

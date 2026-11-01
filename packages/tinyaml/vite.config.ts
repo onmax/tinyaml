@@ -4,14 +4,14 @@ import { defineConfig } from "vite-plus";
 // Each mode's entries, built together. src/core/mode.ts resolves to
 // src/core/mode/<mode>.ts there, whose constants the bundler folds, so an
 // entry carries none of the other modes' parser branches. An entry goes
-// under the mode its engine sets (`spec`, `lenient`, or neither for js5).
+// under the mode whose flags its engine sets: `yaml` over `spec`, one per
+// `lenient` engine, or neither for js5.
 export const MODES = {
-  spec: { index: "src/index.ts", yaml: "src/yaml/index.ts" },
-  lenient: {
-    "js-yaml": "src/js-yaml/index.ts",
-    yamljs: "src/yamljs/index.ts",
-    std: "src/std/index.ts",
-  },
+  spec: { index: "src/index.ts" },
+  yaml: { yaml: "src/yaml/index.ts" },
+  "js-yaml": { "js-yaml": "src/js-yaml/index.ts" },
+  std: { std: "src/std/index.ts" },
+  yamljs: { yamljs: "src/yamljs/index.ts" },
   js5: { "js-yaml-v5": "src/js-yaml-v5/index.ts" },
 };
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
@@ -19,7 +19,7 @@ const MODE = here("src/core/mode.ts");
 
 export default defineConfig({
   // ESM only, with types, and publint fails the build on a broken package.json.
-  // tsdown cleans once, and runs publint once all three builds are done.
+  // tsdown cleans once, and runs publint once all the builds are done.
   pack: Object.entries(MODES).map(([mode, entry]) => ({
     entry,
     format: ["esm"],
@@ -28,6 +28,11 @@ export default defineConfig({
     dts: true,
     clean: true,
     publint: true,
+    // The parser in a module of its own: V8 runs it a few percent slower
+    // in one module with the entry's code.
+    outputOptions: {
+      codeSplitting: { groups: [{ name: "parse", test: /src[\\/]core[\\/]parse\.ts$/ }] },
+    },
     plugins: [
       {
         name: "tinyaml-mode",

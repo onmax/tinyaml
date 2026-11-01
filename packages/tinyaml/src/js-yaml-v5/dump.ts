@@ -426,24 +426,23 @@ function foldLine(line: string, width: number): string {
   if (line === "" || indented(line)) return line;
   const spaces = / [^ \t]/g;
   let start = 0;
-  let end;
   let curr = 0;
   let result = "";
   for (let match; (match = spaces.exec(line));) {
     const next = match.index;
     if (next - start > width) {
-      end = curr > start ? curr : next;
-      result += `\n${line.slice(start, end)}`;
+      const end = curr > start ? curr : next;
+      result += `${line.slice(start, end)}\n`;
       start = end + 1;
     }
     curr = next;
   }
-  result += "\n";
-  result +=
-    line.length - start > width && curr > start
+  return (
+    result +
+    (line.length - start > width && curr > start
       ? `${line.slice(start, curr)}\n${line.slice(curr + 1)}`
-      : line.slice(start);
-  return result.slice(1);
+      : line.slice(start))
+  );
 }
 
 function fold(text: string, width: number): string {
@@ -455,9 +454,8 @@ function fold(text: string, width: number): string {
   let prevIndented = text[0] === "\n" || indented(text);
   for (let match; (match = lines.exec(text));) {
     const line = match[2]!;
-    const more = line !== "" && indented(line);
-    result +=
-      match[1]! + (!prevIndented && !more && line !== "" ? "\n" : "") + foldLine(line, width);
+    const more = indented(line);
+    result += match[1]! + (!prevIndented && !more && line ? "\n" : "") + foldLine(line, width);
     prevIndented = more;
   }
   return result;

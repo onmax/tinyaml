@@ -7,11 +7,11 @@ Each subpath exports the functions, options and types of the library it replaces
 
 | Library         | Change the import to   | Size, gzip      | Its own tests on tinyaml |
 | --------------- | ---------------------- | --------------- | ------------------------ |
-| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.9 KiB | 301 of 304 pass          |
-| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 16.2 KiB | 1,023 of 1,646 pass      |
-| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 17.1 KiB | 195 of 220 pass          |
-| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.6 KiB   | 103 of 103 pass          |
-| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 11.0 KiB | 92 of 95 pass            |
+| js-yaml 4.3.2   | `"tinyaml/js-yaml"`    | 14.4 → 11.7 KiB | 301 of 304 pass          |
+| js-yaml 5.5.0   | `"tinyaml/js-yaml-v5"` | 17.1 → 15.9 KiB | 1,023 of 1,646 pass      |
+| yaml 2.9.1      | `"tinyaml/yaml"`       | 29.9 → 16.7 KiB | 195 of 220 pass          |
+| yamljs 0.3.0    | `"tinyaml/yamljs"`     | 8.8 → 8.0 KiB   | 103 of 103 pass          |
+| @std/yaml 1.3.0 | `"tinyaml/std"`        | 11.3 → 10.7 KiB | 92 of 95 pass            |
 
 ```ts
 // before

@@ -132,10 +132,9 @@ function engine(input: string, options: LoadOptions) {
   // The tag of the node being rejected, which js-yaml 5 points at.
   let tagged: string | undefined;
   let parsing = true;
-  // Aliases in the current document, and whether the parser reports them.
+  // Aliases in the current document.
   let aliasCount = 0;
   let aliasDocument: unknown;
-  let countsAliases = false;
   // Whether `convert` must run over the documents.
   let walk = defaultSeq !== seqTag || !isObjectMap(defaultMap);
 
@@ -251,7 +250,6 @@ function engine(input: string, options: LoadOptions) {
   const self: Engine & {
     convert: typeof convert;
     done: () => void;
-    countsAliases: () => boolean;
   } = {
     tag: "",
     messages: MESSAGES,
@@ -325,7 +323,6 @@ function engine(input: string, options: LoadOptions) {
     alias(name, anchors) {
       const target = anchors.get(name);
       if (typeof target === "object" && target !== null) aliasNames.set(target, name);
-      countsAliases = true;
       if (anchors !== aliasDocument) aliasCount = 0;
       aliasDocument = anchors;
       const max = options.maxAliases ?? -1;
@@ -366,14 +363,13 @@ function engine(input: string, options: LoadOptions) {
     done() {
       parsing = false;
     },
-    countsAliases: () => countsAliases,
   };
   return self;
 }
 
-// Builds nothing: every scalar becomes a fresh object, so a node reached
-// twice in the result was reached through an alias.
-function probe(input: string, options: LoadOptions, keyNodes: Map<string, unknown>): Engine {
+// Builds nothing, so it finds only syntax errors.
+function probe(input: string, options: LoadOptions): Engine {
+  let keys = 0;
   return {
     tag: "",
     messages: MESSAGES,
@@ -383,65 +379,31 @@ function probe(input: string, options: LoadOptions, keyNodes: Map<string, unknow
     maxMergeKeys: -1,
     implicit: () => ({}),
     explicit: (value, _tag, kind) => (kind === "sequence" || kind === "mapping" ? value : {}),
-    key(key) {
-      const name = String(keyNodes.size);
-      keyNodes.set(name, key);
-      return name;
-    },
+    key: () => String(keys++),
     error: (reason, at, code) => parseError(input, at, reason, code, options.filename),
   };
-}
-
-function aliases(doc: unknown, keyNodes: Map<string, unknown>): number {
-  const seen = new Set<object>();
-  let count = 0;
-  const visit = (node: unknown): void => {
-    if (typeof node !== "object" || node === null) return;
-    if (seen.has(node)) {
-      count++;
-      return;
-    }
-    seen.add(node);
-    if (Array.isArray(node)) node.forEach(visit);
-    else
-      for (const name of Object.keys(node)) {
-        visit(keyNodes.get(name));
-        visit((node as Record<string, unknown>)[name]);
-      }
-  };
-  visit(doc);
-  return count;
 }
 
 function loadDocuments(input: string, options?: LoadOptions): unknown[] {
   // js-yaml 5 spreads the options over its defaults, so null works too.
   options ??= {};
   const source = String(input);
-  const max = options.maxAliases ?? -1;
-  // A pass that builds nothing tells syntax errors, which js-yaml 5 reports
-  // first, and counts aliases when the parser doesn't.
-  const syntax = (count: boolean): void => {
-    const keyNodes = new Map<string, unknown>();
-    try {
-      const docs = parse(source, probe(source, options, keyNodes));
-      if (count && docs.some((doc) => aliases(doc, keyNodes) > max))
-        // Where isn't known.
-        throw exceptionAt(source, 0, `aliases exceeded maxAliases (${max})`, options.filename);
-    } catch (error) {
-      if (!BUILT.has(error as object)) throw error;
-    }
-  };
   const use = engine(source, options);
   let docs;
   try {
     docs = parse(source, use);
   } catch (error) {
     // js-yaml 5 parses the whole stream before building any value, so a
-    // syntax error anywhere wins over a value error.
-    if (BUILT.has(error as object)) syntax(false);
+    // syntax error anywhere wins over a value error, which a pass that
+    // builds nothing tells.
+    if (BUILT.has(error as object))
+      try {
+        parse(source, probe(source, options));
+      } catch (syntax) {
+        if (!BUILT.has(syntax as object)) throw syntax;
+      }
     throw error;
   }
-  if (max >= 0 && !use.countsAliases()) syntax(true);
   use.done();
   return docs.map(use.convert);
 }

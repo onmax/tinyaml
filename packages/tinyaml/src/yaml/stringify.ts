@@ -3,9 +3,9 @@
 // anchors in creation order; then the tree is written with yaml's rules for
 // string styles, line folding, flow and block collections.
 import {
-  checkVersion,
-  getTags,
   merge,
+  schemaOf,
+  schemas,
   timestamp,
   Y,
   type CustomTags,
@@ -87,7 +87,6 @@ interface Context {
   indent: string;
   indentStep: string;
   inFlow: boolean | null;
-  flowCollectionPadding: string;
   options: StringifyOptions & typeof DEFAULTS;
   tags: Tag[];
   compat: Tag[] | undefined;
@@ -95,22 +94,17 @@ interface Context {
   indentAtStart?: number;
 }
 
+// yaml's defaults that aren't false or null, which an unset option reads the
+// same as. fold() has its own for minContentWidth.
 const DEFAULTS = {
   blockQuote: true as StringifyOptions["blockQuote"],
-  defaultKeyType: null as StringType | null,
   defaultStringType: "PLAIN" as StringType,
-  directives: null as boolean | null,
-  doubleQuotedAsJSON: false,
   doubleQuotedMinMultiLineLength: 40,
   falseStr: "false",
   flowCollectionPadding: true,
   indentSeq: true,
   lineWidth: 80,
-  minContentWidth: 20,
   nullStr: "null",
-  simpleKeys: false,
-  singleQuote: null as boolean | null,
-  trailingComma: false,
   trueStr: "true",
   verifyAliasOrder: true,
 };
@@ -118,7 +112,6 @@ const DEFAULTS = {
 const isCollection = (node: Node) => !!(node.seq ?? node.map);
 
 interface Builder {
-  aliasDuplicateObjects: boolean;
   keepUndefined: boolean;
   replacer: Replacer | undefined;
   sort: ((a: Pair, b: Pair) => number) | null;
@@ -127,7 +120,8 @@ interface Builder {
   dates: boolean;
   /** undefined becomes null, unless the schema has no null. */
   nulls: boolean;
-  sources: Map<object, Node>;
+  /** Each object written so far, unless repeated ones aren't aliased. */
+  sources: Map<object, Node> | undefined;
   aliases: number;
 }
 
@@ -140,7 +134,7 @@ function createNode(value: any, b: Builder): Node {
   )
     value = value.valueOf();
   const node = new Node({});
-  if (b.aliasDuplicateObjects && value && typeof value === "object") {
+  if (b.sources && value && typeof value === "object") {
     const previous = b.sources.get(value);
     if (previous) {
       previous.anchor ||= `${b.prefix}${++b.aliases}`;
@@ -202,7 +196,6 @@ function keyText(node: Node): string {
 function builder(options: StringifyOptions, tags: Tag[], replacer?: Replacer): Builder {
   const sort = options.sortMapEntries;
   return {
-    aliasDuplicateObjects: options.aliasDuplicateObjects ?? true,
     keepUndefined: options.keepUndefined ?? false,
     replacer,
     sort:
@@ -218,7 +211,7 @@ function builder(options: StringifyOptions, tags: Tag[], replacer?: Replacer): B
     prefix: options.anchorPrefix || "a",
     dates: tags.includes(timestamp),
     nulls: tags.some((t) => t.tag === `${Y}null`),
-    sources: new Map(),
+    sources: (options.aliasDuplicateObjects ?? true) ? new Map() : undefined,
     aliases: 0,
   };
 }
@@ -231,7 +224,6 @@ function context(options: StringifyOptions, tags: Tag[], compat?: Tag[]): Contex
     indent: "",
     indentStep: typeof opt.indent === "number" ? " ".repeat(opt.indent) : "  ",
     inFlow: style === "block" ? false : style === "flow" ? true : null,
-    flowCollectionPadding: opt.flowCollectionPadding ? " " : "",
     options: opt,
     tags,
     compat,
@@ -261,8 +253,7 @@ function write(node: Node, ctx: Context): string {
     ctx.indentAtStart = (ctx.indentAtStart ?? 0) + props.length + 1;
   }
   let str: string;
-  if (node.seq) str = collection(node, node.seq, ctx, false);
-  else if (node.map) str = collection(node, node.map, ctx, true);
+  if (isCollection(node)) str = collection(node, ctx);
   else {
     // Any scalar; `tag` below tells which, and each branch uses it as that.
     const value = node.value as any;
@@ -305,11 +296,13 @@ function write(node: Node, ctx: Context): string {
     : `${props}\n${ctx.indent}${str}`;
 }
 
-function collection(node: Node, items: (Node | Pair)[], ctx: Context, isMap: boolean): string {
+function collection(node: Node, ctx: Context): string {
+  const items = (node.seq ?? node.map)!;
+  const isMap = !node.seq;
   const [start, end] = isMap ? "{}" : "[]";
   if (!items.length) return start! + end!;
   const flow = ctx.inFlow ?? node.flow;
-  const { indent, indentStep, options, flowCollectionPadding: pad } = ctx;
+  const { indent, indentStep, options } = ctx;
   const itemCtx: Context = {
     ...ctx,
     indent: indent + (isMap ? "" : "  ") + (flow ? indentStep : ""),
@@ -333,8 +326,10 @@ function collection(node: Node, items: (Node | Pair)[], ctx: Context, isMap: boo
     return text;
   });
   if (!flow) return lines.join(`\n${indent}`);
-  if (!newline && !(options.lineWidth > 0 && width > options.lineWidth))
+  if (!newline && !(options.lineWidth > 0 && width > options.lineWidth)) {
+    const pad = options.flowCollectionPadding ? " " : "";
     return `${start}${pad}${lines.join(" ")}${pad}${end}`;
+  }
   return (
     start +
     lines.map((line) => (line ? `\n${indentStep}${indent}${line}` : "\n")).join("") +
@@ -376,16 +371,9 @@ function stringifyPair({ key, value }: Pair, parent: Context): string {
   const valueStr = write(value, ctx);
   let ws = " ";
   if (!explicitKey && isCollection(value)) {
-    const nl0 = valueStr.indexOf("\n");
     const flow = ctx.inFlow ?? value.flow ?? (value.seq ?? value.map)!.length === 0;
-    if (nl0 !== -1 || !flow) {
-      let propsLine = false;
-      if (nl0 !== -1 && valueStr[0] === "&") {
-        const sp0 = valueStr.indexOf(" ");
-        propsLine = sp0 === -1 || nl0 < sp0;
-      }
-      if (!propsLine) ws = `\n${ctx.indent}`;
-    }
+    // An anchor on a line of its own stays after the key.
+    if ((!flow || valueStr.includes("\n")) && !/^&[^ \n]*\n/.test(valueStr)) ws = `\n${ctx.indent}`;
   } else if (valueStr === "" || valueStr[0] === "\n") ws = "";
   return str + ws + valueStr;
 }
@@ -397,9 +385,10 @@ const FOLD_QUOTED = 2;
 
 const containsDocumentMarker = (str: string) => /^(%|---|\.\.\.)/m.test(str);
 
-function lineLengthOverLimit(str: string, width: number, indent: number): boolean {
-  return width > 0 && str.split("\n").some((line) => line.length > width - indent);
-}
+// A top-level scalar is indented when it holds a document marker, or when
+// `force`d to be.
+const indentOf = (value: string, ctx: Context, force?: boolean) =>
+  ctx.indent || (force || containsDocumentMarker(value) ? "  " : "");
 
 // JSON escapes control characters and lone surrogates as \uXXXX; these
 // control characters have a short escape.
@@ -415,7 +404,7 @@ function doubleQuoted(value: string, ctx: Context): string {
   if (ctx.options.doubleQuotedAsJSON) return json;
   const { implicitKey } = ctx;
   const minMultiLineLength = ctx.options.doubleQuotedMinMultiLineLength;
-  const indent = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+  const indent = indentOf(value, ctx);
   const str = json.replace(/ ?\\n(?:\\n)*|\\u[0-9a-f]{4}|\\./g, (escape, offset: number) => {
     if (escape.startsWith("\\u")) {
       const code = escape.slice(2);
@@ -427,13 +416,12 @@ function doubleQuoted(value: string, ctx: Context): string {
     if (!run.startsWith("\\n")) return escape;
     if (implicitKey || json.length < minMultiLineLength) return prefix + run;
     // Keep the final escaped newline before the closing quote.
-    const last = json[offset + escape.length] === '"';
+    const after = json[offset + escape.length];
+    const last = after === '"';
     const count = run.length / 2 - Number(last);
     return (
       prefix +
-      (count
-        ? "\n".repeat(count + 1) + indent + (json[offset + escape.length] === " " ? "\\" : "")
-        : "") +
+      (count ? "\n".repeat(count + 1) + indent + (after === " " ? "\\" : "") : "") +
       (last ? "\\n" : "")
     );
   });
@@ -447,7 +435,7 @@ function singleQuoted(value: string, ctx: Context): string {
     /[ \t]\n|\n[ \t]/.test(value)
   )
     return doubleQuoted(value, ctx);
-  const indent = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+  const indent = indentOf(value, ctx);
   const res = `'${value.replace(/'/g, "''").replace(/\n+/g, `$&\n${indent}`)}'`;
   return ctx.implicitKey ? res : fold(res, indent, FOLD_FLOW, ctx);
 }
@@ -467,13 +455,12 @@ const blockEndNewlines = /(^|(?<!\n))\n+(?!\n|$)/g;
 function blockString(value: string, ctx: Context, force?: boolean): string {
   const { blockQuote, lineWidth } = ctx.options;
   if (!blockQuote || /\n[\t ]+$/.test(value)) return quoted(value, ctx);
-  const indent = ctx.indent || (force || containsDocumentMarker(value) ? "  " : "");
+  const indent = indentOf(value, ctx, force);
+  // Literal unless asked to fold, or a line is too long.
   const literal =
-    blockQuote === "literal"
-      ? true
-      : blockQuote === "folded"
-        ? false
-        : !lineLengthOverLimit(value, lineWidth, indent.length);
+    blockQuote === "literal" ||
+    (blockQuote !== "folded" &&
+      !(lineWidth > 0 && value.split("\n").some((l) => l.length > lineWidth - indent.length)));
   if (!value) return literal ? "|\n" : ">\n";
   let chomp: string;
   let end = /[\n\t ]*$/.exec(value)![0];
@@ -514,11 +501,11 @@ function plainString(value: string, ctx: Context): string {
   if ((implicitKey && multiline) || (inFlow && /[[\]{},]/.test(value))) return quoted(value, ctx);
   // Leading or trailing white space, an indicator, or a sequence that would
   // end the scalar early.
+  if (!implicitKey && !inFlow && multiline) return blockString(value, ctx);
   if (
     /^[\n\t ,[\]{}#&*!|>'"%@`]|^[?-]$|^[?-][ \t]|[\n:][ \t]|[ \t]\n|[\n\t ]#|[\n\t :]$/.test(value)
   )
-    return implicitKey || inFlow || !multiline ? quoted(value, ctx) : blockString(value, ctx);
-  if (!implicitKey && !inFlow && multiline) return blockString(value, ctx);
+    return quoted(value, ctx);
   if (containsDocumentMarker(value)) {
     if (indent === "") return blockString(value, ctx, true);
     if (implicitKey && indent === indentStep) return quoted(value, ctx);
@@ -549,6 +536,8 @@ function stringifyString(value: string, ctx: Context): string {
       throw new Error(`Unsupported default string type ${type as string}`);
   }
 }
+
+const solid = (ch: string | undefined) => !!ch && ch !== " " && ch !== "\n" && ch !== "\t";
 
 // Keeps lines within `lineWidth`, splitting only at single spaces between
 // non-space characters, or anywhere in double-quoted strings. With
@@ -590,10 +579,7 @@ function fold(text: string, indent: string, mode: number, ctx: Context, literal?
       end = i + indent.length + endStep;
       split = undefined;
     } else {
-      if (ch === " " && prev && prev !== " " && prev !== "\n" && prev !== "\t") {
-        const next = text[i + 1];
-        if (next && next !== " " && next !== "\n" && next !== "\t") split = i;
-      }
+      if (ch === " " && solid(prev) && solid(text[i + 1])) split = i;
       if (i >= end) {
         if (split) {
           folds.push(split);
@@ -657,11 +643,9 @@ function consumeMoreIndentedLines(text: string, i: number, indent: number): numb
 export function stringifyKey(key: object): string {
   if (key instanceof Date || key instanceof Uint8Array) return String(key);
   const node = createNode(key, builder({}, []));
-  const ctx = context({}, getTags(null, "core"));
+  const ctx = context({}, schemas.core!);
   ctx.inFlow = true;
-  return (node.seq ?? node.map)
-    ? collection(node, (node.seq ?? node.map)!, ctx, !!node.map)
-    : write(node, ctx);
+  return isCollection(node) ? collection(node, ctx) : write(node, ctx);
 }
 
 /**
@@ -688,10 +672,7 @@ export function stringify(
   const opt: StringifyOptions = options ?? {};
   // yaml reads the options over defaults, which an option set to undefined
   // still replaces.
-  const v11 = checkVersion({ version: "1.2", ...opt }.version) === "1.1";
-  const { schema, compat: c } = { schema: v11 ? "yaml-1.1" : "core", ...opt };
-  const tags = getTags(opt.customTags, (typeof schema === "string" && schema) || "core", opt.merge);
-  const compat = c ? (Array.isArray(c) ? getTags(c, "compat") : getTags(null, c)) : undefined;
+  const [tags, compat] = schemaOf(opt, { version: "1.2", ...opt }.version);
   if (Array.isArray(fn)) {
     const strings = fn
       .filter((v: unknown) => typeof v === "number" || v instanceof String || v instanceof Number)

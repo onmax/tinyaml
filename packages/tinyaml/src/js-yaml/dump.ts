@@ -1,6 +1,7 @@
 // js-yaml 4's `dump`, byte for byte: same options, same style choices, same
 // errors. Scalar style rules that js-yaml checks per character are regexes here.
 import { findRefs } from "../core/refs.ts";
+import { COMPAT, fold } from "../shared/fold.ts";
 import { YAMLException } from "./error.ts";
 import type { Schema, Type } from "./schema.ts";
 import { builtin, DEFAULT_SCHEMA, kindOf, maybeTyped, Y } from "./types.ts";
@@ -54,8 +55,7 @@ function find(types: Type[], value: any): Type | undefined {
 const UNPRINTABLE =
   /[^\x20-\x7E\xA1-\u2027\u202A-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD\u{10000}-\u{10FFFF}]/gu;
 const ESCAPED = "\0\x07\b\t\n\v\f\r\x1B\x85\xA0\u2028\u2029";
-// YAML 1.1 readers take these as booleans and sexagesimal numbers.
-const COMPAT = /^(?:[yYnN]|yes|Yes|YES|no|No|NO|on|On|ON|off|Off|OFF)$/;
+// YAML 1.1 readers take these as sexagesimal numbers.
 const BASE60 = /^[-+]?[\d_]+(?::[\d_]+)+(?:\.[\d_]*)?$/;
 
 const double = (s: string) =>
@@ -72,42 +72,6 @@ const double = (s: string) =>
         : "0abtnvfreN_LP"[i]
     }`;
   })}"`;
-
-// Greedy: the longest piece within width, else the shortest one over it.
-// Breaks never leave a line starting with a space, which would read as more-indented.
-function foldLine(line: string, width: number): string {
-  if (!line || line[0] === " ") return line;
-  let start = 0;
-  let curr = 0;
-  let result = "";
-  for (const { index } of line.matchAll(/ [^ ]/g)) {
-    if (index - start > width) {
-      const end = curr > start ? curr : index;
-      result += `${line.slice(start, end)}\n`;
-      start = end + 1;
-    }
-    curr = index;
-  }
-  return (
-    result +
-    (line.length - start > width && curr > start
-      ? `${line.slice(start, curr)}\n${line.slice(curr + 1)}`
-      : line.slice(start))
-  );
-}
-
-// In folded style k line breaks read back as k-1, except next to more-indented
-// lines and at the start, so those get no extra break.
-function fold(s: string, width: number): string {
-  let prevMore = /^[\n ]/.test(s);
-  return s.replace(/(\n+|^)([^\n]*)/g, (_, breaks: string, line: string) => {
-    const more = line[0] === " ";
-    const result =
-      breaks + (breaks && !prevMore && !more && line ? "\n" : "") + foldLine(line, width);
-    prevMore = more;
-    return result;
-  });
-}
 
 function tagName(tag: any): string {
   const local = tag[0] === "!";

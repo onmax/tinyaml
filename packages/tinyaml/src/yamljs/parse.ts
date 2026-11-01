@@ -8,7 +8,7 @@
 // a Windows path in double quotes. When the parser rejects the input, those
 // lines get quoted the way yamljs reads them and the parser tries again.
 import { MESSAGES } from "../core/messages.ts";
-import { MERGE_TAG, parse as parseDocs, type Engine, type Mark } from "../core/parse.ts";
+import { MERGE_TAG, parse as parseDocs, type Engine } from "../core/parse.ts";
 
 export type ObjectDecoder = (tag: string, value: unknown) => unknown;
 
@@ -24,15 +24,6 @@ export class ParseException extends Error {
 
   override toString(): string {
     return `<ParseException> ${this.message}${this.parsedLine != null && this.snippet != null ? ` (line ${this.parsedLine}: '${this.snippet}')` : ""}`;
-  }
-}
-
-// What the parser reports, before it becomes a ParseException.
-class Problem extends Error {
-  declare mark: Mark;
-  constructor(reason: string, mark: Mark) {
-    super(reason);
-    this.mark = mark;
   }
 }
 
@@ -91,13 +82,16 @@ export function evaluate(scalar: string): unknown {
   );
 }
 
-function engine(exceptionOnInvalidType: unknown, objectDecoder: ObjectDecoder | null): Engine {
+function engine(
+  exceptionOnInvalidType: unknown,
+  objectDecoder: ObjectDecoder | null,
+  error: Engine["error"],
+): Engine {
   const self: Engine = {
     tag: "",
     messages: MESSAGES,
     lenient: true,
     // yamljs keeps the first value of a key.
-    json: true,
     first: true,
     maxDepth: Infinity,
     maxMergeKeys: -1,
@@ -135,7 +129,7 @@ function engine(exceptionOnInvalidType: unknown, objectDecoder: ObjectDecoder | 
       return null;
     },
     key: String,
-    error: (reason, mark) => new Problem(reason, mark),
+    error,
   };
   return self;
 }
@@ -154,17 +148,22 @@ export function parse(
   // documents.
   let text = input.replace(/\r\n?/g, "\n").replace(/^(?:%YAML[: ][\d.]+|#).*\n/gm, "");
   if (/^---.*\n/m.test(text)) text = text.replace(/^---.*\n/gm, "").replace(/^\.\.\.\s*$/gm, "");
-  const use = engine(exceptionOnInvalidType, objectDecoder);
+  // The last error the parser raised, as opposed to one a decoder threw.
+  let problem: unknown;
+  const use = engine(
+    exceptionOnInvalidType,
+    objectDecoder,
+    (reason, mark) =>
+      (problem = new ParseException(reason, mark.line + 1, mark.buffer.split("\n")[mark.line])),
+  );
   try {
     return parseDocs(text, use)[0] ?? null;
   } catch (error) {
-    if (!(error instanceof Problem)) throw error;
+    if (error !== problem) throw error;
     try {
       return parseDocs(requote(text), use)[0] ?? null;
     } catch (again) {
-      if (!(again instanceof Problem)) throw again;
-      const { message, mark } = error;
-      throw new ParseException(message, mark.line + 1, mark.buffer.split("\n")[mark.line]);
+      throw again === problem ? error : again;
     }
   }
 }
