@@ -65,7 +65,7 @@ Yes. All three ship ESM only, and Node 22.12 and later load ESM from `require()`
 :::
 
 :::accordion-item{label="Why are they faster?"}
-Each parser reads character codes in one pass and builds JavaScript values directly, without a tokenizer or a syntax tree in between.
+Each parser reads character codes in one pass and builds JavaScript values directly, without a tokenizer or a syntax tree in between. tinyjson5's ports of jsonc-parser, comment-json and jju keep the scanner or tokenizer their API exposes, and are faster at it.
 :::
 
 :::accordion-item{label="How are the numbers measured?"}

@@ -73,10 +73,10 @@ The root follows [json5](https://github.com/json5/json5)'s main branch, which ho
 - No `console.warn`. json5 2 warns about U+2028 and U+2029 in strings.
 - The reviver walks own keys, as `JSON.parse`'s does, and a property it can't update stays as it is instead of throwing.
 - Error positions count `\r`, `\r\n`, U+2028 and U+2029 as line breaks, and an error on a line break is reported on the line it ends.
-- `{ bigint: true }` returns integers outside the safe range as BigInts.
+- `{ bigint: true }` returns integers outside the safe range, decimal or hex, as BigInts. A number with a decimal point or an exponent stays a Number.
 - `stringify` throws on a BigInt, takes only `'` or `"` as `quote`, escapes lone surrogates, writes keys with identifier characters above U+FFFF bare, and reads replacer lists, arrays and `toJSON5`/`toJSON` once, as `JSON.stringify` does.
 
-`{ jsonc: true }` accepts JSON with `//` and `/* */` comments and nothing more: no single quotes, unquoted keys, hex, `+`, `Infinity`, `NaN`, trailing commas, escapes JSON lacks, or whitespace other than JSON's. Comments end at `\n` or `\r`.
+`{ jsonc: true }` accepts JSON with `//` and `/* */` comments and nothing more: no single quotes, unquoted keys, hex, `+`, `Infinity`, `NaN`, trailing commas, escapes JSON lacks, or whitespace other than JSON's. Line comments end at `\n` or `\r`, and block comments at `*/`.
 
 Invalid input throws a `SyntaxError` with json5's message and its `lineNumber` and `columnNumber`, as in `JSON5: invalid character '@' at 2:5`.
 
@@ -239,10 +239,10 @@ Every entry is faster than its original at every operation benchmarked, from 1.0
 
 Parses JSON5 and returns the value. `parse(text, options)` works too. The reviver is the one `JSON.parse` takes.
 
-| Option   | Default | What it does                                                          |
-| -------- | ------- | --------------------------------------------------------------------- |
-| `bigint` | `false` | Return integers outside the safe range as BigInts. Must be a boolean. |
-| `jsonc`  | `false` | Accept only JSON with comments.                                       |
+| Option   | Default | What it does                                                                                                                                        |
+| -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bigint` | `false` | Return integers outside the safe range, decimal or hex, as BigInts. A number with a decimal point or an exponent stays a Number. Must be a boolean. |
+| `jsonc`  | `false` | Accept only JSON with comments.                                                                                                                     |
 
 ### `stringify(value, replacer?, space?)` and `stringify(value, options)`
 
