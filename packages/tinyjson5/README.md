@@ -154,7 +154,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 <summary>jju: what's different</summary>
 
 - Not jju's `utils`: its `require` hook for `.json5` files, its `JSON.parse` patch and its middleware, which are Node-only.
-- Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's code and fields but a shorter message. On Node it's Node's own `AssertionError`, as in jju.
+- Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's `code`, `actual`, `expected` and `operator`, but a shorter message and no `generatedMessage` or `diff`. On Node it's Node's own `AssertionError`, as in jju.
 - 1,000,648 inputs (648 seeds and a million edits of them), 6,003,888 calls: `parse` with a mode and options picked at random, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
 
 </details>

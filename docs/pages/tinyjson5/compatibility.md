@@ -63,7 +63,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 ## jju: what's different
 
 - Not jju's `utils`: its `require` hook for `.json5` files, its `JSON.parse` patch and its middleware, which are Node-only.
-- Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's code and fields but a shorter message. On Node it's Node's own `AssertionError`, as in jju.
+- Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's `code`, `actual`, `expected` and `operator`, but a shorter message and no `generatedMessage` or `diff`. On Node it's Node's own `AssertionError`, as in jju.
 - 1,000,648 inputs (648 seeds and a million edits of them), 6,003,888 calls: `parse` with a mode and options picked at random, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
 
 jju, comment-json and array-timsort are written for sloppy mode, and their ports run as ES modules, which are strict. Writes that would fail silently there go through `Reflect.set` and `Reflect.deleteProperty` here, so frozen options, objects and arrays behave the same. jju's go through one sloppy-mode function made with `Function` instead, which is faster, and through `Reflect` where a Content-Security-Policy or `--disallow-code-generation-from-strings` blocks it.
