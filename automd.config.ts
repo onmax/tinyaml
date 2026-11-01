@@ -127,6 +127,15 @@ export default {
               `It parses ${times(root.parse)} faster than yaml and stringifies ${times(root.stringify!)} faster.`,
           );
         }
+        // Another package's own API, from `roots`, against the library its users switch from.
+        const own = data.roots?.find((r) => r.package === args.package);
+        if (own)
+          lines.push(
+            "",
+            `The root \`${own.entry}\` API is ${kib(own.gzip.ours)} KiB against ${kib(own.gzip.theirs)} KiB for ${own.library}. ` +
+              `It parses ${times(own.parse)} faster than ${own.library}` +
+              (own.stringify ? ` and stringifies ${times(own.stringify)} faster.` : "."),
+          );
         lines.push(
           "",
           `Size is the minified bundle, gzipped. Speed is the median time to parse and stringify ` +

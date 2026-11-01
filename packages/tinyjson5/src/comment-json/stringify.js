@@ -97,15 +97,31 @@ const count_trailing_line_breaks = (str, gap) => {
 // registered symbols, on the standard prototype chain without any, with
 // Symbol.for as it was. A null entry looks each one up, as comment-json
 // does. Without a replacer only, which could change comments while the text
-// is written. The built-ins it reads with are the ones there were at load.
+// is written. It reads with the built-ins there were at load, and walks
+// arrays by index, so a patched one doesn't change what it finds.
 let hosts = null
 const PROTOTYPES = [Object.prototype, Array.prototype, CommentArray.prototype]
 const {for: symbol_for, keyFor: key_for} = Symbol
-const {getOwnPropertySymbols: own_symbols, getOwnPropertyDescriptor: own_descriptor, getPrototypeOf: prototype_of} = Object
-const CommentsMap = Map
+const {
+  getOwnPropertySymbols: own_symbols,
+  getOwnPropertyDescriptor: own_descriptor,
+  getPrototypeOf: prototype_of,
+  create
+} = Object
+const {apply} = Reflect
+const {get: map_get, set: map_set} = Map.prototype
+const HostMap = Map
 
-const registered = object => own_symbols(object)
-.some(symbol => key_for(symbol) !== undefined)
+const registered = object => {
+  const symbols = own_symbols(object)
+  for (let i = 0; i < symbols.length; i ++) {
+    if (key_for(symbols[i]) !== undefined) {
+      return true
+    }
+  }
+
+  return false
+}
 
 // CommentArray.prototype, Array.prototype and Object.prototype, chained as
 // they are by default, without a comment of their own to inherit.
@@ -114,26 +130,30 @@ const standard_prototypes = () =>
   && prototype_of(CommentArray.prototype) === Array.prototype
   && prototype_of(Array.prototype) === Object.prototype
   && prototype_of(Object.prototype) === null
-  && !PROTOTYPES.some(registered)
+  && !registered(PROTOTYPES[0])
+  && !registered(PROTOTYPES[1])
+  && !registered(PROTOTYPES[2])
 
 const read_comments = host => {
-  if (!PROTOTYPES.includes(prototype_of(host))) {
+  const prototype = prototype_of(host)
+  if (prototype !== PROTOTYPES[0] && prototype !== PROTOTYPES[1] && prototype !== PROTOTYPES[2]) {
     return null
   }
 
-  const comments = new CommentsMap()
-  for (const symbol of own_symbols(host)) {
-    const key = key_for(symbol)
+  const comments = create(null)
+  const symbols = own_symbols(host)
+  for (let i = 0; i < symbols.length; i ++) {
+    const key = key_for(symbols[i])
     if (key === undefined) {
       continue
     }
 
-    const descriptor = own_descriptor(host, symbol)
+    const descriptor = own_descriptor(host, symbols[i])
     if (!('value' in descriptor)) {
       return null
     }
 
-    comments.set(key, descriptor.value)
+    comments[key] = descriptor.value
   }
 
   return comments
@@ -144,13 +164,13 @@ const comments_of = (host, symbol_tag) => {
     return host[Symbol.for(symbol_tag)]
   }
 
-  let comments = hosts.get(host)
+  let comments = apply(map_get, hosts, [host])
   if (comments === undefined) {
-    hosts.set(host, comments = read_comments(host))
+    apply(map_set, hosts, [host, comments = read_comments(host)])
   }
 
   return comments
-    ? comments.get(symbol_tag)
+    ? comments[symbol_tag]
     : host[Symbol.for(symbol_tag)]
 }
 
@@ -513,7 +533,7 @@ export default (value, replacer_, space) => {
   replacer = replacer_
   indent = indent_
   hosts = !replacer_ && standard_prototypes()
-    ? new Map()
+    ? new HostMap()
     : null
 
   // tinyjson5: let go of the comments read, also when a getter or toJSON throws.
