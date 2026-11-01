@@ -6,7 +6,28 @@
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftinyaml&workflow=release.yaml&icon=github)](https://github.com/onmax/tinyaml/actions/workflows/release.yaml)
 
-tinyaml is a YAML parser and stringifier for JavaScript. Its own API is 7.8 KiB gzipped, has no dependencies, and gets every [yaml-test-suite](https://github.com/yaml/yaml-test-suite) case with an expected result right. It also ships drop-in replacements for js-yaml 4 and 5, yaml, yamljs and @std/yaml. Change the import and keep your code. Each replacement is smaller than the library it replaces. The js-yaml 4 one saves 3.3 KiB gzipped, and the yaml one 15.7 KiB. I wrote it for [Comark](https://comark.dev), which reads YAML for frontmatter and component props and was bundling all of js-yaml to do it.
+**YAML for JavaScript in 7.8 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
+
+Already on another YAML library? Change one import and keep your code:
+
+```diff
+- import yaml from "js-yaml";
++ import yaml from "tinyaml/js-yaml";
+```
+
+tinyaml ships drop-in replacements for js-yaml 4 and 5, yaml, yamljs and @std/yaml. Each one is smaller and faster than the library it replaces, on every benchmark we run, and each is checked against that library's own tests and thousands of fuzzed inputs.
+
+| Replace     | With                 | Smaller, gzip | Faster    |
+| ----------- | -------------------- | ------------- | --------- |
+| `js-yaml` 4 | `tinyaml/js-yaml`    | 22%           | 1.5–1.6×  |
+| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 9%            | 1.5–2.0×  |
+| `yaml`      | `tinyaml/yaml`       | 52%           | 2.8–12.6× |
+| `yamljs`    | `tinyaml/yamljs`     | 7%            | 1.1–5.0×  |
+| `@std/yaml` | `tinyaml/std`        | 7%            | 1.6–2.1×  |
+
+Starting fresh? The root `tinyaml` API is about half the size of js-yaml and a quarter of yaml.
+
+I wrote it for [Comark](https://comark.dev), which reads YAML for frontmatter and component props and was bundling all of js-yaml to do it.
 
 [Get started](#get-started) · [Switching](#switching-from-another-library) · [Size](#size) · [Correctness](#correctness) · [Speed](#speed) · [Comparison](#how-it-compares) · [API](#api) · [npm](https://www.npmjs.com/package/tinyaml)
 
@@ -237,36 +258,36 @@ Median time per call over 7 rounds, from [`bench/index.ts`](./bench/index.ts), o
 <details>
 <summary>All timings</summary>
 
-| Library    | Operation             |  Library |  tinyaml | Speedup |
-| ---------- | --------------------- | -------: | -------: | ------: |
-| js-yaml 4  | parse frontmatter     |   2.9 µs |   1.8 µs |    1.6x |
-| js-yaml 4  | stringify frontmatter |   3.7 µs |   2.6 µs |    1.5x |
-| js-yaml 4  | parse 268 KiB         |  2.97 ms |  1.99 ms |    1.5x |
-| js-yaml 4  | stringify 268 KiB     |  4.51 ms |  2.73 ms |    1.7x |
-| js-yaml 5  | parse frontmatter     |   3.1 µs |   1.7 µs |    1.8x |
-| js-yaml 5  | stringify frontmatter |   5.3 µs |   2.7 µs |    2.0x |
-| js-yaml 5  | parse 268 KiB         |  3.10 ms |  2.04 ms |    1.5x |
-| js-yaml 5  | stringify 268 KiB     |  5.31 ms |  3.24 ms |    1.6x |
-| yaml       | parse frontmatter     |  29.7 µs |   2.7 µs |   10.9x |
-| yaml       | stringify frontmatter |  13.5 µs |   4.1 µs |    3.3x |
-| yaml       | parse 268 KiB         | 34.62 ms |  2.79 ms |   12.4x |
-| yaml       | stringify 268 KiB     | 12.05 ms |  4.28 ms |    2.8x |
-| yamljs     | parse frontmatter     |   7.1 µs |   2.0 µs |    3.5x |
-| yamljs     | stringify frontmatter |   1.5 µs |   1.0 µs |    1.5x |
-| yamljs     | parse 268 KiB         | 11.20 ms |  2.27 ms |    4.9x |
-| yamljs     | stringify 268 KiB     |  1.44 ms |  1.29 ms |    1.1x |
-| @std/yaml  | parse frontmatter     |   3.7 µs |   1.8 µs |    2.0x |
-| @std/yaml  | stringify frontmatter |   3.9 µs |   2.2 µs |    1.7x |
-| @std/yaml  | parse 268 KiB         |  3.98 ms |  2.00 ms |    2.0x |
-| @std/yaml  | stringify 268 KiB     |  4.26 ms |  2.83 ms |    1.5x |
-| yaml, root | parse frontmatter     |  29.8 µs |   1.6 µs |   19.0x |
-| yaml, root | stringify frontmatter |  13.5 µs |   1.0 µs |   13.0x |
-| yaml, root | parse 268 KiB         | 33.72 ms |  1.77 ms |   19.1x |
-| yaml, root | stringify 268 KiB     | 11.90 ms | 994.9 µs |   12.0x |
+| Library    | Operation             |  Library | tinyaml | Speedup |
+| ---------- | --------------------- | -------: | ------: | ------: |
+| js-yaml 4  | parse frontmatter     |   2.7 µs |  1.7 µs |    1.6x |
+| js-yaml 4  | stringify frontmatter |   3.7 µs |  2.5 µs |    1.5x |
+| js-yaml 4  | parse 268 KiB         |  3.00 ms | 2.00 ms |    1.5x |
+| js-yaml 4  | stringify 268 KiB     |  4.51 ms | 2.77 ms |    1.6x |
+| js-yaml 5  | parse frontmatter     |   3.1 µs |  1.7 µs |    1.8x |
+| js-yaml 5  | stringify frontmatter |   5.3 µs |  2.7 µs |    2.0x |
+| js-yaml 5  | parse 268 KiB         |  3.07 ms | 2.00 ms |    1.5x |
+| js-yaml 5  | stringify 268 KiB     |  5.22 ms | 2.90 ms |    1.8x |
+| yaml       | parse frontmatter     |  29.6 µs |  2.8 µs |   10.6x |
+| yaml       | stringify frontmatter |  13.7 µs |  4.2 µs |    3.3x |
+| yaml       | parse 268 KiB         | 35.89 ms | 2.85 ms |   12.6x |
+| yaml       | stringify 268 KiB     | 11.93 ms | 4.22 ms |    2.8x |
+| yamljs     | parse frontmatter     |   7.1 µs |  2.0 µs |    3.5x |
+| yamljs     | stringify frontmatter |   1.6 µs |  1.1 µs |    1.4x |
+| yamljs     | parse 268 KiB         | 11.36 ms | 2.29 ms |    5.0x |
+| yamljs     | stringify 268 KiB     |  1.46 ms | 1.28 ms |    1.1x |
+| @std/yaml  | parse frontmatter     |   3.7 µs |  1.7 µs |    2.1x |
+| @std/yaml  | stringify frontmatter |   3.8 µs |  2.3 µs |    1.7x |
+| @std/yaml  | parse 268 KiB         |  4.03 ms | 2.03 ms |    2.0x |
+| @std/yaml  | stringify 268 KiB     |  4.10 ms | 2.56 ms |    1.6x |
+| yaml, root | parse frontmatter     |  30.4 µs |  1.6 µs |   19.4x |
+| yaml, root | stringify frontmatter |  14.1 µs |  1.1 µs |   13.2x |
+| yaml, root | parse 268 KiB         | 36.22 ms | 1.87 ms |   19.3x |
+| yaml, root | stringify 268 KiB     | 12.65 ms | 1.01 ms |   12.5x |
 
 </details>
 
-tinyaml is faster on every row. The closest is tinyaml/yamljs's `stringify` on the 268 KiB file, 1.29 ms to yamljs's 1.44 ms. It has to write the same bytes as yamljs, so it follows yamljs's dumper closely.
+tinyaml is faster on every row. The closest is tinyaml/yamljs's `stringify` on the 268 KiB file, 1.28 ms to yamljs's 1.46 ms. It has to write the same bytes as yamljs, so it follows yamljs's dumper closely.
 
 ## How it compares
 
