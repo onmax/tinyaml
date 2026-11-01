@@ -1,4 +1,5 @@
-// Differential parse fuzzing against ini 7.0.0: take ini's fixtures and test
+// Differential parse fuzzing of a tinyini entry against the library it
+// replaces, ini 7.0.0 for tinyini/ini: take ini's fixtures and test
 // strings, the config samples in test/samples, and documents ini writes for
 // random values, apply a few random edits with INI-significant pieces, and
 // check that both parsers return the same thing or throw the same error. The
@@ -6,10 +7,11 @@
 // every bracketedArray setting, and on every tenth input odd option values
 // too. It also compares what each call left on the options object, and runs
 // `safe` and `unsafe` on every input.
-// Usage: node scripts/fuzz.ts [iterations] [seed]
-import * as tinyini from "../src/index.ts";
+// Usage: node scripts/fuzz.ts [iterations] [seed] [engine]
 import { generator } from "./values.ts";
-import { attempt, describe, ini, iniInputs, samples, seeded, show } from "./shared.ts";
+import { attempt, describe, engine, ini, iniInputs, samples, seeded, show } from "./shared.ts";
+
+const { label, ours: tinyini, theirs } = await engine(process.argv[4]);
 
 const iterations = Number(process.argv[2] ?? 20000);
 const next = seeded(Number(process.argv[3] ?? 1));
@@ -163,32 +165,32 @@ const check = (label: string, input: string, a: () => unknown, b: () => unknown)
   if (JSON.stringify(expected) !== JSON.stringify(actual))
     diffs.set(
       `${label} ${JSON.stringify(input)}`,
-      `ini:     ${show(expected)}\n  tinyini: ${show(actual)}`,
+      `theirs:  ${show(expected)}\n  tinyini: ${show(actual)}`,
     );
 };
 
 for (const [n, input] of inputs.entries()) {
   for (const options of n % 10 ? decodeOptions : [...decodeOptions, ...oddOptions]) {
     const mine = copy(options);
-    const theirs = copy(options);
+    const original = copy(options);
     const label = `decode ${describe(options)}`;
     check(
       label,
       input,
-      () => [ini.decode(input, theirs as never), theirs],
+      () => [theirs.decode(input, original as never), original],
       () => [tinyini.decode(input, mine as never), mine],
     );
   }
   check(
     "unsafe",
     input,
-    () => ini.unsafe(input),
+    () => theirs.unsafe(input),
     () => tinyini.unsafe(input),
   );
   check(
     "safe",
     input,
-    () => ini.safe(input),
+    () => theirs.safe(input),
     () => tinyini.safe(input),
   );
 }
@@ -198,7 +200,7 @@ for (const value of [undefined, null, 0, 1, true, false, {}, [], [1], NaN, new S
     check(
       fn,
       describe(value),
-      () => ini[fn](value as never),
+      () => theirs[fn](value as never),
       () => tinyini[fn](value as never),
     );
 
@@ -207,5 +209,5 @@ for (const [input, diff] of [...diffs].sort((a, b) => a[0].length - b[0].length)
   console.log(`--- ${input.slice(0, 300)}\n  ${diff}`);
 console.log(
   `${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated, ${new Set(inputs).size} distinct), ` +
-    `${calls} calls (${throws} throw in ini): ${diffs.size} differences`,
+    `${calls} calls (${throws} throw in ${label}): ${diffs.size} differences`,
 );

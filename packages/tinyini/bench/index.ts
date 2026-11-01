@@ -3,10 +3,10 @@
 // test/samples; the large one is about 100 KB of generated sections, comments,
 // quoted values, and arrays. Stringify passes `whitespace: true`, as confbox does.
 import { readFileSync } from "node:fs";
-import * as tinyini from "../src/index.ts";
+import * as tinyini from "../src/ini/index.ts";
 import { ini } from "../scripts/shared.ts";
 
-const foo = readFileSync("test/ini/fixtures/foo.ini", "utf8");
+const foo = readFileSync("test/suites/ini/fixtures/foo.ini", "utf8");
 const gitconfig = readFileSync("test/samples/gitconfig", "utf8");
 let large = "; generated for the benchmark\nroot = true\n\n";
 for (let i = 0; large.length < 100 * 1024; i++) {

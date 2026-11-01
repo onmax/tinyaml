@@ -24,8 +24,22 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "./package.json"
+      ],
+      "ini": [
+        "./dist/ini.d.mts"
+      ],
+      "*": [
+        "./dist/index.d.mts"
+      ]
+    }
+  },
   "exports": {
     ".": "./dist/index.mjs",
+    "./ini": "./dist/ini.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -38,6 +52,7 @@
     "fmt": "vp fmt",
     "typecheck": "tsrs --noEmit",
     "test": "vp test",
+    "test:dist": "vp test run --config test/dist.config.ts",
     "check": "vp check && pnpm typecheck",
     "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
     "prepare": "vp config",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import ini, { encode, safe, stringify, unsafe } from "../src/index.ts";
+import ini, { encode, safe, stringify, unsafe } from "../../src/ini/index.ts";
 
 describe("stringify", () => {
   it("writes sections, arrays, and escapes", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import ini, { decode, parse } from "../src/index.ts";
-import { gitToIni } from "../scripts/shared.ts";
+import ini, { decode, parse } from "../../src/ini/index.ts";
+import { gitToIni } from "../../scripts/shared.ts";
 
 describe("parse", () => {
   it("reads sections, comments, arrays, quotes, and escapes", () => {

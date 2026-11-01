@@ -1,9 +1,9 @@
-// Runs ini 7.0.0's own tap test files (copied unchanged into test/ini) against
-// any ini-shaped module. The files are CommonJS and require '../' or '..',
+// Runs ini's own tap test files, copied unchanged into test/suites/<engine>,
+// against any ini-shaped module. The files are CommonJS and require '../' or '..',
 // 'tap', 'fs', and 'path'; 'tap' gets a small stand-in that records every
 // assertion instead of printing TAP. Snapshots are read from the copied
 // tap-snapshots files and formatted with tcompare, as tap 16 does.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 
@@ -19,9 +19,13 @@ export interface Assertion {
   error?: string;
 }
 
-export const files = ["bar.js", "duplicate-properties.js", "foo.js", "proto.js", "win32.js"];
+/** The test files in one of the copied suites. */
+export const files = (root = "test/suites/ini"): string[] =>
+  readdirSync(root)
+    .filter((file) => file.endsWith(".js"))
+    .sort();
 
-export function runTapFile(file: string, lib: unknown, root = "test/ini"): Assertion[] {
+export function runTapFile(file: string, lib: unknown, root = "test/suites/ini"): Assertion[] {
   const results: Assertion[] = [];
   const path = resolve(root, file);
   const prefix = `test/${file} TAP`;

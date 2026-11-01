@@ -2,9 +2,41 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import type * as tinyini from "../src/index.ts";
+import type * as tinyini from "../src/ini/index.ts";
 
-export const ini = createRequire(import.meta.url)("ini") as typeof tinyini;
+const require = createRequire(import.meta.url);
+export const ini = require("ini") as typeof tinyini;
+
+/** A tinyini entry and the library it stands in for. */
+export interface Engine {
+  /** The original, as `name version`. */
+  label: string;
+  /** The original module. */
+  theirs: any;
+  /** The tinyini entry. */
+  ours: any;
+  /** The directory of the original's own tests, copied unchanged. */
+  tests: string;
+}
+
+const engines: Record<string, () => Promise<Engine>> = {
+  ini: async () => ({
+    label: "ini 7.0.0",
+    theirs: ini,
+    ours: await import("../src/ini/index.ts"),
+    tests: "test/suites/ini",
+  }),
+};
+
+/** Every engine's name, which is its entry's subpath. */
+export const ENGINES: string[] = Object.keys(engines);
+
+/** The engine named on the command line, `ini` when none is. */
+export async function engine(name = "ini"): Promise<Engine> {
+  const load = engines[name];
+  if (!load) throw new Error(`unknown engine ${name}; one of ${Object.keys(engines).join(", ")}`);
+  return load();
+}
 
 /** mulberry32: a 32-bit PRNG with a period of 2^32, in [0, 1). */
 export function seeded(seed: number): () => number {
@@ -71,10 +103,10 @@ export const show = (r: Outcome): string => (r.ok ? r.value : `throws ${r.error}
 
 /** ini's fixtures and the strings its tests parse. */
 export function iniInputs(): string[] {
-  const fixtures = readdirSync("test/ini/fixtures").map((f) =>
-    readFileSync(join("test/ini/fixtures", f), "utf8"),
+  const fixtures = readdirSync("test/suites/ini/fixtures").map((f) =>
+    readFileSync(join("test/suites/ini/fixtures", f), "utf8"),
   );
-  const proto = /var data = `([^`]*)`/.exec(readFileSync("test/ini/proto.js", "utf8"))![1]!;
+  const proto = /var data = `([^`]*)`/.exec(readFileSync("test/suites/ini/proto.js", "utf8"))![1]!;
   return [
     ...fixtures,
     proto,

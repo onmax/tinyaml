@@ -1,13 +1,15 @@
-// Differential stringify fuzzing against ini 7.0.0: random values through
+// Differential stringify fuzzing of a tinyini entry against the library it
+// replaces, ini 7.0.0 for tinyini/ini: random values through
 // every combination of align, sort, whitespace, newline, bracketedArray,
 // platform, and section, plus odd option values on every tenth value. Output
 // must be byte-identical, a throw must be the same error, and the options
 // object must be left the same. Then the round trip: decode(encode(x)) with
 // tinyini must describe the same as with ini.
-// Usage: node scripts/fuzz-stringify.ts [values] [seed]
-import * as tinyini from "../src/index.ts";
+// Usage: node scripts/fuzz-stringify.ts [values] [seed] [engine]
 import { generator } from "./values.ts";
-import { attempt, describe, ini, seeded, show } from "./shared.ts";
+import { attempt, describe, engine, seeded, show } from "./shared.ts";
+
+const { label, ours: tinyini, theirs: ini } = await engine(process.argv[4]);
 
 const count = Number(process.argv[2] ?? 1000);
 const generate = generator(seeded(Number(process.argv[3] ?? 1)));
@@ -84,6 +86,6 @@ const limit = Number(process.env.SHOW ?? 10);
 for (const [input, diff] of [...diffs].slice(0, limit))
   console.log(`--- ${input.slice(0, 300)}\n  ${diff}`);
 console.log(
-  `${count} values, ${calls} encode calls (${throws} throw in ini): ${diffs.size - roundTripDiffs} differ from ini 7.0.0; ` +
+  `${count} values, ${calls} encode calls (${throws} throw in ${label}): ${diffs.size - roundTripDiffs} differ from ${label}; ` +
     `${roundTrips} round trips, ${roundTripDiffs} differ`,
 );
