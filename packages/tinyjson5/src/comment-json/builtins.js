@@ -108,6 +108,12 @@ const check = () => {
     }
   }
 
+  // bind reads the name and length of the function it binds, call here,
+  // which have to be its own data properties for that to run no getter.
+  if (own(VALUES[5], 'name') !== 'call' || own(VALUES[5], 'length') !== 1) {
+    return false
+  }
+
   return behaves()
 }
 
@@ -135,8 +141,6 @@ export const map_set = uncurry(kept(8))
 export const char_code_at = uncurry(kept(9))
 export const string_slice = uncurry(kept(10))
 
-// Whether globalThis[name] is still value, read without running a getter.
-export const global_is = (name, value) => value !== undefined && own(GLOBAL, name) === value
 
 // Whether object[key] is still the built-in kept for it.
 export const untouched = (object, key) => {
@@ -159,5 +163,6 @@ export {
   object_prototype,
   array_prototype,
   string_prototype,
-  SymbolCtor
+  apply as reflect_apply,
+  SymbolCtor as symbol_constructor
 }

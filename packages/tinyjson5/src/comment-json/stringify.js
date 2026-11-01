@@ -30,20 +30,20 @@ import {
 import {CommentArray} from './array.js'
 import {
   HostMap,
-  SymbolCtor,
   array_prototype,
   char_code_at,
   create,
   descriptor_of,
-  global_is,
   key_for,
   map_get,
   map_set,
   object_prototype,
   own_symbols,
   prototype_of,
+  reflect_apply,
   string_slice,
-  untouched
+  symbol_constructor,
+  symbol_for
 } from './builtins.js'
 
 // String constants
@@ -143,8 +143,6 @@ const registered = object => {
 // they are by default, without a comment of their own to inherit.
 const standard_prototypes = () =>
   map_get !== undefined
-  && global_is('Symbol', SymbolCtor)
-  && untouched(SymbolCtor, 'for')
   && prototype_of(PROTOTYPES[2]) === PROTOTYPES[1]
   && prototype_of(PROTOTYPES[1]) === PROTOTYPES[0]
   && prototype_of(PROTOTYPES[0]) === null
@@ -198,7 +196,22 @@ const comments_of = (host, tag, prop) => {
   }
 
   if (!hosts) {
-    return host[Symbol.for(symbol_key(tag, prop))]
+    // The key first, as comment-json makes it before it reads Symbol.
+    const key = symbol_key(tag, prop)
+    return host[Symbol.for(key)]
+  }
+
+  // Symbol and its for, read as comment-json reads them for each lookup, so
+  // a getter on either runs as often, and a global let can shadow Symbol.
+  // The cache stands in for the engine's own Symbol.for only.
+  const symbol = Symbol
+  const symbol_for_now = symbol.for
+  if (symbol !== symbol_constructor || symbol_for_now !== symbol_for) {
+    if (typeof symbol_for_now !== 'function') {
+      throw new TypeError('Symbol.for is not a function')
+    }
+
+    return host[reflect_apply(symbol_for_now, symbol, [symbol_key(tag, prop)])]
   }
 
   let comments = map_get(hosts, host)
@@ -207,7 +220,7 @@ const comments_of = (host, tag, prop) => {
   }
 
   if (!comments) {
-    return host[Symbol.for(symbol_key(tag, prop))]
+    return host[symbol_for(symbol_key(tag, prop))]
   }
 
   if (prop === NO_PROP) {
