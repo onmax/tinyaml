@@ -94,7 +94,7 @@ const count_trailing_line_breaks = (str, gap) => {
 //   WHOLE block of comments is always a block group
 // Each object's comments by their symbol's key, read once per call where
 // that reads what looking each one up would: own data properties keyed by
-// registered symbols, on a prototype chain without any. A null entry looks
+// registered symbols, on the standard prototype chain without any. A null entry looks
 // each one up, as comment-json does. Without a replacer only, which could
 // change comments while the text is written.
 let hosts = null
@@ -102,6 +102,14 @@ const PROTOTYPES = [Object.prototype, Array.prototype, CommentArray.prototype]
 
 const registered = object => Object.getOwnPropertySymbols(object)
 .some(symbol => Symbol.keyFor(symbol) !== undefined)
+
+// CommentArray.prototype, Array.prototype and Object.prototype, chained as
+// they are by default, without a comment of their own to inherit.
+const standard_prototypes = () =>
+  Object.getPrototypeOf(CommentArray.prototype) === Array.prototype
+  && Object.getPrototypeOf(Array.prototype) === Object.prototype
+  && Object.getPrototypeOf(Object.prototype) === null
+  && !PROTOTYPES.some(registered)
 
 const read_comments = host => {
   if (!PROTOTYPES.includes(Object.getPrototypeOf(host))) {
@@ -499,7 +507,7 @@ export default (value, replacer_, space) => {
 
   replacer = replacer_
   indent = indent_
-  hosts = !replacer_ && !PROTOTYPES.some(registered)
+  hosts = !replacer_ && standard_prototypes()
     ? new Map()
     : null
 

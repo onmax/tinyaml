@@ -63,4 +63,24 @@ describe("comment-json", () => {
     for (const length of [2, 3, 32, 64])
       expect(outcome(ours, length), String(length)).toEqual(outcome(theirs, length));
   });
+
+  it("writes a comment a CommentArray inherits through a changed prototype chain", () => {
+    const theirs = require("comment-json");
+    const write = (lib: any) => {
+      const array = new lib.CommentArray(1, 2);
+      const proto = Object.getPrototypeOf(lib.CommentArray.prototype);
+      const extra = Object.create(proto, {
+        [Symbol.for("before-all")]: {
+          value: [{ type: "BlockComment", value: "inherited", inline: true }],
+        },
+      });
+      Object.setPrototypeOf(lib.CommentArray.prototype, extra);
+      try {
+        return lib.stringify(array, null, 2);
+      } finally {
+        Object.setPrototypeOf(lib.CommentArray.prototype, proto);
+      }
+    };
+    expect(write(ours)).toBe(write(theirs));
+  });
 });
