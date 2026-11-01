@@ -112,7 +112,7 @@ for (let i = 0; i < seeds.length + iterations; i++) {
 const model = (v: any, sort: boolean, key: string, inArray = false): any => {
   const method =
     v !== null && ["object", "function", "bigint"].includes(typeof v) ? v.toJSON : undefined;
-  if (typeof method === "function") v = method.call(v, key);
+  if (typeof method === "function") v = Reflect.apply(method, v, [key]);
   if (v === undefined || typeof v === "function" || typeof v === "symbol")
     return inArray ? null : undefined;
   if (v === null || typeof v === "boolean") return v;
@@ -163,3 +163,4 @@ for (let n = 0; n < count; n++) {
 console.log(
   `${inputs} inputs, ${calls} stringify calls (${throws} throw), ${trips} round trips: ${diffs} differences`,
 );
+process.exitCode = diffs ? 1 : 0;

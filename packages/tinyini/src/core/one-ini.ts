@@ -148,8 +148,12 @@ interface Node {
 }
 type Body = { body?: Node[] };
 
-/** Adds a node to a body, which serde leaves out while it's empty. */
-const add = (o: Body, node: Node) => (o.body ??= []).push(node);
+/**
+ * Adds a node to a body, which serde leaves out while it's empty. A `body`
+ * that Object.prototype has isn't the node's.
+ */
+const add = (o: Body, node: Node) =>
+  (Object.hasOwn(o, "body") ? o.body! : (o.body = [])).push(node);
 
 /** The AST of an EditorConfig INI file, as one-ini's `parse_to_json` returns it. */
 export function parse_to_json(contents: string): { version: string; body?: Node[] } {
@@ -219,8 +223,11 @@ function utf8Error(bytes: Uint8Array): string | undefined {
 export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
   // wasm-bindgen copies the argument into memory the same way, after a
   // malloc that takes the length as an i32 and traps on a negative one.
-  const bytes = new Uint8Array(malloc(contents.length * 1));
+  let bytes = new Uint8Array(malloc(contents.length * 1));
   bytes.set(contents);
+  // The glue reads the length again for the length it passes.
+  const end = contents.length | 0;
+  if (end >= 0 && end < bytes.length) bytes = bytes.subarray(0, end);
   const text = decoder.decode(bytes);
   if (text.includes("\ufffd")) {
     const error = utf8Error(bytes);

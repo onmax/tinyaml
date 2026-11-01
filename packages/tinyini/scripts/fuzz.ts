@@ -222,3 +222,4 @@ console.log(
   `${inputs.length} inputs (${seeds.length} seeds + ${iterations} mutated, ${new Set(inputs).size} distinct), ` +
     `${calls} calls (${throws} throw in ${label}): ${diffs.size} differences`,
 );
+process.exitCode = diffs.size ? 1 : 0;

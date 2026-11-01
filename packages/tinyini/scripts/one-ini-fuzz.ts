@@ -13,7 +13,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { attempt, describe, iniInputs, samples, seeded, show } from "./shared.ts";
+import { attempt, describe, iniInputs, restoreBuiltIns, samples, seeded, show } from "./shared.ts";
 
 const require = createRequire(import.meta.url);
 const iterations = Number(process.argv[2] ?? 20000);
@@ -161,6 +161,21 @@ for (const value of odd) {
   check(`parse_to_json ${describe(value)}`, (lib) => lib.parse_to_json(value));
   check(`parse_to_uint32array ${describe(value)}`, (lib) => array(lib.parse_to_uint32array(value)));
 }
+// The AST's names set on Object.prototype, as data, so that a property read
+// from the prototype instead of the node shows.
+for (const polluted of [["inherited"], "inherited"])
+  for (const input of ["a=b", "; c\n[s]\nk=v", ""])
+    check(`parse_to_json ${JSON.stringify(input)} with Object.prototype set`, (lib) =>
+      restoreBuiltIns(() => {
+        for (const key of ["body", "type", "key", "value", "name", "indicator", "version"])
+          Object.defineProperty(Object.prototype, key, {
+            value: polluted,
+            writable: true,
+            configurable: true,
+          });
+        return describe(lib.parse_to_json(input));
+      }),
+    );
 check("version()", (lib) => lib.version());
 check("TokenTypes", (lib) => [lib.TokenTypes, Object.isFrozen(lib.TokenTypes)]);
 
@@ -170,3 +185,4 @@ for (const [label, diff] of [...diffs].sort((a, b) => a[0].length - b[0].length)
 console.log(
   `${seeds.length + iterations} inputs (${seeds.length} seeds), ${calls} calls (${throws} throw in @one-ini/wasm ${theirs.version()}): ${diffs.size} differences`,
 );
+process.exitCode = diffs.size ? 1 : 0;

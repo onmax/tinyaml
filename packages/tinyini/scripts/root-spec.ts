@@ -156,7 +156,7 @@ function scalarText(v: unknown): string {
 const toJSON = (v: any, key: string): unknown => {
   if (v === null || !["object", "function", "bigint"].includes(typeof v)) return v;
   const method = v.toJSON;
-  return typeof method === "function" ? method.call(v, key) : v;
+  return typeof method === "function" ? Reflect.apply(method, v, [key]) : v;
 };
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 

@@ -52,7 +52,7 @@ const display = (ast: { body?: Item[] }) => {
 
 /** The Rust tests in a file as JavaScript: name, body, and whether it must panic. */
 function tests(file: string): { name: string; body: string; panics: boolean }[] {
-  const source = readFileSync(`${dir}/${file}`, "utf8");
+  const source = readFileSync(`${dir}/${file}`, "utf8").replace(/\r\n?/g, "\n");
   const found = [];
   const re = /#\[(?:wasm_bindgen_)?test\]\s*(#\[should_panic\]\s*)?fn (\w+)\(\) \{\n([^]*?)\n\}/g;
   for (const [, panics, name, rust] of source.matchAll(re)) {
@@ -73,11 +73,16 @@ function tests(file: string): { name: string; body: string; panics: boolean }[] 
       .replace(/\blet\b/g, "const");
     found.push({ name: name!, body, panics: !!panics });
   }
+  // Every test attribute must have given a test, or the pattern missed some.
+  const marked = source.match(/#\[(?:wasm_bindgen_)?test\]/g)?.length ?? 0;
+  if (!marked || found.length !== marked)
+    throw new Error(`${file}: found ${found.length} of ${marked} tests`);
   return found;
 }
 
 const cases = [...tests("integration_test.rs"), ...tests("node.rs")];
-let failed = 0;
+// No tests means the Rust sources weren't found or read.
+let failed = cases.length ? 0 : 1;
 for (const [label, lib] of engines) {
   const encoder = new TextEncoder();
   const bytes = (s: string) => encoder.encode(s);
@@ -121,3 +126,4 @@ for (const [label, lib] of engines) {
 }
 // The WASM modules must pass too, or the harness is wrong.
 console.log(`${failed} failing tests`);
+process.exitCode = failed ? 1 : 0;

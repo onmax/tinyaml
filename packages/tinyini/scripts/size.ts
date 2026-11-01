@@ -49,8 +49,8 @@ const BUDGET: Record<string, number> = {
   "tinyini/ini": 1590,
   "tinyini/ini-v2": 1420,
   "tinyini/ini-v1": 1430,
-  "tinyini/one-ini": 1520,
-  "tinyini/one-ini-v0.1": 1520,
+  "tinyini/one-ini": 1560,
+  "tinyini/one-ini-v0.1": 1560,
 };
 
 // Code that some modes have, as it reads once minified, and the modes whose

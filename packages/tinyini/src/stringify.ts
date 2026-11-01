@@ -26,7 +26,7 @@ const NAME = /^[\s"]|\s$|[\r\n]/;
 const own = (v: any, key: string): unknown => {
   const f =
     (typeof v === "object" ? v : typeof v === "function" || typeof v === "bigint") && v.toJSON;
-  return typeof f === "function" ? f.call(v, key) : v;
+  return typeof f === "function" ? Reflect.apply(f, v, [key]) : v;
 };
 const skipped = (v: unknown) => v === undefined || typeof v === "function" || typeof v === "symbol";
 const text = (s: string, special: RegExp) => (special.test(s) ? JSON.stringify(s) : s);

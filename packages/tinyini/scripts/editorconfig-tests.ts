@@ -17,7 +17,10 @@ const runs = [
   { name: "editorconfig 3.0.2", pkg: "editorconfig", entry: "one-ini" },
 ];
 
-/** The names of the tests that fail, out of how many ran. */
+/**
+ * The names of the tests that fail, out of how many ran, or a total of 0 if
+ * CTest's summary and its list of failures don't agree.
+ */
 function ctest(dir: string, command: string[]): { failed: string[]; total: number } {
   mkdirSync(dir, { recursive: true });
   const script = resolve(dir, "editorconfig.sh");
@@ -37,8 +40,10 @@ function ctest(dir: string, command: string[]): { failed: string[]; total: numbe
     out = (error as { stdout: string }).stdout;
   }
   const summary = /(\d+) tests failed out of (\d+)/.exec(out);
-  const failed = [...out.matchAll(/^\s*\d+ - (\S+) \(Failed\)/gm)].map((m) => m[1]!);
-  return { failed, total: Number(summary?.[2] ?? 0) };
+  // Each failure, whatever its status: Failed, Timeout, SEGFAULT, Not Run...
+  const failed = [...out.matchAll(/^\s*\d+ - (\S+) \([^)]+\)/gm)].map((m) => m[1]!);
+  const total = failed.length === Number(summary?.[1]) ? Number(summary![2]) : 0;
+  return { failed, total };
 }
 
 let worse = 0;
@@ -67,3 +72,4 @@ for (const { name, pkg, entry } of runs) {
   for (const t of only) console.log(`  fails only with tinyini: ${t}`);
 }
 console.log(`tinyini: ${worse} tests fail only with tinyini`);
+process.exitCode = worse ? 1 : 0;

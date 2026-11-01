@@ -236,3 +236,4 @@ console.log(
   `${count} values, ${calls} encode calls and ${windowsCalls} on win32 (${throws} throw in ${label}): ${encodeDiffs} differ from ${label}; ` +
     `${roundTrips} round trips, ${roundTripDiffs} differ`,
 );
+process.exitCode = encodeDiffs || roundTripDiffs ? 1 : 0;

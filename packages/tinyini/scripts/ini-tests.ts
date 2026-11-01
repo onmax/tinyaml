@@ -26,7 +26,10 @@ for (const name of process.argv[2] ? [process.argv[2]] : ENGINES) {
       for (const r of bad) console.log(`  FAIL ${r.name}: ${r.error}`);
     }
     console.log(`${who.padEnd(16)} ${"all".padEnd(36)} ${passed}/${total} pass`);
+    // No assertions means the suite wasn't found or read.
+    if (!total) failed++;
   }
 }
 // The originals must pass too, or the harness is wrong.
 console.log(`${failed} failing assertions`);
+process.exitCode = failed ? 1 : 0;
