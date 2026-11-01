@@ -5,7 +5,7 @@ description: Check YAML the way tinyaml loads it, from the command line, as a li
 
 The linter checks YAML files the way tinyaml loads them. It reports YAML tinyaml can't load, with the line and column, and plain values that load as strings here but that other YAML readers take for a boolean, null, a number, or a date.
 
-It runs from the command line, as a library, as an [ESLint](./eslint.md) plugin, or as a [Vite Doctor](./vite-doctor.md) extension. It all ships with tinyaml. The command line and the library need nothing else, and the ESLint plugin and the Vite Doctor extension need ESLint or Vite Doctor installed.
+It runs from the command line, as a library, as an [ESLint](/tinyaml/linter/eslint/) plugin, or as a [Vite Doctor](/tinyaml/linter/vite-doctor/) extension. It all ships with tinyaml. The command line and the library need nothing else, and the ESLint plugin and the Vite Doctor extension need ESLint or Vite Doctor installed.
 
 ## Command line
 

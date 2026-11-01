@@ -16,7 +16,7 @@ const rules = Object.fromEntries(
         type: "problem",
         docs: {
           description: info[id].title,
-          url: `https://github.com/onmax/tiny/blob/main/docs/pages/tinyaml/linter/index.md#${id.replace("/", "")}`,
+          url: `https://tiny.onmax.me/tinyaml/linter/overview/#${id.replace("/", "")}`,
         },
         schema: [],
       },

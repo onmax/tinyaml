@@ -22,10 +22,7 @@ const diagnostics = defineDoctorDiagnostics(
   {
     docsBase: (code) => {
       const rule = ids.find((id) => rules[id].code === code);
-      return (
-        rule &&
-        `https://github.com/onmax/tiny/blob/main/docs/pages/tinyaml/linter/index.md#${rule.replace("/", "")}`
-      );
+      return rule && `https://tiny.onmax.me/tinyaml/linter/overview/#${rule.replace("/", "")}`;
     },
   },
 );

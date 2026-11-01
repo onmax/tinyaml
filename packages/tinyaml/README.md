@@ -66,7 +66,7 @@ Values follow the YAML 1.2 core schema, merge keys are on by default, and errors
 
 ## Linter
 
-`tinyaml-lint` reports YAML tinyaml can't parse, and plain values such as `no` or `1_000` that parse as strings here but not in other YAML readers. It also runs as a library (`tinyaml/linter`), an [ESLint plugin](https://github.com/onmax/tiny/blob/main/docs/pages/tinyaml/linter/eslint.md) (`tinyaml/eslint`), and a [Vite Doctor extension](https://github.com/onmax/tiny/blob/main/docs/pages/tinyaml/linter/vite-doctor.md) (`tinyaml/doctor`). See [the linter docs](https://github.com/onmax/tiny/blob/main/docs/pages/tinyaml/linter/index.md).
+`tinyaml-lint` reports YAML tinyaml can't parse, and plain values such as `no` or `1_000` that parse as strings here but not in other YAML readers. It also runs as a library (`tinyaml/linter`), an [ESLint plugin](https://tiny.onmax.me/tinyaml/linter/eslint/) (`tinyaml/eslint`), and a [Vite Doctor extension](https://tiny.onmax.me/tinyaml/linter/vite-doctor/) (`tinyaml/doctor`). See [the linter docs](https://tiny.onmax.me/tinyaml/linter/overview/).
 
 ```sh
 pnpm tinyaml-lint "**/*.{yaml,yml}"

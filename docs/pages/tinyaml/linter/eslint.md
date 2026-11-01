@@ -3,7 +3,7 @@ title: ESLint
 description: Run the tinyaml linter rules from ESLint with tinyaml/eslint.
 ---
 
-`tinyaml/eslint` runs the [linter's rules](./index.md#rules) from ESLint, so `eslint .`, your editor, and your CI report YAML problems next to code problems.
+`tinyaml/eslint` runs the [linter's rules](/tinyaml/linter/overview/#rules) from ESLint, so `eslint .`, your editor, and your CI report YAML problems next to code problems.
 
 ## Setup
 

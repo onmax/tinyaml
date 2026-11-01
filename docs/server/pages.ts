@@ -28,6 +28,7 @@ const sections: Section[] = [
       "Replaces js-yaml 4 and 5, yaml, yamljs and @std/yaml, one subpath each. 1.5× faster and 18% smaller than js-yaml.",
     lists: [
       { title: "Guide", slugs: ["guide/getting-started", "guide/switching", "guide/api"] },
+      { title: "Linter", slugs: ["linter/overview", "linter/eslint", "linter/vite-doctor"] },
       {
         title: "Numbers",
         slugs: [

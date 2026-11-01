@@ -3,7 +3,7 @@ title: Vite Doctor
 description: Add the tinyaml linter rules to a Vite Doctor run with tinyaml/doctor.
 ---
 
-`tinyaml/doctor` adds the [linter's rules](./index.md#rules) to a [Vite Doctor](https://github.com/onmax/vite-doctor) run, so one report covers your code and your YAML.
+`tinyaml/doctor` adds the [linter's rules](/tinyaml/linter/overview/#rules) to a [Vite Doctor](https://github.com/onmax/vite-doctor) run, so one report covers your code and your YAML.
 
 ## Setup
 
@@ -32,7 +32,7 @@ export default defineDoctorConfig({
 pnpm vite-doctor . --config doctor.config.ts
 ```
 
-Each problem reports with its own code, `TINYAML0001` or `TINYAML0002`, linked to the rule's section in the [linter docs](./index.md#rules). Each diagnostic carries `why`, `fix`, and the YAML location in `sources`.
+Each problem reports with its own code, `TINYAML0001` or `TINYAML0002`, linked to the rule's section in the [linter docs](/tinyaml/linter/overview/#rules). Each diagnostic carries `why`, `fix`, and the YAML location in `sources`.
 
 ## Options
 
