@@ -28,7 +28,7 @@
 <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">
 <text x="728" y="138" fill="#525252"># change one import</text>
 <text x="728" y="182" fill="#737373"><tspan fill="#e5484d">-</tspan> import JSON5 from "json5"</text>
-<text x="728" y="226" fill="#fafafa"><tspan fill="#e5484d">+</tspan> import JSON5 from "tinyjson5"</text>
+<text x="728" y="226" fill="#fafafa"><tspan fill="#e5484d">+</tspan> import JSON5 from "tinyjson5/json5"</text>
 <text x="728" y="270" fill="#525252"># also tinyaml and tinyini</text>
 </g>
 </g>

@@ -37,12 +37,12 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 - json5 1.0.2 is compiled by Babel, and its `for...of` loops go through iterators. A replacer list is iterated as Babel does, but strings and key lists are not, so a patched `String.prototype[Symbol.iterator]`, or an `Array.prototype[Symbol.iterator]` whose `next` or `return` changes, is used differently.
 - A `parse` called from inside `console.warn` while json5 warns about U+2028 returns the inner result in json5, whose shared state it overwrites. tinyjson5 throws an end-of-input error there.
 - Stack depth: `stringify` and the reviver recurse in both, and run out of stack at slightly different depths.
-- 1,000,500 mutated inputs each give the same value or the same error, message and position, as json5 2.2.3 (739,687 errors) and json5 1.0.2 (757,833 errors, 4,543 of them that `RangeError`), and the same warnings. 14,000 random values through every space, quote and replacer, 1,037,400 `stringify` calls each, are byte-identical, and every round trip reads back.
+- 1,000,500 inputs each (500 seeds and a million edits of them) give the same value or the same error, message and position, as json5 2.2.3 (739,687 errors) and json5 1.0.2 (757,833 errors, 4,543 of them that `RangeError`), and the same warnings. 14,000 random values through every space, quote and replacer, 1,037,400 `stringify` calls each, are byte-identical, and every round trip reads back.
 
 ## strip-json-comments 3, 2 and 5: what's different
 
 - tinyjson5/strip-json-comments-v2 with an argument that isn't a string, null or undefined: strip-json-comments 2 runs its loop on the object itself, through `length`, its indexes, `slice` and `substr`. The subpath reads `length`, throws `TypeError: str.substr is not a function` if there's no `substr`, and else strips `String(argument)`. Doing what 2 does would make the subpath bigger than it.
-- 1,000,400 mutated inputs each, with every option set: 3,001,221 calls to 3, 4,001,628 to 2 and 5,002,035 to 5, with the same output or the same error.
+- 1,000,400 inputs each (400 seeds and a million edits of them), with every option set: 3,001,221 calls to 3, 4,001,628 to 2 and 5,002,035 to 5, with the same output or the same error.
 
 ## jsonc-parser: what's different
 
@@ -50,7 +50,7 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 - `visit` passes one path-supplier function to all of a visit's callbacks, where jsonc-parser makes a new one for each. Each returns the path at the time it's called, as there.
 - Token values are cut from the text with `substring`, when asked for, where jsonc-parser builds trivia with `String.fromCharCode` and cuts the rest as it scans. A program that replaces `String.prototype.substring` or `String.fromCharCode`, also between a `scan()` and its `getTokenValue()`, sees other calls and values; `String.prototype.charCodeAt` is called as jsonc-parser calls it.
 - No deep imports such as `jsonc-parser/lib/esm/impl/format`. Its `string-intern` test, which tests caches inside its formatter, isn't run.
-- 1,000,922 mutated inputs, 23,021,226 calls over the whole API: the scanner in both trivia modes and after `setPosition`, `parse` and `parseTree` with each option set, `visit` with suppressed callbacks, `getLocation`, `findNodeAtOffset`, `findNodeAtLocation`, `getNodePath`, `getNodeValue`, `stripComments`, `format` with random ranges and options and `modify` with random paths, values and options, both through `applyEdits`. All give the same result or throw the same error.
+- 1,000,922 inputs (922 seeds and a million edits of them), 23,021,226 calls over the whole API: the scanner in both trivia modes and after `setPosition`, `parse` and `parseTree` with each option set, `visit` with suppressed callbacks, `getLocation`, `findNodeAtOffset`, `findNodeAtLocation`, `getNodePath`, `getNodeValue`, `stripComments`, `format` with random ranges and options and `modify` with random paths, values and options, both through `applyEdits`. All give the same result or throw the same error.
 
 ## comment-json: what's different
 
@@ -58,12 +58,12 @@ All subpaths are ES modules. None has a CommonJS build, a CLI, or a `require` ho
 - `tokenize` builds esprima's tokens itself for JSON with comments, and hands any other input to esprima's own tokenizer, which comes along unchanged.
 - Both faster paths, the comment read and the tokenizer, run only while the built-ins they rely on are the engine's own, and otherwise do what comment-json and esprima do. They tell from each built-in's name and source, read from its descriptor without running a getter, and from what it does on a known input. A program that replaces `globalThis`, `Object`, `Function`, `Reflect`, `Object.getOwnPropertyDescriptor`, `Reflect.apply` or `Function.prototype.toString` before tinyjson5 loads can fool that check, which has to read and call them before it can check anything.
 - No `require("comment-json")`: ES modules only, and no deep imports.
-- 1,000,509 mutated inputs, 8,004,072 calls: `parse` with and without comments and with a reviver, compared with every comment symbol and token; `tokenize`; `stringify` with each space and replacer; `assign`, `moveComments` and `removeComments`. All give the same result or throw the same error, with esprima's and comment-json's error fields.
+- 1,000,509 inputs (509 seeds and a million edits of them), 8,004,072 calls: `parse` with and without comments and with a reviver, compared with every comment symbol and token; `tokenize`; `stringify` with each space and replacer; `assign`, `moveComments` and `removeComments`. All give the same result or throw the same error, with esprima's and comment-json's error fields.
 
 ## jju: what's different
 
 - Not jju's `utils`: its `require` hook for `.json5` files, its `JSON.parse` patch and its middleware, which are Node-only.
 - Off Node, an assertion `update` trips throws an `AssertionError`-named error with Node's code and fields but a shorter message. On Node it's Node's own `AssertionError`, as in jju.
-- 1,000,648 mutated inputs, 6,003,888 calls: `parse` in each mode with random options, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
+- 1,000,648 inputs (648 seeds and a million edits of them), 6,003,888 calls: `parse` in each mode with random options, `tokenize`, `analyze`, `stringify` with random options, and `update`, with the same result or the same error, `row` and `column` included.
 
 jju, comment-json and array-timsort are written for sloppy mode, and their ports run as ES modules, which are strict. Writes that would fail silently there go through `Reflect.set` and `Reflect.deleteProperty` here, so frozen options, objects and arrays behave the same. jju's go through one sloppy-mode function made with `Function` instead, which is faster, and through `Reflect` where a Content-Security-Policy or `--disallow-code-generation-from-strings` blocks it.

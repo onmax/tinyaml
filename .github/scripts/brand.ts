@@ -87,7 +87,7 @@ const banners: Banner[] = [
     code: [
       "# change one import",
       '- import JSON5 from "json5"',
-      '+ import JSON5 from "tinyjson5"',
+      '+ import JSON5 from "tinyjson5/json5"',
       "# also tinyaml and tinyini",
     ],
   },
@@ -111,18 +111,19 @@ const banners: Banner[] = [
   {
     file: "packages/tinyjson5/.github/banner.svg",
     name: "tinyjson5",
-    title: "tinyjson5: a smaller, faster drop-in for json5 2.2.3",
-    tagline: "Swap json5 for a smaller, faster one.",
+    title:
+      "tinyjson5: smaller, faster drop-ins for json5 2 and 1, strip-json-comments, jsonc-parser, comment-json and jju",
+    tagline: "Faster drop-ins for JSON5 and JSONC parsers.",
     stats: [
-      ["8×", "faster parsing"],
-      ["2.5×", "smaller, gzip"],
+      ["8×", "faster than json5"],
+      ["8", "drop-in replacements"],
       ["0", "dependencies"],
     ],
     code: [
       "# change one import",
       '- import JSON5 from "json5"',
-      '+ import JSON5 from "tinyjson5"',
-      "# same values, same errors",
+      '+ import JSON5 from "tinyjson5/json5"',
+      "# also jsonc-parser, comment-json, jju",
     ],
   },
   {
