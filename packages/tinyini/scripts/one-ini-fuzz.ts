@@ -17,7 +17,15 @@ const require = createRequire(import.meta.url);
 const iterations = Number(process.argv[2] ?? 20000);
 const next = seeded(Number(process.argv[3] ?? 1));
 const name = process.argv[4] ?? "one-ini";
-const theirs = require(name === "one-ini" ? "@one-ini/wasm" : "one-ini-v0.1");
+const id = require.resolve(name === "one-ini" ? "@one-ini/wasm" : "one-ini-v0.1");
+// The WASM module leaks memory on every call, about 48 KiB for a 1 KiB file,
+// and once it reaches 4 GiB every call throws `RuntimeError: unreachable`.
+// A fresh instance every 5,000 inputs keeps it far from that.
+const load = () => {
+  delete require.cache[id];
+  return require(id);
+};
+let theirs = load();
 const ours = await import(`../src/${name}/index.ts`);
 const pick = <T>(list: readonly T[]) => list[Math.floor(next() * list.length)]!;
 
@@ -78,6 +86,7 @@ const diffs = new Map<string, string>();
 const check = (label: string, call: (lib: any) => unknown) => {
   calls++;
   const a = attempt(() => call(theirs));
+
   const b = attempt(() => call(ours));
   if (!a.ok) throws++;
   if (JSON.stringify(a) !== JSON.stringify(b))
@@ -87,6 +96,7 @@ const array = (u: unknown) => (u instanceof Uint32Array ? `Uint32Array ${u.join(
 
 const encoder = new TextEncoder();
 for (let i = 0; i < seeds.length + iterations; i++) {
+  if (i % 5000 === 4999) theirs = load();
   let input = seeds[i] ?? pick(seeds);
   if (i >= seeds.length)
     for (let edits = 1 + Math.floor(next() * 4); edits > 0; edits--) {
@@ -110,7 +120,9 @@ for (let i = 0; i < seeds.length + iterations; i++) {
         Math.floor(next() * 256),
       );
     bytes = new Uint8Array(copy);
-    check(`parse_to_uint32array [${bytes.join()}]`, (lib) => array(lib.parse_to_uint32array(bytes)));
+    check(`parse_to_uint32array [${bytes.join()}]`, (lib) =>
+      array(lib.parse_to_uint32array(bytes)),
+    );
   }
 }
 const odd: unknown[] = [

@@ -1,12 +1,14 @@
 {
   "name": "tinyini",
   "version": "0.0.0",
-  "description": "Tiny, fast INI parser and stringifier, a drop-in replacement for ini 7.0.0",
+  "description": "Tiny, fast INI parser and stringifier, with drop-in replacements for ini and @one-ini/wasm",
   "keywords": [
     "config",
+    "editorconfig",
     "gitconfig",
     "ini",
     "npmrc",
+    "one-ini",
     "parser",
     "stringify"
   ],

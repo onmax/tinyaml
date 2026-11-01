@@ -16,7 +16,8 @@ import { gzipSync } from "node:zlib";
 import { MODES } from "../vite.config.ts";
 import { build, ENTRIES } from "./dist.ts";
 
-// Each entry, then the library it replaces, which it must not outgrow.
+// Each entry, with its named exports and its default export, then the
+// library it replaces, which it must not outgrow.
 const entries: [string, string, string?][] = [
   ["tinyini", "index"],
   ["tinyini/ini", "ini", "ini 7.0.0"],
@@ -44,12 +45,12 @@ const require = createRequire(import.meta.url);
 // less than a mode's dead branches weigh, so losing the folding fails. Raise
 // one on purpose, and say why in the commit.
 const BUDGET: Record<string, number> = {
-  tinyini: 1700,
-  "tinyini/ini": 1700,
-  "tinyini/ini-v2": 1460,
-  "tinyini/ini-v1": 1480,
-  "tinyini/one-ini": 1400,
-  "tinyini/one-ini-v0.1": 1400,
+  tinyini: 1330,
+  "tinyini/ini": 1550,
+  "tinyini/ini-v2": 1420,
+  "tinyini/ini-v1": 1430,
+  "tinyini/one-ini": 1465,
+  "tinyini/one-ini-v0.1": 1465,
 };
 
 // Code that some modes have, as it reads once minified, and the modes whose
@@ -74,6 +75,26 @@ const modeOf = (entry: string) =>
 
 build();
 
+/** Every export of a built entry, its default export included when it has one. */
+const whole = (file: string) =>
+  `export * from ${JSON.stringify(file)};` +
+  (/\bas default\b/.test(readFileSync(file, "utf8"))
+    ? ` export { default } from ${JSON.stringify(file)};`
+    : "");
+
+// Imports of one function, and code that must then be left out: the
+// stringifier, by an option only it reads, or the parser, by its line split.
+const SHAKEN: [string, string, string][] = [
+  ["index", "parse", "whitespace"],
+  ["index", "stringify", "/[\\r\\n]+/"],
+  ["ini", "parse", "whitespace"],
+  ["ini", "stringify", "/[\\r\\n]+/"],
+  ["ini", "safe", "/[\\r\\n]+/"],
+  ["ini-v2", "parse", "whitespace"],
+  ["ini-v1", "parse", "whitespace"],
+  ["one-ini", "parse_to_uint32array", "Pair"],
+];
+
 const json: Record<string, { min: number; gzip: number }> = {};
 const kib = (bytes: number) => `${(bytes / 1024).toFixed(2)} KiB`;
 const problems: string[] = [];
@@ -84,7 +105,7 @@ for (const [name, source, original] of entries) {
   try {
     code = buildSync({
       stdin: {
-        contents: built ? `export * from ${JSON.stringify(built)}` : source,
+        contents: built ? whole(built) : source,
         resolveDir: process.cwd(),
         loader: "ts",
       },
@@ -129,11 +150,35 @@ for (const [name, source, original] of entries) {
       );
   }
 }
+for (const [entry, name, left] of SHAKEN) {
+  const code = buildSync({
+    stdin: {
+      contents: `export { ${name} } from ${JSON.stringify(ENTRIES[entry])}`,
+      resolveDir: process.cwd(),
+    },
+    bundle: true,
+    minify: true,
+    format: "esm",
+    platform: "neutral",
+    write: false,
+  }).outputFiles[0]!.text;
+  if (code.includes(left))
+    problems.push(
+      `importing ${name} alone from ${entry} keeps ${left}: tree shaking stopped working`,
+    );
+}
 for (const [name, original] of checks) {
   const [ours, theirs] = [json[name], json[original]];
   if (ours && theirs && ours.gzip > theirs.gzip)
     problems.push(`${name} is ${ours.gzip} B gzip, bigger than ${original} at ${theirs.gzip} B`);
 }
+// tinyini's own API leaves out everything kept for compatibility, so it must
+// be the smallest entry.
+for (const name of Object.keys(BUDGET))
+  if (name !== "tinyini" && json[name] && json.tinyini && json[name].gzip <= json.tinyini.gzip)
+    problems.push(
+      `${name} is ${json[name].gzip} B gzip, no bigger than the root at ${json.tinyini.gzip} B`,
+    );
 if (process.argv.includes("--json")) console.log(JSON.stringify(json, null, 2));
 for (const problem of problems) console.error(problem);
 if (problems.length) process.exitCode = 1;

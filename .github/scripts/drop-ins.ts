@@ -74,7 +74,7 @@ const data: DropIns = {
       "ini 7.0.0",
       "tinyini",
       iniSize,
-      ["ini (whole module)", "tinyini (whole module)"],
+      ["ini 7.0.0", "tinyini/ini"],
       iniBench,
     ),
   ],

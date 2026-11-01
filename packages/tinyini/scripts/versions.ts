@@ -3,15 +3,18 @@
 // installs the versions into .cache/versions the first time. Each pair is
 // compared on the parse fuzzer's kind of inputs (decode with and without
 // bracketedArray: false, safe and unsafe) and on random values through
-// encode with each option, the options object afterwards included. Encoding
-// runs on this machine's platform, so the win32 line endings that ini 3.x and
-// 4.0.0 write for array items show only on Windows.
+// encode with each option, the options object afterwards included, once as
+// loaded here and once loaded with process.platform set to "win32". Then
+// encode once more where there is no `process`. Each call runs with the
+// built-ins put back afterwards, since ini 1.3.5 and before write a
+// [__proto__] section's keys to Object.prototype.
 // Usage: node scripts/versions.ts [inputs] [version,version,...]
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { runInNewContext } from "node:vm";
 import { generator } from "./values.ts";
-import { attempt, iniInputs, samples, seeded } from "./shared.ts";
+import { attempt, iniInputs, restoreBuiltIns, samples, seeded } from "./shared.ts";
 
 const VERSIONS =
   "1.3.4,1.3.5,1.3.7,1.3.8,2.0.0,3.0.0,3.0.1,4.0.0,4.1.0,4.1.1,4.1.2,4.1.3,5.0.0,6.0.0,7.0.0";
@@ -30,6 +33,32 @@ if (!versions.every((v) => existsSync(`${dir}/node_modules/ini-${v}`))) {
 }
 const require = createRequire(new URL(`../${dir}/package.json`, import.meta.url));
 const libs = versions.map((v) => require(`ini-${v}`));
+
+/**
+ * Each version loaded again with process.platform set to "win32": ini 1.x to
+ * 4.0.0 pick their line endings when they load, and ignore the `platform`
+ * option ini 4.1 added.
+ */
+const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+Object.defineProperty(process, "platform", { value: "win32" });
+const win32 = versions.map((v) => {
+  const id = require.resolve(`ini-${v}`);
+  delete require.cache[id];
+  const lib = require(id);
+  delete require.cache[id];
+  return lib;
+});
+Object.defineProperty(process, "platform", platform);
+
+/** What each version's encode does where there is no `process`, as in a browser. */
+const noProcess = versions.map((v) => {
+  const module = { exports: {} as any };
+  const source = readFileSync(require.resolve(`ini-${v}`), "utf8");
+  return attempt(() => {
+    runInNewContext(`(function (module, exports) {${source}\n})`)(module, module.exports);
+    return module.exports.encode({ a: [1], b: { c: 2 } });
+  });
+});
 
 const next = seeded(7);
 const pick = <T>(list: readonly T[]) => list[Math.floor(next() * list.length)]!;
@@ -116,11 +145,14 @@ const copy = (o: unknown) => (o && typeof o === "object" ? { ...o } : o);
 
 for (let v = 1; v < libs.length; v++) {
   const [a, b] = [libs[v - 1], libs[v]];
+  const [winA, winB] = [win32[v - 1], win32[v]];
   const counts = new Map<string, number>();
   const examples = new Map<string, string>();
+  // ini 1.3.5 and before write a [__proto__] section's keys to
+  // Object.prototype, so each call runs with the built-ins put back after it.
   const compare = (kind: string, input: unknown, fa: () => unknown, fb: () => unknown) => {
-    const x = JSON.stringify(attempt(fa));
-    const y = JSON.stringify(attempt(fb));
+    const x = JSON.stringify(restoreBuiltIns(() => attempt(fa)));
+    const y = JSON.stringify(restoreBuiltIns(() => attempt(fb)));
     if (x === y) return;
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
     const example = `${JSON.stringify(input)}\n      ${x.slice(0, 160)}\n      ${y.slice(0, 160)}`;
@@ -163,7 +195,20 @@ for (let v = 1; v < libs.length; v++) {
         () => [a.encode(value, oa), oa],
         () => [b.encode(value, ob), ob],
       );
+      const [wa, wb] = [copy(o), copy(o)];
+      compare(
+        `encode ${JSON.stringify(o)}, loaded on win32`,
+        value,
+        () => [winA.encode(value, wa), wa],
+        () => [winB.encode(value, wb), wb],
+      );
     }
+  compare(
+    "encode with no process",
+    "{ a: [1], b: { c: 2 } }",
+    () => noProcess[v - 1],
+    () => noProcess[v],
+  );
   const same = counts.size === 0 ? "the same" : "different";
   console.log(
     `ini ${versions[v - 1]} -> ${versions[v]}: ${same} on ${inputs.length} inputs and ${values.length} values`,

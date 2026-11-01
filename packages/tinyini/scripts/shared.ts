@@ -43,26 +43,21 @@ const patched = (id: string, from: string, to: string): unknown => {
   return module.exports;
 };
 
-// The objects ini 1.x writes to when a section is named after one of them,
-// such as [constructor] or [toString]: Object and the functions on
-// Object.prototype.
+// What old ini versions write to: Object.prototype and Array.prototype,
+// through a [__proto__] section in 1.3.5 and before, and Object and the
+// functions on Object.prototype, through a section named after one of them,
+// such as [constructor] or [toString], in 1.x.
 const builtIns = [
+  Object.prototype,
+  Array.prototype,
   Object,
   ...Object.getOwnPropertyNames(Object.prototype)
     .map((key) => Object.getOwnPropertyDescriptor(Object.prototype, key)!.value)
     .filter((value) => typeof value === "function"),
 ] as object[];
-const inheritedName = new RegExp(
-  `\\[[^\\]\\n\\r]*(${Object.getOwnPropertyNames(Object.prototype).join("|")}|\\\\u)`,
-);
 
-/**
- * Runs fn, then puts back every property of the built-ins it changed, so that
- * the next call starts from a clean slate. Inputs with no section that could
- * be named after an inherited property skip the check.
- */
-function guardBuiltIns<T>(input: string, fn: () => T): T {
-  if (!inheritedName.test(input)) return fn();
+/** Runs fn, then puts back every property of the built-ins it changed. */
+export function restoreBuiltIns<T>(fn: () => T): T {
   const saved = builtIns.map((o) => Object.getOwnPropertyDescriptors(o));
   try {
     return fn();
@@ -79,6 +74,18 @@ function guardBuiltIns<T>(input: string, fn: () => T): T {
     });
   }
 }
+
+const inheritedName = new RegExp(
+  `\\[[^\\]\\n\\r]*(${Object.getOwnPropertyNames(Object.prototype).join("|")}|\\\\u)`,
+);
+
+/**
+ * restoreBuiltIns for ini 1.3.8, which can only write to them for an input
+ * with a section that could be named after an inherited property; other
+ * inputs skip the check.
+ */
+const guardBuiltIns = <T>(input: string, fn: () => T): T =>
+  inheritedName.test(input) ? restoreBuiltIns(fn) : fn();
 
 /** Loads a CommonJS module anew. */
 const load = (id: string): unknown => {

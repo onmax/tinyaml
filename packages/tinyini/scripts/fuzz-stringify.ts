@@ -13,9 +13,23 @@ const {
   label,
   ours: tinyini,
   theirs: ini,
+  fresh,
   documented = [],
   guard = (_input, fn) => fn(),
 } = await engine(process.argv[4]);
+
+// Runs fn as if on Windows. ini before 4.1 picks its line endings when it
+// loads, so `win32` is a copy of it loaded that way.
+const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+const onWindows = <T>(fn: () => T): T => {
+  Object.defineProperty(process, "platform", { value: "win32" });
+  try {
+    return fn();
+  } finally {
+    Object.defineProperty(process, "platform", platform);
+  }
+};
+const win32 = onWindows(fresh);
 
 const count = Number(process.argv[2] ?? 1000);
 const generate = generator(seeded(Number(process.argv[3] ?? 1)));
@@ -50,6 +64,7 @@ const odd: (() => unknown)[] = [
 let calls = 0;
 let throws = 0;
 let roundTrips = 0;
+let windowsCalls = 0;
 let encodeDiffs = 0;
 let roundTripDiffs = 0;
 let overflowed = false;
@@ -58,6 +73,19 @@ const diffs = new Map<string, string>();
 const known = new Map<string, number>();
 for (let n = 0; n < count; n++) {
   const value = generate();
+  // Default options on Windows, where the platform's line ending applies.
+  for (const make of [() => undefined, () => ({ whitespace: true }), () => "sec"]) {
+    windowsCalls++;
+    const expected = attempt(() => onWindows(() => win32.encode(value, make())));
+    const actual = attempt(() => onWindows(() => tinyini.encode(value, make())));
+    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      encodeDiffs++;
+      diffs.set(
+        `win32 ${describe(value)} ${describe(make())}`,
+        `ini:     ${show(expected)}\n  tinyini: ${show(actual)}`,
+      );
+    }
+  }
   const options: (() => unknown)[] = combinations.map((o) => () => ({ ...o }));
   if (n % 10 === 0) options.push(...odd);
   for (const [i, make] of options.entries()) {
@@ -104,6 +132,6 @@ for (const [input, diff] of [...diffs].slice(0, limit))
   console.log(`--- ${input.slice(0, 300)}\n  ${diff}`);
 for (const [name, n] of known) console.log(`${n} round trips differ as documented: ${name}`);
 console.log(
-  `${count} values, ${calls} encode calls (${throws} throw in ${label}): ${encodeDiffs} differ from ${label}; ` +
+  `${count} values, ${calls} encode calls and ${windowsCalls} on win32 (${throws} throw in ${label}): ${encodeDiffs} differ from ${label}; ` +
     `${roundTrips} round trips, ${roundTripDiffs} differ`,
 );
