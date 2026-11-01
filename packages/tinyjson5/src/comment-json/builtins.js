@@ -1,63 +1,77 @@
 // tinyjson5: the built-ins the faster paths call where comment-json and
 // esprima don't, or not as often, which only the engine's own make
-// unobservable. Each is kept as it was at load, if it was the engine's own
-// then, and `untouched` tells whether a global is still that one, from its
-// own descriptor, without calling a getter. Otherwise the faster paths step
-// aside for comment-json's own.
-const {apply, getOwnPropertyDescriptor: descriptor_of} = Reflect
-const {hasOwn: has_own} = Object
-const to_source = Function.prototype.toString
-const {call, bind} = Function.prototype
-const NATIVE = /^function [\w$]*\(\) \{\s*\[native code\]\s*\}$/
+// unobservable. Each is read from its own property descriptor, so no getter
+// runs, and kept only if it was the engine's own built-in of that name at
+// load. `untouched(object, key)` says whether a global is still that one, the
+// same way. Otherwise the faster paths step aside for comment-json's own.
+//
+// Object.getOwnPropertyDescriptor is the one read directly. A program that
+// replaces it, or Function.prototype.toString, before this module loads can
+// make anything look like a built-in: that's outside what this checks.
+const descriptor_of = Object.getOwnPropertyDescriptor
 
-const native = fn => {
+// object[key] if it's an own data property, read without running a getter.
+const own = (object, key) => {
   try {
-    return typeof fn === 'function' && NATIVE.test(apply(to_source, fn, []))
+    const descriptor = descriptor_of(object, key)
+    const value = descriptor && descriptor_of(descriptor, 'value')
+    return value ? value.value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const to_source = own(Function.prototype, 'toString')
+const apply = own(Reflect, 'apply')
+
+// Whether fn is the engine's own function of that name, which no bound
+// function or user function prints as.
+const native = (fn, name) => {
+  try {
+    return typeof fn === 'function' && apply(to_source, fn, []) === `function ${name}() { [native code] }`
   } catch {
     return false
   }
 }
 
-// [object, key] pairs, read once here at load.
+// [object, key] for each built-in kept here.
 const PAIRS = [
   [Symbol, 'for'],
   [Symbol, 'keyFor'],
   [Object, 'getOwnPropertySymbols'],
-  [Object, 'getOwnPropertyDescriptor'],
   [Object, 'getPrototypeOf'],
   [Object, 'create'],
-  [Object, 'hasOwn'],
-  [Reflect, 'apply'],
-  [Reflect, 'getOwnPropertyDescriptor'],
+  [Function.prototype, 'call'],
+  [Function.prototype, 'bind'],
   [Map.prototype, 'get'],
   [Map.prototype, 'set'],
   [String.prototype, 'charCodeAt'],
   [String.prototype, 'slice'],
   [Array.prototype, 'push']
 ]
-const values = PAIRS.map(([object, key]) => object[key])
-const ALL_NATIVE = native(Map) && native(apply) && native(descriptor_of) && native(has_own) && native(call) && native(bind)
-  && values.every(native) && NATIVE.test(apply(to_source, to_source, []))
+const VALUES = PAIRS.map(([object, key]) => own(object, key))
+const ALL_NATIVE = native(to_source, 'toString') && native(apply, 'apply')
+  && native(descriptor_of, 'getOwnPropertyDescriptor') && native(own(globalThis, 'Map'), 'Map')
+  && PAIRS.every(([, key], i) => native(VALUES[i], key))
 
-// Whether object[key] is still the engine's own it was at load: an own data
-// property holding the same function.
+// The built-in kept for object[key], or undefined if there is none.
+export const builtin = (object, key) => {
+  if (ALL_NATIVE)
+    for (let i = 0; i < PAIRS.length; i ++)
+      if (PAIRS[i][0] === object && PAIRS[i][1] === key) return VALUES[i]
+  return undefined
+}
+
+// Whether object[key] is still the built-in kept for it.
 export const untouched = (object, key) => {
-  if (!ALL_NATIVE) {
-    return false
-  }
-
-  for (let i = 0; i < PAIRS.length; i ++) {
-    if (PAIRS[i][0] === object && PAIRS[i][1] === key) {
-      const descriptor = descriptor_of(object, key)
-      return descriptor !== undefined && has_own(descriptor, 'value') && descriptor.value === values[i]
-    }
-  }
-
-  return false
+  const value = builtin(object, key)
+  return value !== undefined && own(object, key) === value
 }
 
 // fn as a function of its this and arguments, uncurry(fn)(object, ...args),
-// which looks nothing up on Function.prototype again when called.
-export const uncurry = fn => apply(bind, call, [fn])
+// which looks nothing up on Function.prototype when called.
+export const uncurry = fn => ALL_NATIVE
+  ? apply(builtin(Function.prototype, 'bind'), builtin(Function.prototype, 'call'), [fn])
+  : undefined
 
-export {has_own}
+export {descriptor_of, own}

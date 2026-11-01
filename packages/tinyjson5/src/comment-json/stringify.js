@@ -28,7 +28,7 @@ import {
   is_raw_json
 } from './common.js'
 import {CommentArray} from './array.js'
-import {has_own, uncurry, untouched} from './builtins.js'
+import {builtin, descriptor_of, own, uncurry, untouched} from './builtins.js'
 
 // String constants
 const SPACE = ' '
@@ -104,17 +104,14 @@ const count_trailing_line_breaks = (str, gap) => {
 const PENDING = {}
 let hosts = null
 const PROTOTYPES = [Object.prototype, Array.prototype, CommentArray.prototype]
-const {keyFor: key_for} = Symbol
-const {
-  getOwnPropertySymbols: own_symbols,
-  getOwnPropertyDescriptor: own_descriptor,
-  getPrototypeOf: prototype_of,
-  create
-} = Object
-// Map's methods bound once to the native call, so a lookup allocates nothing.
-const map_get = uncurry(Map.prototype.get)
-const map_set = uncurry(Map.prototype.set)
-const HostMap = Map
+const key_for = builtin(Symbol, 'keyFor')
+const own_symbols = builtin(Object, 'getOwnPropertySymbols')
+const prototype_of = builtin(Object, 'getPrototypeOf')
+const create = builtin(Object, 'create')
+// Map and its methods, bound once to the native call, so a lookup allocates nothing.
+const HostMap = own(globalThis, 'Map')
+const map_get = uncurry(builtin(Map.prototype, 'get'))
+const map_set = uncurry(builtin(Map.prototype, 'set'))
 
 const registered = object => {
   const symbols = own_symbols(object)
@@ -130,7 +127,8 @@ const registered = object => {
 // CommentArray.prototype, Array.prototype and Object.prototype, chained as
 // they are by default, without a comment of their own to inherit.
 const standard_prototypes = () =>
-  untouched(Symbol, 'for')
+  map_get !== undefined
+  && untouched(Symbol, 'for')
   && prototype_of(CommentArray.prototype) === Array.prototype
   && prototype_of(Array.prototype) === Object.prototype
   && prototype_of(Object.prototype) === null
@@ -152,12 +150,13 @@ const read_comments = host => {
       continue
     }
 
-    const descriptor = own_descriptor(host, symbols[i])
-    if (!has_own(descriptor, 'value')) {
+    // A data property's descriptor has an own value; an accessor's doesn't.
+    const value = descriptor_of(descriptor_of(host, symbols[i]), 'value')
+    if (!value) {
       return null
     }
 
-    comments[key] = descriptor.value
+    comments[key] = value.value
   }
 
   return comments
