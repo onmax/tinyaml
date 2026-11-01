@@ -269,11 +269,7 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
   // set copies a typed array by its own length, whatever its `length`
   // property says, and WASM's memory has room for it.
   const n = malloc(contents.length * 1);
-  let bytes = new Uint8Array(
-    ArrayBuffer.isView(contents) && !(contents instanceof DataView)
-      ? Math.max(n, typedLength.call(contents))
-      : n,
-  );
+  let bytes = new Uint8Array(Math.max(n, intrinsicLength(contents)));
   bytes.set(contents);
   // The glue reads the length again for the length it passes.
   const end = contents.length | 0;
@@ -325,6 +321,15 @@ const typedLength = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype),
   "length",
 )!.get!;
+
+/** A typed array's own length, from any realm, or 0 for anything else. */
+const intrinsicLength = (value: unknown): number => {
+  try {
+    return typedLength.call(value) as number;
+  } catch {
+    return 0;
+  }
+};
 
 /** The size wasm-bindgen's malloc gets: the length as an i32, which traps if negative. */
 function malloc(len: number): number {

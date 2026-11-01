@@ -90,6 +90,24 @@ const PROBES: [string, Mode[], Mode[], (lib: any) => boolean][] = [
   ],
   // one-ini 0.2 reads `a=` as an empty value, where 0.1 stops parsing.
   ["emptyValues", ["one", "one01"], ["one"], (lib) => !!lib.parse_to_json("a=").body],
+  // The root keeps a quoted value a string, where ini reads "true" as true.
+  [
+    "root",
+    ["root", "ini", "v2", "v1"],
+    ["root"],
+    (lib) => (lib.parse ?? lib.decode)('a="true"').a === "true",
+  ],
+];
+
+// What npm users import: each package specifier, resolved through
+// package.json's exports, and the mode it must load.
+const SPECIFIERS: [string, Mode][] = [
+  ["tinyini", "root"],
+  ["tinyini/ini", "ini"],
+  ["tinyini/ini-v2", "v2"],
+  ["tinyini/ini-v1", "v1"],
+  ["tinyini/one-ini", "one"],
+  ["tinyini/one-ini-v0.1", "one01"],
 ];
 
 const modeOf = (entry: string) =>
@@ -178,6 +196,18 @@ for (const [name, source, original] of entries) {
         `${name} ${found ? "holds" : "lacks"} ${modes.join(" and ")} code: ${String(marker)}`,
       );
   }
+}
+const exported = Object.keys(JSON.parse(readFileSync("package.json", "utf8")).exports)
+  .filter((key) => key !== "./package.json")
+  .map((key) => `tinyini${key.slice(1)}`);
+for (const specifier of exported)
+  if (!SPECIFIERS.some(([s]) => s === specifier))
+    problems.push(`${specifier} is exported but has no mode in SPECIFIERS`);
+for (const [specifier, mode] of SPECIFIERS) {
+  const lib = await import(specifier);
+  for (const [flag, applies, holds, probe] of PROBES)
+    if (applies.includes(mode) && probe(lib) !== holds.includes(mode))
+      problems.push(`${specifier} behaves as if ${flag} were ${!holds.includes(mode)}`);
 }
 for (const [entry, name, left] of SHAKEN) {
   const code = buildSync({
