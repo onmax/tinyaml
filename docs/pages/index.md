@@ -11,7 +11,7 @@ install: pnpm add tinyaml tinyjson5 tinyini
 - import JSON5 from "json5";
 - import ini from "ini";
 + import yaml from "tinyaml/js-yaml";
-+ import JSON5 from "tinyjson5";
++ import JSON5 from "tinyjson5/json5";
 + import ini from "tinyini";
 ```
 

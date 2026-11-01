@@ -45,7 +45,7 @@ const sections: Section[] = [
     slug: "tinyjson5",
     icon: "braces",
     blurb:
-      "Replaces json5 2.2.3. 3.0 KB gzipped where json5 is 7.5 KB, and parses 8 to 9 times faster.",
+      "Replaces json5 2 and 1, strip-json-comments, jsonc-parser, comment-json and jju, one subpath each. 8× faster and 58% smaller than json5.",
     lists: [{ slugs: ["getting-started", "compatibility", "size-and-speed", "develop"] }],
   },
   {

@@ -39,7 +39,7 @@ Change the import. The calls, options, output and errors stay the same.
 + import yaml from "tinyaml/js-yaml";
 
 - import JSON5 from "json5";
-+ import JSON5 from "tinyjson5";
++ import JSON5 from "tinyjson5/json5";
 
 - import ini from "ini";
 + import ini from "tinyini";
