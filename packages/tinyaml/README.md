@@ -2,9 +2,13 @@
   <img src="./.github/banner.svg" alt="tinyaml" width="100%">
 </h1>
 
+<!-- automd:comark-badges name=tinyaml -->
+
 [![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
 [![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
+
+<!-- /automd -->
 
 **YAML for JavaScript in 8.1 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
 
@@ -17,15 +21,21 @@ Already on another YAML library? Change one import and keep your code:
 
 tinyaml ships drop-in replacements for js-yaml 4 and 5, yaml, yamljs and @std/yaml. Each one is smaller and faster than the library it replaces, on every benchmark we run, and each is checked against that library's own tests and thousands of fuzzed inputs.
 
-| Replace     | With                 | Smaller, gzip | Faster    |
-| ----------- | -------------------- | ------------- | --------- |
-| `js-yaml` 4 | `tinyaml/js-yaml`    | 19%           | 1.5–1.6×  |
-| `js-yaml` 5 | `tinyaml/js-yaml-v5` | 7%            | 1.5–2.0×  |
-| `yaml`      | `tinyaml/yaml`       | 45%           | 2.8–12.6× |
-| `yamljs`    | `tinyaml/yamljs`     | 4%            | 1.1–5.0×  |
-| `@std/yaml` | `tinyaml/std`        | 4%            | 1.6–2.1×  |
+<!-- automd:drop-ins package=tinyaml -->
 
-Starting fresh? The root `tinyaml` API is about half the size of js-yaml and a quarter of yaml.
+| You use   | Switch to            |      Size, gzip |       Parses | Stringifies |
+| --------- | -------------------- | --------------: | -----------: | ----------: |
+| js-yaml 4 | `tinyaml/js-yaml`    | 14.4 → 11.8 KiB |  1.5× faster | 1.6× faster |
+| js-yaml 5 | `tinyaml/js-yaml-v5` | 17.1 → 15.9 KiB |  1.5× faster | 1.8× faster |
+| yaml      | `tinyaml/yaml`       | 29.9 → 16.3 KiB | 12.6× faster | 2.8× faster |
+| yamljs    | `tinyaml/yamljs`     |   8.8 → 8.5 KiB |  5.0× faster | 1.1× faster |
+| @std/yaml | `tinyaml/std`        | 11.3 → 10.9 KiB |  2.0× faster | 1.6× faster |
+
+Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.1 KiB, 1.8× smaller than js-yaml 4 and 3.7× smaller than yaml. It parses 19.3× faster than yaml and stringifies 12.5× faster.
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
+
+<!-- /automd -->
 
 I wrote it for [Comark](https://comark.dev), which reads YAML for frontmatter and component props and was bundling all of js-yaml to do it.
 

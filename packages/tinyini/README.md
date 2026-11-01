@@ -2,9 +2,36 @@
   <img src="./.github/banner.svg" alt="tinyini" width="100%">
 </h1>
 
-tinyini reads and writes INI the way [ini](https://github.com/npm/ini) 7.0.0 does. It has no dependencies, parses 2.0 to 2.7 times faster, and stringifies 2.1 to 2.9 times faster. It is not smaller: ini is already 1.6 KB gzipped, and tinyini is the same 1.6 KB. I wrote it as a drop-in for ini 7.0.0, the version [confbox](https://github.com/unjs/confbox) 0.3.2 bundles.
+<!-- automd:comark-badges name=tinyini -->
 
-[Get started](#get-started) &middot; [Coming from ini](#coming-from-ini) &middot; [Compatibility](#compatibility-with-ini-700) &middot; [Size and speed](#size-and-speed)
+[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyini&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
+[![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
+[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
+
+<!-- /automd -->
+
+**INI for JavaScript, 2 to 3 times faster than ini.** No dependencies, reads and writes INI the way [ini](https://github.com/npm/ini) 7.0.0 does, and passes all 40 of ini's own test assertions. It is not smaller: ini is already 1.6 KiB gzipped, and so is tinyini.
+
+Already on ini? Change one import and keep your code:
+
+```diff
+- import ini from "ini";
++ import ini from "tinyini";
+```
+
+<!-- automd:drop-ins package=tinyini -->
+
+| You use   | Switch to |    Size, gzip |      Parses | Stringifies |
+| --------- | --------- | ------------: | ----------: | ----------: |
+| ini 7.0.0 | `tinyini` | 1.6 → 1.6 KiB | 2.0× faster | 2.9× faster |
+
+Size is the minified bundle, gzipped. Speed is the median time to parse and stringify the large benchmark file. Measured on Apple M4, Node 26.13.
+
+<!-- /automd -->
+
+I wrote it as a drop-in for ini 7.0.0, the version [confbox](https://github.com/unjs/confbox) 0.3.2 bundles.
+
+[Get started](#get-started) · [Coming from ini](#coming-from-ini) · [Compatibility](#compatibility-with-ini-700) · [Size and speed](#size-and-speed)
 
 An independent project by [@onmax](https://github.com/onmax).
 

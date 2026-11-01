@@ -1,0 +1,141 @@
+{
+  "machine": "Apple M4, Node 26.13",
+  "dropIns": [
+    {
+      "package": "tinyaml",
+      "library": "js-yaml 4",
+      "entry": "tinyaml/js-yaml",
+      "gzip": {
+        "theirs": 14791,
+        "ours": 12053
+      },
+      "parse": {
+        "theirs": 3.0,
+        "ours": 2.0
+      },
+      "stringify": {
+        "theirs": 4.51,
+        "ours": 2.77
+      }
+    },
+    {
+      "package": "tinyaml",
+      "library": "js-yaml 5",
+      "entry": "tinyaml/js-yaml-v5",
+      "gzip": {
+        "theirs": 17529,
+        "ours": 16297
+      },
+      "parse": {
+        "theirs": 3.07,
+        "ours": 2.0
+      },
+      "stringify": {
+        "theirs": 5.22,
+        "ours": 2.9
+      }
+    },
+    {
+      "package": "tinyaml",
+      "library": "yaml",
+      "entry": "tinyaml/yaml",
+      "gzip": {
+        "theirs": 30643,
+        "ours": 16726
+      },
+      "parse": {
+        "theirs": 35.89,
+        "ours": 2.85
+      },
+      "stringify": {
+        "theirs": 11.93,
+        "ours": 4.22
+      }
+    },
+    {
+      "package": "tinyaml",
+      "library": "yamljs",
+      "entry": "tinyaml/yamljs",
+      "gzip": {
+        "theirs": 9029,
+        "ours": 8711
+      },
+      "parse": {
+        "theirs": 11.36,
+        "ours": 2.29
+      },
+      "stringify": {
+        "theirs": 1.46,
+        "ours": 1.28
+      }
+    },
+    {
+      "package": "tinyaml",
+      "library": "@std/yaml",
+      "entry": "tinyaml/std",
+      "gzip": {
+        "theirs": 11554,
+        "ours": 11125
+      },
+      "parse": {
+        "theirs": 4.03,
+        "ours": 2.03
+      },
+      "stringify": {
+        "theirs": 4.1,
+        "ours": 2.56
+      }
+    },
+    {
+      "package": "tinyjson5",
+      "library": "json5 2.2.3",
+      "entry": "tinyjson5",
+      "gzip": {
+        "theirs": 7731,
+        "ours": 3089
+      },
+      "parse": {
+        "theirs": 7.37,
+        "ours": 0.91
+      },
+      "stringify": {
+        "theirs": 2.22,
+        "ours": 0.4625
+      }
+    },
+    {
+      "package": "tinyini",
+      "library": "ini 7.0.0",
+      "entry": "tinyini",
+      "gzip": {
+        "theirs": 1682,
+        "ours": 1670
+      },
+      "parse": {
+        "theirs": 1.41,
+        "ours": 0.7
+      },
+      "stringify": {
+        "theirs": 1.27,
+        "ours": 0.44
+      }
+    }
+  ],
+  "root": {
+    "package": "tinyaml",
+    "library": "yaml",
+    "entry": "tinyaml",
+    "gzip": {
+      "theirs": 30643,
+      "ours": 8311
+    },
+    "parse": {
+      "theirs": 36.22,
+      "ours": 1.876
+    },
+    "stringify": {
+      "theirs": 12.65,
+      "ours": 1.01
+    }
+  }
+}

@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   # esbuild's binary comes from its platform package; the postinstall only checks it.
   esbuild: false
+  # automd only needs @parcel/watcher for --watch, which the scripts don't use.
+  "@parcel/watcher": false
