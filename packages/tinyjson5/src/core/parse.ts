@@ -33,6 +33,9 @@ export function parse(
   mode: Mode,
   options?: ParseOptions,
 ): unknown {
+  // Converting the text can run a toString that parses too, so it comes
+  // before any of this call's state is set.
+  const source = String(text);
   const outerMode = setMode(mode);
   try {
     if (lean) {
@@ -40,7 +43,7 @@ export function parse(
       jsonc = options?.jsonc;
     }
     if (v1) pastEnd = 0;
-    src = String(text);
+    src = source;
     pos = 0;
     len = src.length;
     let root: unknown;

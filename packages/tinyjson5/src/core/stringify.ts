@@ -57,6 +57,7 @@ function write(value: any, replacer: any, space: any): string | undefined {
     // had, converting each item before it reads the next. json5 2 iterates it.
     if (lean)
       for (let i = 0, length = Math.trunc(replacer.length); i < length; i++) add(replacer[i]);
+    else if (v1) babelForOf(replacer, add);
     else for (const v of replacer as unknown[]) add(v);
   }
 
@@ -213,4 +214,25 @@ function escape(value: string, quote: number): string {
     start = i + 1;
   }
   return out + value.slice(start);
+}
+
+// for...of as Babel compiles it in json5 1.0.2: `next` is looked up on every
+// step, and `return` twice when the loop ends early.
+function babelForOf(list: any, fn: (item: unknown) => void): void {
+  const iterator = list[Symbol.iterator]();
+  let normal = true;
+  let failed = false;
+  let error: unknown;
+  try {
+    for (let step; !(normal = (step = iterator.next()).done); normal = true) fn(step.value);
+  } catch (e) {
+    failed = true;
+    error = e;
+  } finally {
+    try {
+      if (!normal && iterator.return) iterator.return();
+    } finally {
+      if (failed) throw error;
+    }
+  }
 }

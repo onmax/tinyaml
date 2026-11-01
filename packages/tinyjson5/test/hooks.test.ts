@@ -63,9 +63,48 @@ describe.each(pairs)("against %s", (_, ours, theirs) => {
       ).toEqual(outcome(() => theirs.parse(text, lock)));
     }
   });
+
+  it("parses text whose toString parses too, as the original does", () => {
+    for (const inner of ['"\\xA', '"\\u12', "{\\u0", "0"])
+      for (const outer of ["[", '"a', "{a:1}"]) {
+        const text = (lib: Lib) => ({
+          toString() {
+            outcome(() => lib.parse(inner));
+            return outer;
+          },
+        });
+        expect(
+          outcome(() => ours.parse(text(ours) as never)),
+          `${inner} ${outer}`,
+        ).toEqual(outcome(() => theirs.parse(text(theirs))));
+      }
+  });
+});
+
+describe("json5-v1 replacer lists", () => {
+  it("iterates them as Babel's for...of does, looking up next on every step", () => {
+    const make = () => {
+      const list = ["a", "b"];
+      const values = list.values();
+      const iterator = {
+        next() {
+          iterator.next = () => ({ done: true, value: undefined });
+          return values.next();
+        },
+      };
+      return Object.assign(list, { [Symbol.iterator]: () => iterator });
+    };
+    const value = { a: 1, b: 2 };
+    expect(json5V1.stringify(value, make())).toBe(require("json5-v1").stringify(value, make()));
+  });
 });
 
 describe.skipIf(!main)("root options", () => {
+  it("keeps a call's jsonc option when the text's toString parses without it", () => {
+    const text = { toString: () => (root.parse("0"), "{a:1}") };
+    expect(() => root.parse(text as never, { jsonc: true })).toThrow(SyntaxError);
+  });
+
   it("reads `bigint` as json5 main reads it", () => {
     const make = () => {
       let reads = 0;
