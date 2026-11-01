@@ -309,6 +309,41 @@ folded: >
       expect(outcome(loadAll, input), input).toEqual(outcome(jsYaml.loadAll, input));
   });
 
+  it("words and points at errors as js-yaml 4 does", () => {
+    const message = (load: (input: string) => unknown, input: string) => {
+      try {
+        return load(input);
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    for (const input of [
+      // No node starts where the next key would, so the mapping ends there.
+      "x: 1\n]\n",
+      "x: 1\n- y\n",
+      "a:\n  b: c\n  ]\n",
+      // A key on its own line without a colon, and one that runs on.
+      "a:\n  x: 1\n  c",
+      'x: 1\n"q"',
+      "x: 1\nfoo\n",
+      "x: 1\nb",
+      "x: 1\n&a\n\n#c\n",
+      "&a a: b\n*a\n",
+      "x: 1\n[a,\nb]: c\n",
+      // Block scalars, flow collections and colons at the end of a line.
+      "|x\n",
+      "[a",
+      ">\nab\n cd#\n \n ef\n\n\ngh\n",
+      "foo: |\n\t  x\n   ",
+      "- !!str*a |+\n   !!str ",
+      "'a':1",
+      "a: 'b':x\n",
+      " !!sr a\n: x\n",
+      "- [foo",
+    ])
+      expect(message(loadAll, input), JSON.stringify(input)).toBe(message(jsYaml.loadAll, input));
+  });
+
   it("rejects a document marker in a quoted scalar after an escaped break", () => {
     expect(() => load('"a\\\n...\nb"')).toThrow(YAMLException);
   });

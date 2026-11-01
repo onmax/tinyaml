@@ -109,6 +109,20 @@ describe("parse", () => {
     );
   });
 
+  it("copies what a merge reads, but aliases, as yaml does", () => {
+    const src = "a: &x {p: &r {k: 1}, q: [1], s: *b}\nb:\n  <<: *x\nc: *r\nd: *x\n";
+    const v = parse(`z: &b [0]\n${src}`, { merge: true });
+    expect(v.b).toEqual(v.a);
+    expect(v.b.q).not.toBe(v.a.q);
+    expect(v.b.p).not.toBe(v.a.p);
+    // The anchor in the merged mapping names its copy from then on.
+    expect(v.c).toBe(v.b.p);
+    expect(v.d).toBe(v.a);
+    expect(v.b.s).toBe(v.z);
+    const old = parse("a: &x {p: [1]}\nb:\n  <<: *x\n", { version: "1.1" });
+    expect(old.b.p).not.toBe(old.a.p);
+  });
+
   it("allows duplicate keys with uniqueKeys: false", () => {
     expect(parse("a: 1\na: 2", { uniqueKeys: false })).toEqual({ a: 2 });
   });
@@ -144,7 +158,49 @@ describe("parse", () => {
     const warned = warnings();
     parse("!foo x", { logLevel: "error" });
     parse("!foo x", { logLevel: "silent" });
+    parse("!foo x", { logLevel: undefined });
     expect(warned()).toHaveLength(0);
+  });
+
+  it("warns where yaml does, in its order", () => {
+    const warned = warnings();
+    for (const input of [
+      "!foo x",
+      "- !foo [!bar a]\n- !!binary {a: 1}\n",
+      "a: !<tag:x> b",
+      "%FOO bar # c\n---\na",
+      "%YAML 1.3\r\n---\r\na",
+      "%YAML 1.01\n---\na",
+      "\uFEFF%FOO\n---\na",
+      "- &a: x\n- *a:\n",
+    ]) {
+      const read = (parse: (src: string) => unknown) => {
+        parse(input);
+        return warned().map((w) => {
+          const { name, code, pos, linePos, message } = w as YAMLWarning;
+          return { name, code, pos, linePos, message };
+        });
+      };
+      const theirs = read(yaml.parse);
+      vi.clearAllMocks();
+      expect(read(parse), input).toEqual(theirs);
+      expect(theirs.length, input).toBeGreaterThan(0);
+      vi.clearAllMocks();
+    }
+  });
+
+  it("reads an option set to undefined as yaml does, over the default", () => {
+    warnings();
+    expect(parse("a: 0o7\nb: 0b1", { version: "1.1", schema: undefined })).toEqual({
+      a: 7,
+      b: "0b1",
+    });
+    expect(parse("!!binary aGk=", { resolveKnownTags: undefined })).toBe("aGk=");
+    expect(() => parse("a", { version: undefined })).toThrow(
+      "Expected '1.1', '1.2' or null as first argument, but found: undefined",
+    );
+    expect(() => parse("a", { version: null as never })).toThrow(/null YAML version/);
+    expect(parse("%YAML 1.2\n---\na", { version: undefined })).toBe("a");
   });
 
   it("writes collection keys as flow YAML, with a warning", () => {

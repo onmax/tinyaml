@@ -111,6 +111,42 @@ describe("load", () => {
     );
   });
 
+  it("words and points at errors as js-yaml 5 does", () => {
+    const message = (load: (input: string) => unknown, input: string) => {
+      try {
+        return load(input);
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    for (const input of [
+      // A key that ends on a later line is a value, and no node ends a mapping.
+      "a\nb: c",
+      "[23\n]: 42",
+      'k:\n  "a\n  b": c\n',
+      "x: 1\n]\n",
+      "x: 1\n- y\n",
+      // A key without a colon, on its line or past it.
+      "x: 1\nfoo",
+      "x: 1\nfoo\n",
+      "x: 1\n&a\n",
+      "---\nseq:\n&anchor\n- a\n- b\n",
+      "foo: |\n\t\nbr: \n",
+      "'a':1",
+      "a: 'b':x\n",
+      "- [a,\n",
+    ])
+      expect(message(loadAll, input), JSON.stringify(input)).toBe(message(real.loadAll, input));
+  });
+
+  it("gives its errors the same own keys as js-yaml 5", () => {
+    for (const input of ["a: [b", "a: 1\na: 2"])
+      expect(Object.keys(error(() => load(input)))).toEqual(
+        Object.keys(error(() => real.load(input))),
+      );
+    expect(Object.keys(new YAMLException("x"))).toEqual(Object.keys(new real.YAMLException("x")));
+  });
+
   it("reports a syntax error before a value error, as js-yaml 5 parses first", () => {
     expect(error(() => load("a: 1\nb: !!int x\nc: [")).reason).toBe(
       "unexpected end of the stream within a flow collection",

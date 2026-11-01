@@ -12,22 +12,16 @@ import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
 
 // Both reject, with another message.
 const MESSAGES = [
-  "2CMS",
   "3HFZ",
   "4EJS",
   "9JBA",
   "9KBC",
-  "C2SP",
   "C4HZ",
-  "CQ3W",
   "CVW2",
   "CXX2",
   "DK95/06",
-  "GDY7",
-  "HU3P",
   "LHL4",
   "N782",
-  "RHX7",
   "SU5Z",
   "SY6V",
   "U99R",
@@ -39,20 +33,7 @@ const MESSAGES = [
   "Y79Y/009",
 ];
 // The same message at another position.
-const POSITIONS = [
-  "236B",
-  "2JQS",
-  "5TYM",
-  "7MNF",
-  "9CWY",
-  "CC74",
-  "G7JE",
-  "G9HC",
-  "H7J7",
-  "P76L",
-  "Y79Y/000",
-  "Z9M4",
-];
+const POSITIONS = ["2JQS", "5TYM", "CC74", "P76L", "Z9M4"];
 
 type Outcome =
   | { ok: true; value: unknown }

@@ -44,7 +44,7 @@ bad indentation of a sequence entry
 repeat of a chomping mode identifier
 repeat of an indentation width identifier
 bad explicit indentation width of a block scalar; it cannot be less than one
-a whitespace character is expected after a block scalar indicator
+a line break is expected
 a line break is expected
 missing indentation for block scalar
 
@@ -60,4 +60,6 @@ unexpected end of the stream within a flow collection
 expected the node content, but found ','
 missed comma between flow collection entries
 
-tag suffix cannot contain flow indicator characters`.split("\n");
+tag suffix cannot contain flow indicator characters
+can not read an implicit mapping pair; a colon is missed
+`.split("\n");

@@ -60,4 +60,6 @@ unexpected end of the stream within a flow collection
 expected the node content, but found ','
 missed comma between flow collection entries
 
+
+expected ':' after a mapping key
 `.split("\n");

@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - main
       # Release PRs created with GITHUB_TOKEN may not trigger pull_request workflows.
       - "release/v*"
 

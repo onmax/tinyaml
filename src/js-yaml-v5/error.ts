@@ -10,9 +10,9 @@ export class YAMLException extends Error {
 
   constructor(reason: string, mark?: Mark) {
     super();
-    this.name = "YAMLException";
     this.reason = reason;
     this.mark = mark;
+    this.name = "YAMLException";
     this.message = this.format();
   }
 
