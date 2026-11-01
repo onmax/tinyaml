@@ -164,7 +164,14 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      comark:
+        specifier: ^0.8.1
+        version: 0.8.1
+      comark-charts:
+        specifier: ^0.7.4
+        version: 0.7.4(@comark/html@0.8.1)(comark@0.8.1)
 
   packages/tinyaml:
     devDependencies:

@@ -1,4 +1,6 @@
-# tinyjson5
+<h1>
+  <img src="./.github/banner.svg" alt="tinyjson5" width="100%">
+</h1>
 
 tinyjson5 reads and writes JSON5 the way [json5](https://github.com/json5/json5) 2.2.3 does. It is 3.0 KB gzipped where json5 is 7.5 KB, has no dependencies, parses 8 to 9 times faster, and stringifies 1.3 to 4.8 times faster. I wrote it as a drop-in for json5 2.2.3, the version [confbox](https://github.com/unjs/confbox) bundles.
 
