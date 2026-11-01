@@ -50,9 +50,39 @@ const PAIRS = [
   [Array.prototype, 'push']
 ]
 const VALUES = PAIRS.map(([object, key]) => own(object, key))
+
+// Whether each kept built-in does its own job, which another built-in of the
+// same name put in its place (WeakMap's get on Map.prototype, Array's slice
+// on String.prototype, Reflect's getPrototypeOf on Object) doesn't.
+const behaves = () => {
+  try {
+    const [
+      symbol_for, key_for, own_symbols, prototype_of, create,
+      call, bind, map_get, map_set, char_code_at, slice, push
+    ] = VALUES
+    const symbol = apply(symbol_for, Symbol, ['tinyjson5'])
+    const map = new (own(globalThis, 'Map'))()
+    const list = []
+    const key = {}
+    return typeof symbol === 'symbol'
+      && apply(key_for, Symbol, [symbol]) === 'tinyjson5'
+      && apply(own_symbols, Object, [{[symbol]: 1}])[0] === symbol
+      && apply(prototype_of, Object, [1]) === Number.prototype
+      && apply(prototype_of, Object, [apply(create, Object, [null])]) === null
+      && apply(apply(bind, call, [slice]), undefined, ['abc', 1, 2]) === 'b'
+      && apply(map_set, map, [key, list]) === map
+      && apply(map_get, map, [key]) === list
+      && apply(char_code_at, 'ab', [1]) === 98
+      && apply(push, list, [1]) === 1 && list[0] === 1
+  } catch {
+    return false
+  }
+}
+
 const ALL_NATIVE = native(to_source, 'toString') && native(apply, 'apply')
   && native(descriptor_of, 'getOwnPropertyDescriptor') && native(own(globalThis, 'Map'), 'Map')
   && PAIRS.every(([, key], i) => native(VALUES[i], key))
+  && behaves()
 
 // The built-in kept for object[key], or undefined if there is none.
 export const builtin = (object, key) => {
