@@ -1,48 +1,69 @@
-// Runs every yaml-test-suite case through js-yaml (JSON_SCHEMA) and through
-// tinyaml, and reports where they disagree. js-yaml is the reference, not
-// the suite's expected JSON: Comark depends on js-yaml's behaviour.
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { isDeepStrictEqual } from "node:util";
+// Runs every yaml-test-suite case through js-yaml 4 and through tinyaml, both
+// with their default schema. js-yaml is the reference, not the suite's
+// expected JSON, since tinyaml is meant as a drop-in. Whatever js-yaml loads,
+// tinyaml must load to the same value, and whatever it rejects, tinyaml must
+// reject with a YAMLException. Cases where tinyaml loads valid YAML that
+// js-yaml rejects are counted on their own; they can't break a user
+// switching from js-yaml. Both lists below are exact: a new case, or a known
+// one that's gone, fails the run.
+// Usage: node scripts/suite.ts [-v]
 import * as yaml from "js-yaml";
-import { loadAll } from "../src/index.ts";
+import { loadAll, YAMLException } from "../src/js-yaml/index.ts";
+import { equal, expectList, onPurpose, suiteCases } from "./support.ts";
 
-const root = ".cache/yaml-test-suite";
-const cases: string[] = [];
-for (const name of readdirSync(root)) {
-  const dir = join(root, name);
-  if (!statSync(dir).isDirectory()) continue;
-  if (existsSync(join(dir, "in.yaml"))) cases.push(dir);
-  else
-    for (const sub of readdirSync(dir))
-      if (existsSync(join(dir, sub, "in.yaml"))) cases.push(join(dir, sub));
-}
+// Two js-yaml 4 bugs tinyaml doesn't copy: js-yaml drops a tag written on its
+// own line above a less indented block scalar (M5C3), and reads properties at
+// column 0 under a key as that key's value (H7J7, invalid YAML).
+const DIFFER = ["H7J7", "M5C3"];
+// Cases js-yaml 4 rejects and tinyaml loads. All are valid YAML except C2SP
+// and VJP3/00, which tinyaml's own parser rejects but the js-yaml entry reads.
+const LENIENT = [
+  "4MUZ/00",
+  "4MUZ/01",
+  "4MUZ/02",
+  "5MUD",
+  "9KAX",
+  "9SA2",
+  "C2SP",
+  "K3WX",
+  "NJ66",
+  "UT92",
+  "VJP3/00",
+  "VJP3/01",
+  "WZ62",
+];
 
-type Outcome = { ok: true; value: unknown } | { ok: false; error: string };
-function run(fn: () => unknown): Outcome {
+type Outcome = { ok: true; value: unknown } | { ok: false; error: string; crash: boolean };
+function run(fn: () => unknown, type: typeof YAMLException | typeof yaml.YAMLException): Outcome {
   try {
     return { ok: true, value: fn() };
   } catch (error) {
-    return { ok: false, error: (error as Error).message.split("\n")[0]! };
+    const crash = !onPurpose(error, [type]);
+    return { ok: false, error: (error as { reason?: string }).reason ?? String(error), crash };
   }
 }
 
 const verbose = process.argv.includes("-v");
+const cases = suiteCases();
 let same = 0;
+const lenient: string[] = [];
 const diffs: string[] = [];
-for (const dir of cases) {
-  const input = readFileSync(join(dir, "in.yaml"), "utf8");
-  const expected = run(() => yaml.loadAll(input, { schema: yaml.JSON_SCHEMA }));
-  const actual = run(() => loadAll(input));
-  const match =
-    expected.ok === actual.ok &&
-    (!expected.ok || isDeepStrictEqual(expected.value, (actual as { value: unknown }).value));
-  if (match) {
-    same++;
-    continue;
-  }
-  const show = (o: Outcome) => (o.ok ? JSON.stringify(o.value) : `ERROR ${o.error}`);
-  diffs.push(`${dir}\n  js-yaml:   ${show(expected)}\n  tinyaml: ${show(actual)}`);
+const shown: string[] = [];
+const show = (o: Outcome) =>
+  o.ok ? JSON.stringify(o.value) : `${o.crash ? "CRASH" : "ERROR"} ${o.error}`;
+for (const { id, input } of cases) {
+  const expected = run(() => yaml.loadAll(input), yaml.YAMLException);
+  const actual = run(() => loadAll(input), YAMLException);
+  if (!actual.ok && actual.crash) diffs.push(id);
+  else if (!expected.ok && actual.ok) lenient.push(id);
+  else if (expected.ok && actual.ok ? equal(expected.value, actual.value) : !expected.ok) same++;
+  else diffs.push(id);
+  if (diffs.at(-1) === id)
+    shown.push(`${id}\n  js-yaml: ${show(expected)}\n  tinyaml: ${show(actual)}`);
 }
-if (verbose) console.log(diffs.join("\n"));
-console.log(`${same}/${cases.length} cases match js-yaml, ${diffs.length} differ`);
+if (verbose) console.log(shown.join("\n"));
+console.log(
+  `${same}/${cases.length} cases match js-yaml 4, ${lenient.length} load where js-yaml throws, ${diffs.length} differ`,
+);
+expectList("cases that differ from js-yaml 4", diffs, DIFFER);
+expectList("cases only tinyaml loads", lenient, LENIENT);

@@ -1,14 +1,7 @@
 import * as jsYaml from "js-yaml";
 import { describe, expect, it } from "vite-plus/test";
-import { dump, load } from "../src/index.ts";
-
-// Deterministic PRNG so failures reproduce.
-function random(seed: number): () => number {
-  return () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
-}
+import { mulberry32 } from "../../scripts/support.ts";
+import { dump, load } from "../../src/js-yaml/index.ts";
 
 const tricky = [
   "",
@@ -90,25 +83,21 @@ function value(next: () => number, depth: number): unknown {
 }
 
 describe("dump", () => {
-  it("matches js-yaml byte for byte on random values", () => {
-    const next = random(42);
+  it("matches js-yaml 4 byte for byte on random values", () => {
+    const next = mulberry32(42);
     for (let i = 0; i < 5000; i++) {
       const input = value(next, 0);
       for (const indent of [2, 4]) {
-        expect(dump(input, { indent }), JSON.stringify(input)).toBe(
-          jsYaml.dump(input, { indent, lineWidth: -1 }),
-        );
+        expect(dump(input, { indent }), JSON.stringify(input)).toBe(jsYaml.dump(input, { indent }));
       }
     }
   });
 
   it("writes output that loads back to the same value", () => {
-    const next = random(7);
+    const next = mulberry32(7);
     for (let i = 0; i < 2000; i++) {
       const input = { root: value(next, 0) };
-      expect(load(dump(input))).toEqual(
-        jsYaml.load(jsYaml.dump(input, { lineWidth: -1 }), { schema: jsYaml.JSON_SCHEMA }),
-      );
+      expect(load(dump(input))).toEqual(jsYaml.load(jsYaml.dump(input)));
     }
   });
 
@@ -117,16 +106,16 @@ describe("dump", () => {
     const cyclic: Record<string, unknown> = { name: "x" };
     cyclic.self = cyclic;
     for (const input of [{ x: shared, y: shared }, cyclic, [shared, [shared]]]) {
-      expect(dump(input)).toBe(jsYaml.dump(input, { lineWidth: -1 }));
+      expect(dump(input)).toBe(jsYaml.dump(input));
     }
     const twice = { x: shared, y: shared };
-    expect(dump(twice, { noRefs: true })).toBe(jsYaml.dump(twice, { noRefs: true, lineWidth: -1 }));
+    expect(dump(twice, { noRefs: true })).toBe(jsYaml.dump(twice, { noRefs: true }));
   });
 
   it("supports sortKeys and skipInvalid, and rejects invalid values", () => {
     const input = { b: 1, a: { d: () => 1, c: 2 }, u: undefined };
     expect(dump(input, { sortKeys: true, skipInvalid: true })).toBe(
-      jsYaml.dump(input, { sortKeys: true, skipInvalid: true, lineWidth: -1 }),
+      jsYaml.dump(input, { sortKeys: true, skipInvalid: true }),
     );
     expect(() => dump({ f: () => 1 })).toThrow(expect.objectContaining({ name: "YAMLException" }));
     expect(dump(undefined)).toBe("");

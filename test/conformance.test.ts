@@ -1,18 +1,20 @@
-// tinyaml must agree with js-yaml (JSON_SCHEMA) on every yaml-test-suite case,
-// valid and invalid, and on mutated copies of them. Run `pnpm suite:fetch` first.
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+// tinyaml's root parser against the yaml-test-suite's own answers: every
+// case scored, none left out, and the scores the correctness chart shows.
+// Each script checks its totals and exits non-zero on a wrong case or a
+// crash. Run `pnpm fixtures` first.
 import { describe, expect, it } from "vite-plus/test";
+import { missing, run } from "./fixtures.ts";
 
-const run = (script: string, ...args: string[]) =>
-  execFileSync(process.execPath, [script, ...args], { encoding: "utf8" });
-
-describe.skipIf(!existsSync(".cache/yaml-test-suite"))("yaml-test-suite", () => {
-  it("matches js-yaml on every case", () => {
-    expect(run("scripts/suite.ts", "-v")).toMatch(/ 0 differ$/m);
+describe.skipIf(missing(".cache/yaml-test-suite"))("yaml-test-suite", () => {
+  it("reads every valid case right and rejects every invalid one", () => {
+    expect(run("scripts/root-suite.ts")).toMatch(
+      /^373 right, 0 wrong of 279 valid and 94 invalid cases, 0 crashes;/m,
+    );
   });
 
-  it("matches js-yaml on mutated inputs", () => {
-    expect(run("scripts/fuzz.ts", "5000", "1")).toMatch(/ 0 disagree with js-yaml$/m);
+  it("scores 279/279 valid and 94/94 invalid in the correctness chart", () => {
+    expect(run("scripts/correctness.ts")).toMatch(
+      /^tinyaml +valid 279\/279 100\.0% +invalid 94\/94 100\.0%$/m,
+    );
   });
 });

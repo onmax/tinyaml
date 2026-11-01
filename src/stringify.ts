@@ -1,20 +1,17 @@
-// Writes JS values straight to YAML text, matching js-yaml's `dump` with
-// `lineWidth: -1` byte for byte. js-yaml builds an AST first and then picks
-// each scalar's style; this does both in one walk.
+// Writes JS values straight to YAML text in one walk, choosing each
+// string's style as it goes. The output is what js-yaml 5 writes with
+// `lineWidth: -1`, and strings that YAML 1.1 readers would take for
+// something else (`yes`, `0777`, `1:30`) are quoted too.
+import { ESCAPED, ESCAPES } from "./core/parse.ts";
+import { findRefs } from "./core/refs.ts";
 
-import { YAMLException } from "./error.ts";
-
-export interface DumpOptions {
+export interface StringifyOptions {
   /** Spaces per indentation level. Default 2. */
   indent?: number;
-  /** Repeat shared objects instead of writing `&ref_N` anchors and aliases. */
-  noRefs?: boolean;
-  /** Skip functions, symbols and other values YAML can't represent instead of throwing. */
-  skipInvalid?: boolean;
+  /** Write objects reached twice as `&ref_N` anchors and `*ref_N` aliases. Default true. */
+  refs?: boolean;
   /** Sort mapping keys, with string comparison or the given function. */
   sortKeys?: boolean | ((a: string, b: string) => number);
-  /** Only `-1` (never fold long lines) is supported; it is also the default. */
-  lineWidth?: -1;
 }
 
 const NS = "[\\x21-\\x7E\\x85\\xA0-\\uD7FF\\uE000-\\uFEFE\\uFF00-\\uFFFD\\u{10000}-\\u{10FFFF}]";
@@ -26,23 +23,6 @@ const SINGLE = /^[\t\x20-\uD7FF\uE000-\uFFFF\u{10000}-\u{10FFFF}]*$/u;
 const BLOCK = /^[\t\n\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFEFE\uFF00-\uFFFD\u{10000}-\u{10FFFF}]*$/u;
 const INVISIBLE = /[\t\x7F-\xA0\u2028\u2029\uFEFF\uFFFE\uFFFF]/;
 const ESCAPE = /["\\\x00-\x1F\x7F-\xA0\u2028\u2029\uD800-\uDFFF\uFEFF\uFFFE\uFFFF]/gu;
-const ESCAPES: Record<string, string> = {
-  "\0": "0",
-  "\x07": "a",
-  "\b": "b",
-  "\t": "t",
-  "\n": "n",
-  "\v": "v",
-  "\f": "f",
-  "\r": "r",
-  "\x1B": "e",
-  '"': '"',
-  "\\": "\\",
-  "\x85": "N",
-  "\xA0": "_",
-  "\u2028": "L",
-  "\u2029": "P",
-};
 
 // Plain strings js-yaml's dump schema (YAML 1.1 plus core) would read back as
 // something other than a string.
@@ -56,76 +36,54 @@ const FLOAT =
 const SPECIAL_FLOAT = /^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/;
 const DATE =
   /^(\d{4})-(\d\d?)-(\d\d?)(?:(?:[Tt]|[ \t]+)(\d\d?):(\d\d):(\d\d)(?:\.\d*)?(?:[ \t]*(?:Z|[-+](\d\d?)(?::(\d\d))?))?)?$/;
+// Printable ASCII from a letter to anything but `:` is plain, unless it reads
+// as a null or a bool. Most keys and values are.
+const WORD = /^[a-z](?:[!-~]*[!-9;-~])?$/i;
 const FORBIDDEN_START = /^(?:---|\.\.\.)(?=$|[ \t\n\r])/;
 
 let indent = 2;
-let skipInvalid = false;
-let sortKeys: DumpOptions["sortKeys"] = false;
-let refs: Map<object, string | undefined> | undefined;
+let sortKeys: StringifyOptions["sortKeys"] = false;
+let refs: Map<object, string> | undefined;
 let emitted = new Set<object>();
 let openEnded = false;
+// The text write returned last starts on a new line. Reading its first
+// character instead would flatten the whole rope at every level.
+let lead = false;
 
-export function dump(input: unknown, options: DumpOptions = {}): string {
-  indent = options.indent ?? 2;
-  skipInvalid = options.skipInvalid ?? false;
-  sortKeys = options.sortKeys ?? false;
-  emitted = new Set();
-  openEnded = false;
-  refs = undefined;
-  if (!options.noRefs) {
-    refs = new Map();
-    let counter = 0;
-    const visit = (value: unknown): void => {
-      if (typeof value !== "object" || value === null) return;
-      if (refs!.has(value)) {
-        if (refs!.get(value) === undefined) refs!.set(value, `ref_${counter++}`);
-      } else if (Array.isArray(value)) {
-        refs!.set(value, undefined);
-        value.forEach(visit);
-      } else if (isPlainObject(value)) {
-        refs!.set(value, undefined);
-        for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
-      }
-    };
-    visit(input);
+/**
+ * YAML text for `value`. Like JSON.stringify, functions, symbols and
+ * undefined are left out of objects and become null in arrays, and `toJSON`
+ * is used where there is one, so Dates become ISO strings.
+ */
+export function stringify(value: unknown, options: StringifyOptions = {}): string {
+  // Options first, so one that throws leaves an outer call's state alone. As
+  // in js-yaml, 0 and NaN mean the default, and a fraction counts as the
+  // next whole number.
+  const width = Math.max(1, Math.ceil(options.indent || 2));
+  const sort = options.sortKeys ?? false;
+  const shared = options.refs !== false;
+  // A `toJSON` may stringify something else in the middle of this.
+  const outer = [indent, sortKeys, refs, emitted, openEnded] as const;
+  try {
+    indent = width;
+    sortKeys = sort;
+    emitted = new Set();
+    openEnded = false;
+    refs = shared ? findRefs(value) : undefined;
+    const body = write(value, 0, true, true);
+    if (body === undefined) return "";
+    return openEnded ? `${body}\n...\n` : `${body}\n`;
+  } finally {
+    [indent, sortKeys, refs, emitted, openEnded] = outer;
   }
-  const body = write(input, 0, true, true);
-  refs = undefined;
-  emitted = new Set();
-  if (body === undefined) return "";
-  return openEnded ? `${body}\n...\n` : `${body}\n`;
 }
 
-function isPlainObject(value: object): boolean {
-  const proto = Object.getPrototypeOf(value);
-  return proto === null || proto === Object.prototype;
-}
-
-// undefined is always dropped; other unrepresentable values throw unless
-// `skipInvalid` is set.
+// What JSON.stringify leaves out: undefined, functions and symbols. BigInt
+// throws there too.
 function isValid(value: unknown): value is string | number | boolean | object | null {
-  if (value === undefined) return false;
   const type = typeof value;
-  if (
-    type === "string" ||
-    type === "number" ||
-    type === "boolean" ||
-    value === null ||
-    Array.isArray(value) ||
-    value instanceof Date ||
-    value instanceof Uint8Array ||
-    (type === "object" && isPlainObject(value as object))
-  ) {
-    return true;
-  }
-  if (skipInvalid) return false;
-  throw new YAMLException(
-    `unacceptable kind of an object to dump ${Object.prototype.toString.call(value)}`,
-  );
-}
-
-function newline(level: number): string {
-  return `\n${" ".repeat(indent * level)}`;
+  if (type === "bigint") throw new TypeError("Do not know how to serialize a BigInt");
+  return value !== undefined && type !== "function" && type !== "symbol";
 }
 
 function write(
@@ -134,17 +92,16 @@ function write(
   block: boolean,
   compact: boolean,
 ): string | undefined {
+  if (typeof (value as { toJSON?: unknown })?.toJSON === "function")
+    value = (value as { toJSON(): unknown }).toJSON();
+  lead = false;
   if (!isValid(value)) return undefined;
-  if (typeof value === "string") return writeString(value, level, false, !block);
+  // Keys don't touch this, so a value that's left out leaves it as it was.
   openEnded = false;
+  if (typeof value === "string") return writeString(value, level, false, !block);
   if (value === null) return "null";
   if (typeof value === "number") return writeNumber(value);
   if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return value.toISOString();
-  if (value instanceof Uint8Array) {
-    const base64 = btoa(String.fromCharCode(...value));
-    return base64 ? `!!binary ${base64}` : "!!binary";
-  }
 
   const anchor = refs?.get(value);
   if (anchor !== undefined) {
@@ -155,52 +112,53 @@ function write(
   if (indent < 2 && level > 0) compact = false;
   let body = "";
   let flowBody = false;
+  const newline = `\n${" ".repeat(indent * level)}`;
   if (Array.isArray(value)) {
-    const items = value.map((item) => (item === undefined ? null : item)).filter(isValid);
-    flowBody = !block || !items.length;
+    flowBody = !block || !value.length;
     if (flowBody) body = "[]";
     else {
-      for (const item of items) {
-        const text = write(item, level + 1, true, true)!;
-        if (!compact || body) body += newline(level);
-        body += text === "" || text.charCodeAt(0) === 10 ? "-" : "- ";
+      // By index, so holes become null too.
+      for (let i = 0; i < value.length; i++) {
+        const text = write(value[i], level + 1, true, true) ?? "null";
+        if (!compact || body) body += newline;
+        body += lead ? "-" : "- ";
         body += text;
       }
     }
   } else {
     const map = value as Record<string, unknown>;
-    const keys = Object.keys(map).filter((key) => isValid(map[key]));
+    const keys = Object.keys(map);
     if (sortKeys) keys.sort(sortKeys === true ? undefined : sortKeys);
-    flowBody = !block || !keys.length;
-    if (flowBody) body = "{}";
-    else {
+    if (block)
       for (const key of keys) {
-        if (!compact || body) body += newline(level);
         const keyText = writeString(key, level + 1, true, false);
         const explicit =
           key.includes("\n") || (keyText.length > 1024 && /^[\s\S]{1025}/u.test(keyText));
-        body += explicit ? `? ${keyText}${newline(level)}` : keyText;
-        const text = write(map[key], level + 1, true, explicit)!;
-        body += text === "" || text.charCodeAt(0) === 10 ? ":" : ": ";
+        // Left out, as is a `toJSON` that returns undefined.
+        const text = write(map[key], level + 1, true, explicit);
+        if (text === undefined) continue;
+        if (!compact || body) body += newline;
+        body += explicit ? `? ${keyText}${newline}` : keyText;
+        body += lead ? ":" : ": ";
         body += text;
       }
-    }
+    flowBody = !body;
+    if (flowBody) body = "{}";
   }
   if (flowBody) openEnded = false;
   else if (compact && level > 0 && indent > 2) body = " ".repeat(indent - 2) + body;
+  lead = !flowBody && !compact && anchor === undefined;
   if (anchor === undefined) return body;
-  return `&${anchor}${body.charCodeAt(0) === 10 ? "" : " "}${body}`;
+  return `&${anchor}${flowBody ? " " : ""}${body}`;
 }
 
 function writeNumber(value: number): string {
-  if (Number.isInteger(value) && !Object.is(value, -0) && !String(value).includes("e"))
-    return String(value);
-  if (value !== value) return ".nan";
-  if (value === Infinity) return ".inf";
-  if (value === -Infinity) return "-.inf";
-  if (Object.is(value, -0)) return "-0.0";
   const text = String(value);
-  return /^[-+]?\d+e/.test(text) ? text.replace("e", ".e") : text;
+  if (Object.is(value, -0)) return "-0.0";
+  if (Number.isInteger(value) && !text.includes("e")) return text;
+  if (value !== value) return ".nan";
+  if (!isFinite(value)) return value > 0 ? ".inf" : "-.inf";
+  return /^-?\d+e/.test(text) ? text.replace("e", ".e") : text;
 }
 
 function isAmbiguous(text: string): boolean {
@@ -208,8 +166,9 @@ function isAmbiguous(text: string): boolean {
   const ch = text.charCodeAt(0);
   if (ch !== 43 && ch !== 45 && ch !== 46 && (ch < 48 || ch > 57)) return false;
   if (SPECIAL_FLOAT.test(text) || SEXAGESIMAL.test(text)) return true;
-  if (INT.test(text) && isFinite(Number(text.replace(/^[-+]|_/g, "")))) return true;
-  if (FLOAT.test(text) && isFinite(Number.parseFloat(text.replace(/_/g, "")))) return true;
+  // Numbers too big for a double still read as one, Infinity.
+  if (INT.test(text) && !isNaN(Number(text.replace(/^[-+]|_/g, "")))) return true;
+  if (FLOAT.test(text) && !isNaN(Number.parseFloat(text.replace(/_/g, "")))) return true;
   const date = DATE.exec(text);
   if (!date) return false;
   const [, y, m, d, h, min, s, offH, offM] = date;
@@ -226,18 +185,15 @@ function isAmbiguous(text: string): boolean {
 }
 
 function writeString(text: string, level: number, isKey: boolean, flow: boolean): string {
-  openEnded = false;
+  // No word past five letters reads as a null or a bool.
+  if (WORD.test(text) && (text.length > 5 || !NULL_OR_BOOL.test(text))) return text;
   if (INVISIBLE.test(text) || /^\s+$/.test(text)) return writeDouble(text);
   const shift = indent * Math.max(1, level);
   if (!isKey && text.includes("\n")) {
-    if (
-      flow ||
-      !BLOCK.test(text) ||
-      (shift - (level === 0 ? -1 : indent * (level - 1)) > 9 && /^\n* /.test(text))
-    ) {
-      return writeDouble(text);
-    }
-    const header = /^\n* /.test(text) ? String(level === 0 ? indent + 1 : indent) : "";
+    // The indentation indicator is one digit, counted from the parent's column.
+    const leading = /^\n* /.test(text);
+    if (flow || !BLOCK.test(text) || (leading && indent > 9)) return writeDouble(text);
+    const header = leading ? String(indent) : "";
     const keep = text.endsWith("\n\n") || text === "\n";
     const chomp = text.endsWith("\n") ? (keep ? "+" : "") : "-";
     openEnded = keep;
@@ -249,7 +205,8 @@ function writeString(text: string, level: number, isKey: boolean, flow: boolean)
     text !== "" &&
     text !== "=" &&
     PLAIN.test(text) &&
-    !(level === 0 && FORBIDDEN_START.test(text)) &&
+    // A top-level string, or a key that may start a line, can't look like `---`.
+    !((level === 0 || isKey) && FORBIDDEN_START.test(text)) &&
     !isAmbiguous(text)
   ) {
     return text;
@@ -260,8 +217,8 @@ function writeString(text: string, level: number, isKey: boolean, flow: boolean)
 
 function writeDouble(text: string): string {
   return `"${text.replace(ESCAPE, (ch) => {
-    const short = ESCAPES[ch];
-    if (short) return `\\${short}`;
+    const short = ESCAPED.indexOf(ch);
+    if (short >= 0) return `\\${ESCAPES[short]}`;
     const code = ch.charCodeAt(0);
     const hex = code.toString(16).toUpperCase();
     return code <= 255 ? `\\x${hex.padStart(2, "0")}` : `\\u${hex.padStart(4, "0")}`;

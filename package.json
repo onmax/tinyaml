@@ -1,7 +1,7 @@
 {
   "name": "tinyaml",
   "version": "0.0.0",
-  "description": "Tiny, fast YAML parser and dumper with js-yaml JSON_SCHEMA semantics",
+  "description": "Tiny, fast YAML parser and stringifier, with drop-in replacements for js-yaml and others",
   "keywords": [
     "dumper",
     "frontmatter",
@@ -22,8 +22,38 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "./package.json"
+      ],
+      "js-yaml": [
+        "./dist/js-yaml.d.mts"
+      ],
+      "js-yaml-v5": [
+        "./dist/js-yaml-v5.d.mts"
+      ],
+      "yaml": [
+        "./dist/yaml.d.mts"
+      ],
+      "yamljs": [
+        "./dist/yamljs.d.mts"
+      ],
+      "std": [
+        "./dist/std.d.mts"
+      ],
+      "*": [
+        "./dist/index.d.mts"
+      ]
+    }
+  },
   "exports": {
     ".": "./dist/index.mjs",
+    "./js-yaml": "./dist/js-yaml.mjs",
+    "./js-yaml-v5": "./dist/js-yaml-v5.mjs",
+    "./yaml": "./dist/yaml.mjs",
+    "./yamljs": "./dist/yamljs.mjs",
+    "./std": "./dist/std.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -36,28 +66,36 @@
     "fmt": "vp fmt",
     "typecheck": "tsrs --noEmit",
     "test": "vp test",
+    "test:dist": "vp test run --config test/dist.config.ts",
     "check": "vp check && pnpm typecheck",
     "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
     "prepare": "vp config",
-    "suite": "node scripts/suite.ts",
-    "suite:fetch": "git clone --depth 1 -b data-2022-01-17 https://github.com/yaml/yaml-test-suite .cache/yaml-test-suite",
-    "fuzz": "node scripts/fuzz.ts",
-    "js-yaml-tests": "scripts/js-yaml-tests/run.sh",
-    "js-yaml-tests:fetch": "git clone --depth 1 --branch 5.5.0 https://github.com/nodeca/js-yaml .cache/js-yaml && cd .cache/js-yaml && npm ci --ignore-scripts && npm run build && npm run spec:get",
+    "fixtures": "scripts/fixtures.sh",
+    "compare": "scripts/compare.sh",
     "size": "node scripts/size.ts",
     "bench": "node bench/index.ts"
   },
   "devDependencies": {
+    "@comark/html": "^0.8.1",
+    "@std/yaml": "jsr:^1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.6.6",
+    "@types/yamljs": "^0.2.34",
+    "comark": "^0.8.1",
+    "comark-charts": "^0.7.4",
     "esbuild": "^0.28.2",
-    "js-yaml": "5.5.0",
+    "js-yaml": "4.3.2",
+    "js-yaml5": "npm:js-yaml@5.5.0",
     "publint": "^0.3.25",
     "tsrs": "0.20.1-ts7.1.0-beta",
     "typescript": "^7.0.2",
-    "vite-plus": "^1.4.0"
+    "typescript5": "npm:typescript@5.9.3",
+    "vite-plus": "^1.4.0",
+    "yaml": "^2.9.1",
+    "yamljs": "^0.3.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "packageManager": "pnpm@12.16.1"
 }

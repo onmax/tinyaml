@@ -35,8 +35,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Format (oxfmt), lint (oxlint, type-aware) and typecheck (tsrs).
   check:
-    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -49,15 +49,97 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: dist
-          path: dist
       - run: pnpm install --frozen-lockfile
-      - name: Check
-        run: pnpm check
-      # The conformance tests compare every yaml-test-suite case with js-yaml.
-      - name: Fetch the YAML test suite
-        run: pnpm suite:fetch
-      - name: Test
-        run: pnpm test
+      - run: pnpm check
+
+  # Vitest, on the latest Node 22, 24 and 26.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache
+          key: fixtures-${{ runner.os }}-${{ hashFiles('scripts/fixtures.sh') }}
+      # Fails if a fixture is still missing; on CI the tests that need them
+      # run instead of skipping (see test/fixtures.ts).
+      - run: pnpm fixtures
+      - run: pnpm test
+
+  # Every comparison with js-yaml 4 and 5, yaml, yamljs and @std/yaml, their
+  # own test suites included, and the size table. Any unexpected difference
+  # fails the job.
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache
+          key: fixtures-${{ runner.os }}-${{ hashFiles('scripts/fixtures.sh') }}
+      - run: pnpm fixtures
+      # bash runs with pipefail, so a failing comparison fails the step.
+      - name: Compare
+        shell: bash
+        run: |
+          status=0
+          pnpm compare 2>&1 | tee compare.txt || status=$?
+          { echo '```text'; cat compare.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  # The same tests and comparisons against the built dist/ that npm ships,
+  # since each entry's build folds its parser mode (src/core/mode.ts).
+  dist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache
+          key: fixtures-${{ runner.os }}-${{ hashFiles('scripts/fixtures.sh') }}
+      - run: pnpm fixtures
+      - name: Build
+        run: pnpm build
+      - name: Test dist
+        run: pnpm test:dist
+      - name: Compare dist
+        shell: bash
+        run: |
+          status=0
+          DIST=1 pnpm compare 2>&1 | tee compare.txt || status=$?
+          { echo '```text'; cat compare.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
