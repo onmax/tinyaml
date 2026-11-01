@@ -503,17 +503,20 @@ export default (value, replacer_, space) => {
     ? new Map()
     : null
 
-  const str = is_primitive_object(value)
-    ? JSON.stringify(value)
-    : stringify('', {'': value}, EMPTY)
+  // tinyjson5: let go of the comments read, also when a getter or toJSON throws.
+  try {
+    const str = is_primitive_object(value)
+      ? JSON.stringify(value)
+      : stringify('', {'': value}, EMPTY)
 
-  clean()
+    clean()
 
-  const result = is_object(value)
-    ? process_comments(value, PREFIX_BEFORE_ALL, EMPTY, true).trimLeft()
-      + str
-      + process_comments(value, PREFIX_AFTER_ALL, EMPTY).trimRight()
-    : str
-  hosts = null
-  return result
+    return is_object(value)
+      ? process_comments(value, PREFIX_BEFORE_ALL, EMPTY, true).trimLeft()
+        + str
+        + process_comments(value, PREFIX_AFTER_ALL, EMPTY).trimRight()
+      : str
+  } finally {
+    hosts = null
+  }
 }

@@ -12,7 +12,7 @@ export type Replacer = ((this: any, key: string, value: any) => any) | (string |
 export interface ParseOptions {
   /** What to do with keys an empty object has, such as hasOwnProperty and __proto__. Default "ignore". */
   reserved_keys?: "ignore" | "throw" | "replace";
-  /** Make objects with Object.create(null). Default true with reserved_keys "replace", else false. */
+  /** Make objects with Object.create(null). Default false with reserved_keys "replace", else true. */
   null_prototype?: boolean;
   reviver?: Reviver;
   /** "json" to throw on anything but strict JSON; "cjson" for JSON with comments. */

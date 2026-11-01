@@ -452,6 +452,7 @@ const common = {
 }
 
 export {
+  sloppy_set,
   sloppy_delete,
   PROP_SYMBOL_PREFIXES,
   PREFIX_BEFORE,

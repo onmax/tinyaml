@@ -7,6 +7,7 @@ import {
 } from './array.js'
 
 import {
+  sloppy_set,
   PREFIX_BEFORE,
   PREFIX_AFTER_PROP,
   PREFIX_AFTER_COLON,
@@ -322,7 +323,7 @@ const parse_object = () => {
     next()
     parse_comments(PREFIX_AFTER_COLON)
 
-    obj[name] = transform(name, walk())
+    sloppy_set(obj, name, transform(name, walk()))
     parse_comments()
   }
 
@@ -376,7 +377,7 @@ const parse_array = () => {
     set_prop(i)
     assign_comments(PREFIX_BEFORE)
 
-    array[i] = transform(i, walk())
+    sloppy_set(array, i, transform(i, walk()))
     i ++
 
     parse_comments()
