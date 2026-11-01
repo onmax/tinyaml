@@ -55,6 +55,8 @@ Each package matches its original on that library's own tests and on hundreds of
 | @std/yaml | `tinyaml/std` | 11.3 → 10.9 KiB | 2.0× faster |
 | json5 2.2.3 | `tinyjson5` | 7.5 → 3.0 KiB | 8.0× faster |
 | ini 7.0.0 | `tinyini` | 1.6 → 1.6 KiB | 2.1× faster |
+
+Starting fresh with YAML? The root `tinyaml` API is the smallest of all: 8.1 KiB, 1.8× smaller than js-yaml 4 and 3.7× smaller than yaml, and it parses 19.3× faster than yaml.
 <!-- drop-ins:end -->
 
 Size is the minified bundle, gzipped. Speed is parsing each package's large benchmark file on an Apple M4 with Node 26. tinyini is as small as ini already is, so it only wins on speed. Each package's README says how its numbers were measured and has the full results.

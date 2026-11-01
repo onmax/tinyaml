@@ -57,10 +57,20 @@ const rows: [string, string, string, string][] = [
   ["ini 7.0.0", "tinyini", size(iniSize, "ini (whole module)", "tinyini (whole module)"), parseLarge(iniBench)],
 ];
 
+// tinyaml's own API is smaller than any drop-in, so it gets a line of its own.
+const root = yamlSize["tinyaml"]!.gzip;
+const smaller = (library: string) => (yamlSize[library]!.gzip / root).toFixed(1);
+const fresh =
+  `Starting fresh with YAML? The root \`tinyaml\` API is the smallest of all: ${kib(root)} KiB, ` +
+  `${smaller("js-yaml 4")}× smaller than js-yaml 4 and ${smaller("yaml")}× smaller than yaml, ` +
+  `and it parses ${yamlParse("yaml (tinyaml root)")} faster than yaml.`;
+
 const table = [
   "| You use | Switch to | Size, gzip | Parses |",
   "| --- | --- | --: | --: |",
   ...rows.map(([lib, pkg, gzip, parse]) => `| ${lib} | \`${pkg}\` | ${gzip} | ${parse} faster |`),
+  "",
+  fresh,
 ].join("\n");
 
 const start = "<!-- drop-ins:start -->";
