@@ -1,5 +1,5 @@
 // Median time per call over seven rounds: each tinyjson5 entry against the
-// library it replaces. The tsconfig is a 15-line file with comments and
+// library it replaces. The tsconfig is a 14-line file with comments and
 // trailing commas, `test.json5` is json5's own `{a: 1, b: 2}`, and the large
 // file is json5 2.2.3's package-lock.json: 215 KB of JSON5 with a 4-space
 // indent for the JSON5 parsers, and as 2-space JSON with a comment on every
