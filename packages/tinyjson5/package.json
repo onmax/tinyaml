@@ -1,0 +1,65 @@
+{
+  "name": "tinyjson5",
+  "version": "0.0.0",
+  "description": "Tiny, fast JSON5 parser and stringifier, a drop-in replacement for json5 2.2.3",
+  "keywords": [
+    "config",
+    "json",
+    "json5",
+    "parser",
+    "stringify"
+  ],
+  "homepage": "https://github.com/onmax/tinyjson5#readme",
+  "bugs": "https://github.com/onmax/tinyjson5/issues",
+  "license": "MIT",
+  "author": "onmax",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onmax/tinyjson5.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vp pack",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "typecheck": "tsrs --noEmit",
+    "test": "vp test",
+    "check": "vp check && pnpm typecheck",
+    "ready": "vp fmt && pnpm build && pnpm check && pnpm test",
+    "prepare": "vp config",
+    "corpus": "node scripts/corpus.ts",
+    "corpus:fetch": "git clone https://github.com/json5/json5-tests .cache/json5-tests && git -C .cache/json5-tests checkout ceb24d4080137d70833f86c25659c1331b80a387",
+    "json5:fetch": "git clone --depth 1 --branch v2.2.3 https://github.com/json5/json5 .cache/json5-2.2.3",
+    "json5-tests": "node scripts/json5-tests.ts",
+    "fuzz": "node scripts/fuzz.ts",
+    "fuzz:stringify": "node scripts/fuzz-stringify.ts",
+    "unicode": "node scripts/unicode.ts",
+    "size": "node scripts/size.ts",
+    "bench": "node bench/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "json5": "2.2.3",
+    "publint": "^0.3.25",
+    "tsrs": "0.20.1-ts7.1.0-beta",
+    "typescript": "^7.0.2",
+    "vite-plus": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.16.1"
+}
