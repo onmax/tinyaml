@@ -317,15 +317,13 @@ export function parse_to_uint32array(contents: Uint8Array): Uint32Array {
 }
 
 const encoder = new TextEncoder();
-const typedLength = Object.getOwnPropertyDescriptor(
-  Object.getPrototypeOf(Uint8Array.prototype),
-  "length",
-)!.get!;
+const TypedArray = Object.getPrototypeOf(Uint8Array.prototype) as object;
 
 /** A typed array's own length, from any realm, or 0 for anything else. */
 const intrinsicLength = (value: unknown): number => {
   try {
-    return typedLength.call(value) as number;
+    // The getter on %TypedArray%.prototype, called with value as `this`.
+    return Reflect.get(TypedArray, "length", value) as number;
   } catch {
     return 0;
   }
