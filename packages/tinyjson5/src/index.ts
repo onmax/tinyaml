@@ -24,9 +24,13 @@ export function parse<T = any>(text: string, reviver?: any, options?: ParseOptio
     options = reviver;
     reviver = undefined;
   }
-  if (options?.bigint != null && typeof options.bigint !== "boolean")
-    throw new TypeError("JSON5: bigint must be a boolean");
-  return parseWith(text, reviver, MODE, options) as T;
+  // Read as json5 3 reads it: tested, then checked, then taken.
+  let bigint = false;
+  if (options != null && options.bigint != null) {
+    if (typeof options.bigint !== "boolean") throw new TypeError("JSON5: bigint must be a boolean");
+    bigint = options.bigint;
+  }
+  return parseWith(text, reviver, MODE, { bigint, jsonc: options?.jsonc }) as T;
 }
 
 /** Converts a JavaScript value to a JSON5 string. */

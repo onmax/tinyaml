@@ -46,17 +46,18 @@ function write(value: any, replacer: any, space: any): string | undefined {
     replacerFunc = replacer as Replacer;
   } else if (Array.isArray(replacer)) {
     propertyList = [];
-    // JSON.stringify reads a replacer list by index, up to the length it had.
-    const list: unknown[] = lean
-      ? Array.from({ length: replacer.length }, (_, i) => replacer[i])
-      : replacer;
-    for (const v of list) {
+    const add = (v: unknown) => {
       let item: string | undefined;
       if (typeof v === "string") item = v;
       else if (typeof v === "number" || v instanceof String || v instanceof Number)
         item = String(v);
-      if (item !== undefined && !propertyList.includes(item)) propertyList.push(item);
-    }
+      if (item !== undefined && !propertyList!.includes(item)) propertyList!.push(item);
+    };
+    // JSON.stringify reads a replacer list by index, up to the length it
+    // had, converting each item before it reads the next. json5 2 iterates it.
+    if (lean)
+      for (let i = 0, length = Math.trunc(replacer.length); i < length; i++) add(replacer[i]);
+    else for (const v of replacer as unknown[]) add(v);
   }
 
   if (space instanceof Number) space = Number(space);
@@ -84,7 +85,7 @@ function write(value: any, replacer: any, space: any): string | undefined {
     if (value instanceof Number) value = Number(value);
     else if (value instanceof String) value = String(value);
     else if (value instanceof Boolean)
-      value = json5 ? !!value.valueOf() : Boolean.prototype.valueOf.call(value);
+      value = json5 ? value.valueOf() : Boolean.prototype.valueOf.call(value);
     else if (lean && value instanceof BigInt) value = BigInt.prototype.valueOf.call(value);
 
     switch (typeof value) {
@@ -129,7 +130,8 @@ function write(value: any, replacer: any, space: any): string | undefined {
     const stepback = indent;
     indent += gap;
     let out = "";
-    for (let i = 0, length = value.length; i < (lean ? length : value.length); i++) {
+    // json5 2 reads the length on every pass, JSON.stringify once.
+    for (let i = 0, length = lean ? value.length : 0; i < (lean ? length : value.length); i++) {
       const item = serializeProperty(i, value) ?? "null";
       if (gap === "") out += (i === 0 ? "[" : ",") + item;
       else out += (i === 0 ? "[\n" : ",\n") + indent + item;

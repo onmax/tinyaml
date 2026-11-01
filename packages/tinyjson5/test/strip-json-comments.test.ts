@@ -1,5 +1,6 @@
 // Where the three strip-json-comments majors differ, each subpath does what
 // its own does.
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vite-plus/test";
 import v3 from "../src/strip-json-comments/index.ts";
 import v2 from "../src/strip-json-comments-v2/index.ts";
@@ -42,5 +43,27 @@ describe("strip-json-comments", () => {
     expect(() => v2(5 as never)).toThrow("str.substr is not a function");
     expect(() => v2(null as never)).toThrow("Cannot read properties of null (reading 'length')");
     expect(v2(new String("//a\n1") as never)).toBe("   \n1");
+  });
+
+  it("reads opts.whitespace before the input in v2, as v2 does", () => {
+    const original = createRequire(import.meta.url)("strip-json-comments-v2");
+    const order = (fn: (str: unknown, opts: unknown) => unknown) => {
+      const reads: string[] = [];
+      const opts = {
+        get whitespace() {
+          return (reads.push("whitespace"), true);
+        },
+      };
+      const str = {
+        get length() {
+          return (reads.push("length"), 0);
+        },
+      };
+      try {
+        fn(str, opts);
+      } catch {}
+      return reads;
+    };
+    expect(order(v2 as never)).toEqual(order(original));
   });
 });
