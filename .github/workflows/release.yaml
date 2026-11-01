@@ -51,6 +51,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ inputs.prerelease }}
+          # Lockstep: every package shares one version and one vX.Y.Z tag.
+          packages: packages/*
 
   # Verify the exact tag once, including recovery dispatches.
   verify-release:
@@ -84,6 +86,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # uppt dispatches release.yml unless told otherwise.
           publish-workflow: release.yaml
+          packages: packages/*
 
   pack:
     needs: verify-release
@@ -109,12 +112,13 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dist
-          path: dist
+          path: packages
       - id: pack
         uses: danielroe/uppt/pack@6c1a9b480b0f02a3f535dedaf1a113f590aa56f2 # v0.6.12
         with:
           checkout: "false"
           install: "false"
+          packages: packages/*
         env:
           # Pack the verified build without running prepack again.
           pnpm_config_ignore_scripts: "true"
@@ -122,7 +126,8 @@ jobs:
       - name: Check release tarball count
         env:
           FILES: ${{ steps.pack.outputs.files }}
-        run: jq -e 'type == "array" and length == 1' <<<"$FILES"
+        # One tarball per package in packages/.
+        run: jq -e --argjson n "$(ls -d packages/*/ | wc -l)" 'type == "array" and length == $n' <<<"$FILES"
 
   # publish the prebuilt tarballs straight to npm through OIDC trusted publishing
   publish:

@@ -2,9 +2,9 @@
   <img src="./.github/banner.svg" alt="tinyaml" width="100%">
 </h1>
 
-[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=release&icon=npm)](https://github.com/onmax/tinyaml/releases)
+[![release](https://comark-ui.onmax.me/badge.svg?source=npm-version&package=tinyaml&label=release&icon=npm)](https://github.com/onmax/tiny/releases)
 [![license: MIT](https://comark-ui.onmax.me/badge.svg?label=license&value=MIT)](./LICENSE)
-[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftinyaml&workflow=release.yaml&icon=github)](https://github.com/onmax/tinyaml/actions/workflows/release.yaml)
+[![Release status](https://comark-ui.onmax.me/badge.svg?source=github-actions&repository=onmax%2Ftiny&workflow=release.yaml&icon=github)](https://github.com/onmax/tiny/actions/workflows/release.yaml)
 
 **YAML for JavaScript in 7.9 KiB.** No dependencies, 12–19× faster than yaml, and right on all 373 [yaml-test-suite](https://github.com/yaml/yaml-test-suite) cases with an expected result: every valid document read, every invalid one rejected. js-yaml, yaml, yamljs and @std/yaml each miss some.
 

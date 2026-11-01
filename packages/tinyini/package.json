@@ -10,13 +10,14 @@
     "parser",
     "stringify"
   ],
-  "homepage": "https://github.com/onmax/tinyini#readme",
-  "bugs": "https://github.com/onmax/tinyini/issues",
+  "homepage": "https://github.com/onmax/tiny/tree/main/packages/tinyini#readme",
+  "bugs": "https://github.com/onmax/tiny/issues",
   "license": "MIT",
   "author": "onmax",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/onmax/tinyini.git"
+    "url": "git+https://github.com/onmax/tiny.git",
+    "directory": "packages/tinyini"
   },
   "files": [
     "dist"
@@ -58,6 +59,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "packageManager": "pnpm@12.16.1"
+  }
 }

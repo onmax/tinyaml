@@ -1,0 +1,17 @@
+{
+  "name": "tiny",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "test": "pnpm -r test",
+    "ready": "pnpm -r ready",
+    "size": "pnpm -r size",
+    "bench": "pnpm -r bench"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

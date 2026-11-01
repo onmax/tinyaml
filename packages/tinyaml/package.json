@@ -9,13 +9,14 @@
     "parser",
     "yaml"
   ],
-  "homepage": "https://github.com/onmax/tinyaml#readme",
-  "bugs": "https://github.com/onmax/tinyaml/issues",
+  "homepage": "https://github.com/onmax/tiny/tree/main/packages/tinyaml#readme",
+  "bugs": "https://github.com/onmax/tiny/issues",
   "license": "MIT",
   "author": "onmax",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/onmax/tinyaml.git"
+    "url": "git+https://github.com/onmax/tiny.git",
+    "directory": "packages/tinyaml"
   },
   "files": [
     "dist"
@@ -96,6 +97,5 @@
   },
   "engines": {
     "node": ">=22.12.0"
-  },
-  "packageManager": "pnpm@12.16.1"
+  }
 }
