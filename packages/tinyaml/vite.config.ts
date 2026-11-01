@@ -14,16 +14,27 @@ export const MODES = {
   yamljs: { yamljs: "src/yamljs/index.ts" },
   js5: { "js-yaml-v5": "src/js-yaml-v5/index.ts" },
 };
+// The linter, its ESLint plugin, Vite Doctor extension and CLI use tinyaml's
+// own API, so they build in `spec` mode, but apart from `index` so that its
+// build stays the same.
+const TOOLS = {
+  linter: "src/linter.ts",
+  doctor: "src/doctor.ts",
+  eslint: "src/eslint.ts",
+  cli: "src/cli.ts",
+};
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const MODE = here("src/core/mode.ts");
 
 export default defineConfig({
   // ESM only, with types, and publint fails the build on a broken package.json.
   // tsdown cleans once, and runs publint once all the builds are done.
-  pack: Object.entries(MODES).map(([mode, entry]) => ({
+  pack: [...Object.entries(MODES), ["spec", TOOLS] as const].map(([mode, entry]) => ({
     entry,
     format: ["esm"],
     platform: "neutral",
+    // The CLI and the Doctor extension run in Node.
+    deps: { neverBundle: [/^node:/] },
     fixedExtension: true,
     dts: true,
     clean: true,
